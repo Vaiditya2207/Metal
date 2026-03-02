@@ -10,13 +10,18 @@
 
 ## 1. High-Level Architecture
 
-![diagram](./assets/architecture-1.svg)
+[Diagram: High-Level Architecture. A block diagram showing the 'Metal' application divided into four major layers: 
+1. UI Layer (AppKit, Browser Chrome).
+2. Logic Layer (DOM Tree, CSS Parser, JS Engine).
+3. Resource Layer (Network Loader, Cache, ML Predictor).
+4. Platform Layer (macOS APIs, Metal GPU, Apple Silicon Hardware).
+Lines indicate data flow between these layers, with the Logic Layer at the center.]
 
 ---
 
 ## 2. Process Model
 
-![diagram](./assets/architecture-2.svg)
+[Diagram: Multi-Process Model. Shows a central 'UI Process' (Main Process) managing multiple 'Renderer Processes' (one per tab). A separate 'GPU Process' handles all Metal rendering commands for all tabs, and a 'Network/ML Process' handles shared background tasks. Communication occurs via Mach Ports and shared memory.]
 
 | Process | Responsibilities | Sandboxed |
 |---|---|---|
@@ -31,11 +36,11 @@
 
 ### 3.1 Unified Memory Strategy
 
-![diagram](./assets/architecture-3.svg)
+[Diagram: Unified Memory Strategy. Illustrates Apple Silicon's UMA where CPU and GPU share the same physical memory pool. The diagram shows how a 'Texture Resource' created by the CPU is immediately accessible by the GPU without copying, drastically reducing latency and memory footprint.]
 
 ### 3.2 Arena Allocation Per Tab
 
-![diagram](./assets/architecture-4.svg)
+[Diagram: Arena Allocation. Shows a 'Memory Pool' dedicated to a single tab. As the tab parses HTML and CSS, 'DOM Nodes' and 'Style Objects' are stacked linearly in the arena. When the tab is closed, the 'Entire Arena' is wiped in a single O(1) operation, ensuring zero leaks.]
 
 ### 3.3 Allocator Hierarchy
 
@@ -50,29 +55,45 @@
 
 ## 4. Rendering Pipeline
 
-![diagram](./assets/architecture-5.svg)
+[Diagram: Rendering Pipeline. A flow chart: 
+1. DOM + CSSOM -> Style Resolution.
+2. Resolution -> Layout Tree (Box Model).
+3. Layout Tree -> Paint Commands (Vertex/Index data).
+4. Paint Commands -> Metal Command Buffer.
+5. Metal Command Buffer -> GPU -> Screen.]
 
 ### 4.1 Frame Lifecycle (120 Hz target = 8.33 ms budget)
 
-![diagram](./assets/architecture-6.svg)
+[Diagram: Frame Lifecycle Timeline. A horizontal bar spanning 8.33ms, divided into segments: 
+- Input Handling (0.5ms).
+- JS Execution (2.0ms).
+- Style/Layout (2.0ms).
+- Paint Encoding (1.5ms).
+- GPU Work (2.0ms).
+- Idle/Buffer (0.33ms).]
 
 ---
 
 ## 5. JavaScript Engine Architecture
 
-![diagram](./assets/architecture-7.svg)
+[Diagram: JS Engine Architecture. Shows a dual-engine setup. 'JavaScriptCore' is the primary engine for high-performance active tabs, while 'QuickJS' acts as a low-memory fallback for background tabs. A 'Bridge' layer handles DOM bindings and IPC between the JS environments and the Core Engine.]
 
 ---
 
 ## 6. Networking & Resource Loading
 
-![diagram](./assets/architecture-8.svg)
+[Diagram: Network Stack. Shows the 'Resource Loader' interacting with 'NSURLSession'. It includes a 'Cache' layer (Volatile Arena + Persistent Disk) and an 'ML Predictor' that suggests URLs to prefetch based on history. Data flows from the wire into the HTML Parser in chunks.]
 
 ---
 
 ## 7. QoS Thread Distribution
 
-![diagram](./assets/architecture-9.svg)
+[Diagram: Thread QoS Map. A list of threads and their macOS QoS classes: 
+- Main/UI Thread: USER_INTERACTIVE.
+- Render Thread: USER_INTERACTIVE.
+- Network Thread: USER_INITIATED.
+- ML Prefetch: BACKGROUND.
+- Housekeeping/GC: UTILITY.]
 
 ---
 

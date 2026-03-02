@@ -43,7 +43,7 @@ Metal is a complete browser application comprising:
 
 ## 2. System Overview
 
-![diagram](./assets/srs-1.svg)
+[Diagram: System Overview. A high-level block diagram showing the interaction between the User (input), the Browser UI (AppKit), the Core Engine (Zig), and the macOS System Services (Metal, Network, JavaScriptCore). The diagram illustrates a unidirectional flow from user input to UI, which then triggers engine logic, leading to rendering via Metal and data fetching via the networking stack.]
 
 ---
 
@@ -126,7 +126,7 @@ Metal is a complete browser application comprising:
 | FR-7.4 | Bookmarks | P1 |
 | FR-7.5 | History | P1 |
 | FR-7.6 | Downloads manager | P1 |
-| FR-7.7 | Find-in-page (⌘F) | P1 |
+| FR-7.7 | Find-in-page (CMD-F) | P1 |
 | FR-7.8 | Settings / Preferences | P1 |
 | FR-7.9 | Multiple profiles | P2 |
 
@@ -208,15 +208,15 @@ Metal is a complete browser application comprising:
 
 ### UC-1: Basic Web Browsing
 
-![diagram](./assets/srs-2.svg)
+[Diagram: Use Case 1 - Basic Web Browsing. A sequence diagram showing: 1. User enters URL in Address Bar. 2. UI Process initiates Fetch. 3. Network Process returns HTML/CSS. 4. Renderer Process parses and layouts the page. 5. GPU Process encodes Metal commands. 6. Screen displays the rendered page.]
 
 ### UC-2: Tab Management
 
-![diagram](./assets/srs-3.svg)
+[Diagram: Use Case 2 - Tab Management. A flowchart showing: 1. User clicks 'New Tab'. 2. UI Process spawns a new Renderer Process. 3. User switches tabs. 4. UI Process signals current Renderer to pause and new Renderer to resume/draw. 5. User closes tab. 6. UI Process terminates Renderer and reclaims memory.]
 
 ### UC-3: Developer Tools Session
 
-![diagram](./assets/srs-4.svg)
+[Diagram: Use Case 3 - Developer Tools Session. A split-view diagram showing the main browser window on the left and the DevTools panel on the right. An 'Inspector' tool is shown selecting a DOM node in the browser, which highlights the corresponding code and computed styles in the DevTools panel. Data flows via IPC between the Renderer and the DevTools UI.]
 
 ---
 
