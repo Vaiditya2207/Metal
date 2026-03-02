@@ -3,7 +3,7 @@
 
 ---
 
-## Phase 0 — Toolchain Bootstrap *(~1 week)*
+## Phase 0 — Toolchain Bootstrap *(~1 week)* [x]
 
 ### Setup
 - [ ] Install Zig 0.14+ via `brew install zig` or official tarball

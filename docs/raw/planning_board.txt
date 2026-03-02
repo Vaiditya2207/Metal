@@ -1,11 +1,11 @@
 # Planning Sketchboard
-## Metal Browser Engine  Project Management Hub
+## Metal Browser Engine — Project Management Hub
 
 ---
 
 ## 1. Milestone Timeline
 
-[Diagram: diagram]
+![diagram](./assets/planning_board-1.svg)
 
 ---
 
@@ -13,7 +13,7 @@
 
 The **critical path** determines the minimum project duration. Any delay on this path delays the entire project.
 
-[Diagram: diagram]
+![diagram](./assets/planning_board-2.svg)
 
 **Off-critical-path** items that can be parallelized:
 - P7 (Networking) can run parallel with P6
@@ -24,7 +24,7 @@ The **critical path** determines the minimum project duration. Any delay on this
 
 ## 3. Risk Heat Map
 
-[Diagram: diagram]
+![diagram](./assets/planning_board-3.svg)
 
 ---
 
@@ -32,21 +32,21 @@ The **critical path** determines the minimum project duration. Any delay on this
 
 | Phase | Gate Criteria | Decision Maker |
 |---|---|---|
-| **P0  P1** | `zig build` succeeds, binary runs | Auto |
-| **P1  P2** | Window opens, Metal clears at refresh rate | Human review |
-| **P2  P3** | 20+ tokenizer tests pass, DOM tree correct | Auto |
-| **P3  P4** | Style resolution correct on 10 test pages | Auto |
-| **P4  P5** | Layout coordinates match expected values | Auto + visual |
-| **P5  P6** | Text renders crisply at Retina, frame < 4 ms | Human review |
-| **P6  P7** | JS DOM manipulation updates screen | Auto |
-| **P7  P8** | Real webpage loads with styles + images | Human review |
-| **P8  P9** | **MVP milestone**: interactive browsing works | **Full review** |
-| **P9  P10** | Crash isolation verified, zero-copy IPC | Auto |
-| **P10  P11** | 50 tabs < 1 GB RSS, instant tab switch | Human review |
-| **P11  P12** | Prefetch reduces latency measurably | Auto |
-| **P12  P13** | DevTools functional with zero observer overhead | Human review |
-| **P13  P14** | LLM features work within memory budget | Human review |
-| **P14  Release** | 1 week daily-driving, notarized DMG | **Full review** |
+| **P0 → P1** | `zig build` succeeds, binary runs | Auto |
+| **P1 → P2** | Window opens, Metal clears at refresh rate | Human review |
+| **P2 → P3** | 20+ tokenizer tests pass, DOM tree correct | Auto |
+| **P3 → P4** | Style resolution correct on 10 test pages | Auto |
+| **P4 → P5** | Layout coordinates match expected values | Auto + visual |
+| **P5 → P6** | Text renders crisply at Retina, frame < 4 ms | Human review |
+| **P6 → P7** | JS DOM manipulation updates screen | Auto |
+| **P7 → P8** | Real webpage loads with styles + images | Human review |
+| **P8 → P9** | **MVP milestone**: interactive browsing works | **Full review** |
+| **P9 → P10** | Crash isolation verified, zero-copy IPC | Auto |
+| **P10 → P11** | 50 tabs < 1 GB RSS, instant tab switch | Human review |
+| **P11 → P12** | Prefetch reduces latency measurably | Auto |
+| **P12 → P13** | DevTools functional with zero observer overhead | Human review |
+| **P13 → P14** | LLM features work within memory budget | Human review |
+| **P14 → Release** | 1 week daily-driving, notarized DMG | **Full review** |
 
 ---
 
@@ -57,5 +57,5 @@ The **critical path** determines the minimum project duration. Any delay on this
 | **RSS (idle, 1 tab)** | < 30 MB | `Activity Monitor` |
 | **RSS (50 tabs)** | < 1 GB | Load scripted test |
 | **Frame time** | < 4 ms at 120 Hz | Metal GPU Profiler |
-| **Tab close  RSS freed** | 100% arena freed | GPA leak report |
+| **Tab close → RSS freed** | 100% arena freed | GPA leak report |
 | **Cold launch** | < 500 ms | `time` command |

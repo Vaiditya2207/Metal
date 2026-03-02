@@ -1,4 +1,4 @@
-# Development Guide  Metal Browser Engine
+# Development Guide — Metal Browser Engine
 
 ## 1. Toolchain
 - **Zig**: 0.14.0 or later.

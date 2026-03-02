@@ -1,5 +1,5 @@
 # Software Requirements Specification (SRS)
-## Metal  macOS-Native Browser Engine
+## Metal — macOS-Native Browser Engine
 
 | Field | Value |
 |---|---|
@@ -30,7 +30,7 @@ Metal is a complete browser application comprising:
 
 | Term | Definition |
 |---|---|
-| RSS | Resident Set Size  physical RAM consumed |
+| RSS | Resident Set Size — physical RAM consumed |
 | UMA | Unified Memory Architecture |
 | MSDF | Multi-Channel Signed Distance Field |
 | IPC | Inter-Process Communication |
@@ -43,7 +43,7 @@ Metal is a complete browser application comprising:
 
 ## 2. System Overview
 
-[Diagram: diagram]
+![diagram](./assets/srs-1.svg)
 
 ---
 
@@ -55,7 +55,7 @@ Metal is a complete browser application comprising:
 |---|---|---|
 | FR-1.1 | Parse HTML5 documents per WHATWG tokenizer spec (subset) | **P0** |
 | FR-1.2 | Build in-memory DOM tree with Element, Text, Document nodes | **P0** |
-| FR-1.3 | Support tags: `html, head, body, div, span, p, h1h6, a, img, ul, ol, li, table, tr, td, form, input, textarea, button, script, style, link, meta, title` | **P0** |
+| FR-1.3 | Support tags: `html, head, body, div, span, p, h1–h6, a, img, ul, ol, li, table, tr, td, form, input, textarea, button, script, style, link, meta, title` | **P0** |
 | FR-1.4 | Handle malformed HTML gracefully (error recovery) | P1 |
 | FR-1.5 | Support `<template>`, `<slot>`, Shadow DOM | P2 |
 
@@ -126,7 +126,7 @@ Metal is a complete browser application comprising:
 | FR-7.4 | Bookmarks | P1 |
 | FR-7.5 | History | P1 |
 | FR-7.6 | Downloads manager | P1 |
-| FR-7.7 | Find-in-page (F) | P1 |
+| FR-7.7 | Find-in-page (⌘F) | P1 |
 | FR-7.8 | Settings / Preferences | P1 |
 | FR-7.9 | Multiple profiles | P2 |
 
@@ -164,7 +164,7 @@ Metal is a complete browser application comprising:
 | NFR-1.2 | Initial page load (cached, simple page) | < 200 ms |
 | NFR-1.3 | Tab switch latency | < 50 ms |
 | NFR-1.4 | JS startup (JSC context creation) | < 5 ms |
-| NFR-1.5 | JS startup (QuickJS context creation) | < 300 s |
+| NFR-1.5 | JS startup (QuickJS context creation) | < 300 μs |
 | NFR-1.6 | Cold launch to window visible | < 500 ms |
 
 ### NFR-2: Memory
@@ -208,15 +208,15 @@ Metal is a complete browser application comprising:
 
 ### UC-1: Basic Web Browsing
 
-[Diagram: diagram]
+![diagram](./assets/srs-2.svg)
 
 ### UC-2: Tab Management
 
-[Diagram: diagram]
+![diagram](./assets/srs-3.svg)
 
 ### UC-3: Developer Tools Session
 
-[Diagram: diagram]
+![diagram](./assets/srs-4.svg)
 
 ---
 
@@ -231,7 +231,7 @@ Metal is a complete browser application comprising:
 
 ---
 
-## 7. Acceptance Criteria (MVP  Phase 08)
+## 7. Acceptance Criteria (MVP — Phase 0–8)
 
 The browser is considered **MVP-complete** when:
 

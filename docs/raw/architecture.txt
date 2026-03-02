@@ -1,5 +1,5 @@
 # System Architecture Document
-## Metal  macOS-Native Browser Engine
+## Metal — macOS-Native Browser Engine
 
 | Field | Value |
 |---|---|
@@ -10,18 +10,18 @@
 
 ## 1. High-Level Architecture
 
-[Diagram: diagram]
+![diagram](./assets/architecture-1.svg)
 
 ---
 
 ## 2. Process Model
 
-[Diagram: diagram]
+![diagram](./assets/architecture-2.svg)
 
 | Process | Responsibilities | Sandboxed |
 |---|---|---|
 | **UI Process** | Window management, tab bar, URL bar, user input dispatch | Minimal |
-| **Renderer (N)** | HTML parsing, CSS resolution, layout, JS execution, paint | **Yes**  no filesystem/network |
+| **Renderer (×N)** | HTML parsing, CSS resolution, layout, JS execution, paint | **Yes** — no filesystem/network |
 | **GPU Process** | Metal command encoding, texture management, compositing | Yes |
 | **ML Process** | Core ML inference, MLX LLM, cache predictions | Yes |
 
@@ -31,11 +31,11 @@
 
 ### 3.1 Unified Memory Strategy
 
-[Diagram: diagram]
+![diagram](./assets/architecture-3.svg)
 
 ### 3.2 Arena Allocation Per Tab
 
-[Diagram: diagram]
+![diagram](./assets/architecture-4.svg)
 
 ### 3.3 Allocator Hierarchy
 
@@ -50,29 +50,29 @@
 
 ## 4. Rendering Pipeline
 
-[Diagram: diagram]
+![diagram](./assets/architecture-5.svg)
 
 ### 4.1 Frame Lifecycle (120 Hz target = 8.33 ms budget)
 
-[Diagram: diagram]
+![diagram](./assets/architecture-6.svg)
 
 ---
 
 ## 5. JavaScript Engine Architecture
 
-[Diagram: diagram]
+![diagram](./assets/architecture-7.svg)
 
 ---
 
 ## 6. Networking & Resource Loading
 
-[Diagram: diagram]
+![diagram](./assets/architecture-8.svg)
 
 ---
 
 ## 7. QoS Thread Distribution
 
-[Diagram: diagram]
+![diagram](./assets/architecture-9.svg)
 
 ---
 
