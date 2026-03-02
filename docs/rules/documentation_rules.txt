@@ -1,0 +1,15 @@
+Metal Documentation Rules
+
+1. No Emojis
+- Emojis are strictly prohibited.
+
+2. Plain Text Compatibility
+- Every .md file in /docs/ must have a .txt version in /docs/raw/.
+-Images replaced with [Diagram: descriptive text].
+
+3. Asset Management
+- All diagrams in /docs/assets/.
+- Use relative paths: ./assets/filename.png.
+
+4. Checklists
+- Use [/] for in-progress and [x] for completed.

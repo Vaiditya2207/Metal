@@ -1,0 +1,31 @@
+Metal Browser Engine — Project Documentation Guide
+
+Welcome to the Metal Browser project. This file summarizes the core architectural and development principles of a high-performance, macOS-native browser engine designed for Apple Silicon.
+
+Project Overview:
+Metal is a ground-up reconstruction of a browser engine, written in Zig and optimized for the macOS ecosystem. It aims to reduce memory footprint (RSS) and maximize GPU efficiency by using the Metal API and Apple's Unified Memory Architecture (UMA).
+
+Documentation Structure:
+- /docs/architecture.md: Detailed system design, process isolation, and memory strategy.
+- /docs/srs.md: Full software requirements and use cases.
+- /docs/phase_checklist.md: Granular execution tasks for all 14 phases.
+- /docs/dev_guide.md: Coding standards, ObjC interop, and testing rules.
+- /docs/planning_board.md: Project milestones, risks, and KPIs.
+- /docs/assets/: Visual diagrams and PNG/SVG charts.
+- /docs/raw/: Plain-English, text-only versions of all documentation (no diagrams).
+- /docs/rules/: Instruction guides for coding, documentation, and pre-push checks.
+
+Core Architectural Decisions:
+1. Zero-Copy IPC: Using Mach ports and shared memory (shm_open).
+2. Tab-Level Arenas: Dedicated memory arenas per tab.
+3. MSDF Text Rendering: Infinitely scalable, GPU-accelerated text.
+4. Dual JS Engines: JavaScriptCore (active) / QuickJS (background).
+5. On-Device AI: Integration with Core ML and MLX.
+
+Development Setup:
+- Requires Zig 0.14+ on Apple Silicon macOS.
+- Build with 'zig build'.
+- Run with 'zig build run'.
+
+No emojis are permitted in the documentation or source code.
+Detailed diagrams are provided in /docs/assets, and their text descriptions are in /docs/raw.

@@ -1,0 +1,88 @@
+# Metal  Strategic Phase Plan for a macOS-Native Browser Engine
+
+A phased roadmap to build a high-performance, macOS-exclusive browser engine from scratch using **Zig**, **Metal**, and **Apple Silicon** optimizations. Each phase is designed to produce a working, testable artifact before the next begins. Dependencies flow strictly downward.
+
+---
+
+## Guiding Principles
+
+| Principle | Rationale |
+|---|---|
+| **Vertical slices** | Every phase ends with something you can see, run, or measure. No "invisible infrastructure" phases. |
+| **Hardest-risk-first** | The rendering pipeline and JS binding are the two riskiest unknowns  they come early. |
+| **Incremental spec coverage** | Start with a trivial HTML/CSS subset and widen the spec surface over time. |
+| **Test-as-you-go** | Each phase includes its own verification criteria. |
+
+---
+
+## Phase Overview (Dependency Graph)
+
+```mermaid
+graph TD
+    P0["Phase 0: Toolchain & Skeleton"]
+    P1["Phase 1: Window & Metal Surface"]
+    P2["Phase 2: HTML Tokenizer & DOM"]
+    P3["Phase 3: CSS Parser & Style Resolution"]
+    P4["Phase 4: Layout Engine (Box Model)"]
+    P5["Phase 5: GPU Rasterizer & Text (MSDF)"]
+    P6["Phase 6: JavaScript Engine Binding"]
+    P7["Phase 7: Networking & Resource Loader"]
+    P8["Phase 8: Event Loop & User Input"]
+    P9["Phase 9: Process Isolation & IPC"]
+    P10["Phase 10: Tab Manager & UI Chrome"]
+    P11["Phase 11: Predictive Caching & ML"]
+    P12["Phase 12: Developer Tools"]
+    P13["Phase 13: LLM Integration (MLX)"]
+    P14["Phase 14: Polish, Profiles & Ship"]
+
+    P0 --> P1
+    P0 --> P2
+    P1 --> P5
+    P2 --> P3
+    P3 --> P4
+    P4 --> P5
+    P5 --> P8
+    P6 --> P8
+    P7 --> P8
+    P8 --> P9
+    P9 --> P10
+    P10 --> P11
+    P10 --> P12
+    P11 --> P14
+    P12 --> P13
+    P13 --> P14
+```
+
+---
+
+## Phase 0  Toolchain Bootstrap & Project Skeleton
+**Goal:** A Zig project that compiles, links against macOS system frameworks, and runs an empty executable.
+
+### Deliverables
+- `build.zig` configured with:
+  - Zig `0.14+` targeting `aarch64-macos`
+  - C/ObjC interop flags (`@cImport` of `<Cocoa/Cocoa.h>`, `<Metal/Metal.h>`)
+  - Linking against `AppKit`, `Metal`, `MetalKit`, `QuartzCore`
+- Project directory structure:
+
+```
+metal/
+ build.zig
+ build.zig.zon          # package manifest
+ src/
+    main.zig           # entry point
+    platform/           # macOS / ObjC bridge
+    dom/                # HTML tokenizer, DOM tree
+    css/                # CSS parser, style resolver
+    layout/             # box model, layout tree
+    render/             # Metal renderer, MSDF text
+    js/                 # JS engine bindings
+    net/                # networking, resource loader
+    ipc/                # process isolation, shared memory
+    ui/                 # tab bar, URL bar, chrome
+    devtools/           # native developer tools
+    ml/                 # Core ML / MLX integration
+ resources/
+     shaders/            # Metal shader sources (.metal)
+     fonts/              # default system font atlas
+```

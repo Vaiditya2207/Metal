@@ -1,0 +1,245 @@
+# Software Requirements Specification (SRS)
+## Metal  macOS-Native Browser Engine
+
+| Field | Value |
+|---|---|
+| **Version** | 0.1.0-draft |
+| **Date** | 2026-03-03 |
+| **Status** | Draft |
+| **Target Platform** | macOS 14+ / Apple Silicon (aarch64) |
+| **Language** | Zig 0.14+ with C/ObjC interop |
+
+---
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document specifies the functional, non-functional, and system requirements for **Metal**, a high-performance web browser engine built exclusively for macOS on Apple Silicon. It serves as the single source of truth for what the system must do.
+
+### 1.2 Scope
+Metal is a complete browser application comprising:
+- An HTML/CSS parsing and layout engine
+- A GPU-accelerated rendering pipeline (Apple Metal API)
+- A JavaScript execution environment (JavaScriptCore + QuickJS)
+- A networking stack (via NSURLSession)
+- A native macOS UI (AppKit + Metal)
+- On-device ML for predictive caching and AI assistance
+- Native developer tools
+
+### 1.3 Definitions & Acronyms
+
+| Term | Definition |
+|---|---|
+| RSS | Resident Set Size  physical RAM consumed |
+| UMA | Unified Memory Architecture |
+| MSDF | Multi-Channel Signed Distance Field |
+| IPC | Inter-Process Communication |
+| DOM | Document Object Model |
+| JSC | JavaScriptCore |
+| QoS | Quality of Service (macOS thread priority) |
+| ANE | Apple Neural Engine |
+
+---
+
+## 2. System Overview
+
+[Diagram: diagram]
+
+---
+
+## 3. Functional Requirements
+
+### FR-1: HTML Parsing & DOM
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-1.1 | Parse HTML5 documents per WHATWG tokenizer spec (subset) | **P0** |
+| FR-1.2 | Build in-memory DOM tree with Element, Text, Document nodes | **P0** |
+| FR-1.3 | Support tags: `html, head, body, div, span, p, h1h6, a, img, ul, ol, li, table, tr, td, form, input, textarea, button, script, style, link, meta, title` | **P0** |
+| FR-1.4 | Handle malformed HTML gracefully (error recovery) | P1 |
+| FR-1.5 | Support `<template>`, `<slot>`, Shadow DOM | P2 |
+
+### FR-2: CSS Parsing & Style Resolution
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-2.1 | Parse CSS3 subset: selectors (tag, class, id, descendant, child, pseudo-classes) | **P0** |
+| FR-2.2 | Support properties: `display, width, height, margin, padding, border, color, background, font-size, font-family, font-weight, position, top/right/bottom/left, overflow, z-index, opacity, transform, transition, flex, grid` | **P0** |
+| FR-2.3 | Implement cascade, specificity, and inheritance | **P0** |
+| FR-2.4 | Support `@media` queries for responsive layouts | P1 |
+| FR-2.5 | Support CSS animations and `@keyframes` | P1 |
+| FR-2.6 | Support CSS custom properties (`--var`) | P1 |
+
+### FR-3: Layout Engine
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-3.1 | Block layout with margin collapsing | **P0** |
+| FR-3.2 | Inline layout with line breaking | **P0** |
+| FR-3.3 | Flexbox layout | **P0** |
+| FR-3.4 | CSS Grid layout | P1 |
+| FR-3.5 | Absolute/relative/fixed/sticky positioning | **P0** |
+| FR-3.6 | Float layout | P1 |
+
+### FR-4: Rendering
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-4.1 | Metal GPU-accelerated rendering of all layout boxes | **P0** |
+| FR-4.2 | MSDF text rendering with HarfBuzz shaping | **P0** |
+| FR-4.3 | Image decoding and display (JPEG, PNG, WebP, GIF, AVIF) | **P0** |
+| FR-4.4 | CSS border-radius, box-shadow, gradients | P1 |
+| FR-4.5 | CSS transforms (2D and 3D) | P1 |
+| FR-4.6 | `<canvas>` 2D rendering context | P2 |
+| FR-4.7 | WebGL / WebGPU support | P3 |
+
+### FR-5: JavaScript Execution
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-5.1 | Execute ES2020+ JavaScript via JavaScriptCore | **P0** |
+| FR-5.2 | DOM bindings: `document.getElementById`, `querySelector`, `createElement`, `appendChild`, `removeChild`, `textContent`, `innerHTML`, `setAttribute`, `addEventListener` | **P0** |
+| FR-5.3 | `setTimeout`, `setInterval`, `requestAnimationFrame` | **P0** |
+| FR-5.4 | `fetch()` API | **P0** |
+| FR-5.5 | QuickJS fallback for background tabs | P1 |
+| FR-5.6 | Web Workers | P2 |
+| FR-5.7 | Service Workers | P3 |
+
+### FR-6: Networking
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-6.1 | HTTP/1.1, HTTP/2 via NSURLSession | **P0** |
+| FR-6.2 | HTTPS with TLS 1.3 | **P0** |
+| FR-6.3 | HTTP/3 (QUIC) | P1 |
+| FR-6.4 | Cookie management (per-profile isolation) | **P0** |
+| FR-6.5 | WebSocket support | P1 |
+| FR-6.6 | Resource prioritization (critical CSS > images) | P1 |
+
+### FR-7: Browser UI (Chrome)
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-7.1 | Tab bar with create/close/switch | **P0** |
+| FR-7.2 | URL bar with autocomplete | **P0** |
+| FR-7.3 | Back / Forward / Reload buttons | **P0** |
+| FR-7.4 | Bookmarks | P1 |
+| FR-7.5 | History | P1 |
+| FR-7.6 | Downloads manager | P1 |
+| FR-7.7 | Find-in-page (F) | P1 |
+| FR-7.8 | Settings / Preferences | P1 |
+| FR-7.9 | Multiple profiles | P2 |
+
+### FR-8: Developer Tools
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-8.1 | DOM inspector with box-model overlay | P1 |
+| FR-8.2 | Computed styles panel | P1 |
+| FR-8.3 | JavaScript console (REPL) | P1 |
+| FR-8.4 | Network request monitor | P1 |
+| FR-8.5 | JS debugger with breakpoints (DAP/LLDB) | P2 |
+| FR-8.6 | Performance profiler (frame timing) | P2 |
+| FR-8.7 | Session replay (time-travel DOM debugging) | P3 |
+
+### FR-9: ML & AI Features
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-9.1 | Predictive DNS/TLS prefetch based on browsing patterns | P2 |
+| FR-9.2 | Delayed cache commit (first-visit = volatile only) | P2 |
+| FR-9.3 | Page summarization via on-device LLM | P3 |
+| FR-9.4 | Semantic in-page search | P3 |
+| FR-9.5 | AI-assisted DevTools (CSS fix suggestions) | P3 |
+
+---
+
+## 4. Non-Functional Requirements
+
+### NFR-1: Performance
+
+| ID | Requirement | Target |
+|---|---|---|
+| NFR-1.1 | Frame render time | < 4 ms at 120 Hz (ProMotion) |
+| NFR-1.2 | Initial page load (cached, simple page) | < 200 ms |
+| NFR-1.3 | Tab switch latency | < 50 ms |
+| NFR-1.4 | JS startup (JSC context creation) | < 5 ms |
+| NFR-1.5 | JS startup (QuickJS context creation) | < 300 s |
+| NFR-1.6 | Cold launch to window visible | < 500 ms |
+
+### NFR-2: Memory
+
+| ID | Requirement | Target |
+|---|---|---|
+| NFR-2.1 | Browser idle (1 blank tab) | < 30 MB RSS |
+| NFR-2.2 | Per-tab overhead (simple page) | < 15 MB RSS |
+| NFR-2.3 | 50 tabs open (mixed complexity) | < 1 GB RSS |
+| NFR-2.4 | Background tab (compressed) | < 2 MB RSS |
+| NFR-2.5 | Zero memory leaks on tab close | Arena freed completely |
+
+### NFR-3: Security
+
+| ID | Requirement | Target |
+|---|---|---|
+| NFR-3.1 | Process isolation between tabs | Separate OS processes |
+| NFR-3.2 | App Sandbox for renderer processes | macOS entitlements enforced |
+| NFR-3.3 | No cross-origin data leaks | Same-origin policy enforced |
+| NFR-3.4 | All ML inference on-device | Zero data exfiltration |
+
+### NFR-4: Compatibility
+
+| ID | Requirement | Target |
+|---|---|---|
+| NFR-4.1 | Minimum macOS version | macOS 14 Sonoma |
+| NFR-4.2 | Minimum hardware | Apple M1 |
+| NFR-4.3 | Display support | Standard + Retina + ProMotion |
+
+### NFR-5: Accessibility
+
+| ID | Requirement | Target |
+|---|---|---|
+| NFR-5.1 | VoiceOver support | Full navigation |
+| NFR-5.2 | Keyboard-only navigation | All features accessible |
+| NFR-5.3 | Dynamic Type / font scaling | Respect system settings |
+
+---
+
+## 5. Use Cases
+
+### UC-1: Basic Web Browsing
+
+[Diagram: diagram]
+
+### UC-2: Tab Management
+
+[Diagram: diagram]
+
+### UC-3: Developer Tools Session
+
+[Diagram: diagram]
+
+---
+
+## 6. Constraints
+
+| Constraint | Description |
+|---|---|
+| **macOS-only** | No cross-platform support. Deep Apple API integration is a feature, not a limitation. |
+| **Apple Silicon only** | No Intel Mac support. Enables UMA, ANE, and Metal 3 assumptions. |
+| **No WebKit/Blink reuse** | Entire rendering engine is custom-built. WebKit is used only indirectly (JSC framework). |
+| **Zig maturity** | Zig is pre-1.0. API breakage between releases is expected. Pin to a specific version. |
+
+---
+
+## 7. Acceptance Criteria (MVP  Phase 08)
+
+The browser is considered **MVP-complete** when:
+
+- [ ] Can navigate to a URL and render HTML + CSS with text and images
+- [ ] JavaScript executes and can manipulate the DOM
+- [ ] Scrolling is smooth at 120 Hz
+- [ ] Links are clickable and navigate correctly
+- [ ] Text input works in `<input>` fields
+- [ ] RSS stays under 50 MB for a single simple page
+- [ ] Tab close fully frees all associated memory
+- [ ] No crashes on the top 10 test pages

@@ -1,0 +1,21 @@
+Metal Coding Style Guide
+
+1. Memory Management
+- Every allocator MUST be explicit.
+- Use std.heap.ArenaAllocator for objects with a shared lifecycle.
+- Avoid page_allocator directly; use it only at the high level.
+
+2. Error Handling
+- Use Zig's error union types (!T) for all fallible operations.
+- Avoid catch unreachable.
+
+3. Naming Conventions
+- Types/Structs: PascalCase.
+- Functions: camelCase.
+- Variables: snake_case.
+- Files: snake_case.
+
+4. Concurrency & QoS
+- Use QOS_CLASS_USER_INTERACTIVE for the main loop.
+- Use QOS_CLASS_BACKGROUND for non-critical tasks.
+- Leverage Mach ports for IPC.

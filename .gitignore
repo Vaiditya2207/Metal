@@ -1,0 +1,16 @@
+# Zig build artifacts
+zig-out/
+.zig-cache/
+
+# OS generated files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Build tools
+/tmp/
+
+# Agentic AI
+/agents
+/agent
+/.agent

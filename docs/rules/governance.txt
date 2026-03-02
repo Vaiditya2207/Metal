@@ -1,0 +1,25 @@
+Project Governance and Instruction Guide
+Metal — macOS-Native Browser Engine
+
+1. General Principles
+No Emojis: Strictly forbidden in all documentation, source code, commit messages, and comments. 
+No Placeholder: Never leave TODOs or placeholders in pushed code.
+Plain Text Compatibility: All documentation must have a raw text equivalent in /docs/raw.
+
+2. Zig Coding Rules
+Explicit Memory Allocation: Every function that allocates memory must accept an allocator. Use ArenaAllocator for per-tab lifecycles.
+Error Handling: Never ignore errors. Use try or catch to handle all operations with error unions. 
+Naming: PascalCase for types, camelCase for functions, snake_case for files.
+
+3. Architectural Guardrails
+Process Isolation: No direct data sharing between renderer and UI/GPU processes.
+Metal Pipeline: Use MSDF text system for all rendering.
+Quality of Service (QoS): Always pin high-performance tasks to USER_INTERACTIVE.
+
+4. Documentation Maintenance
+Asset Organization: All diagrams must be stored in /docs/assets.
+Phase Checklist: Source of truth for project progress.
+
+Before Pushing:
+Run 'zig build test' and verify no memory leaks.
+Check for broken links and emojis.

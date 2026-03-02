@@ -1,0 +1,16 @@
+Pre-Push Checklist
+
+1. Build & Test
+- [ ] Run zig build.
+- [ ] Run zig build test.
+- [ ] Verify no memory leaks.
+
+2. Code Quality
+- [ ] No Emojis.
+- [ ] No TODOs.
+- [ ] Explicit Allocation.
+
+3. Documentation
+- [ ] Update phase_checklist.md.
+- [ ] Sync /docs/raw/ txt files.
+- [ ] Assets in /docs/assets/.
