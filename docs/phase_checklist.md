@@ -63,14 +63,14 @@
 ### HTML Tokenizer (`src/dom/tokenizer.zig`)
 - [x] State machine: Data, TagOpen, TagName, Attribute, SelfClosing, EndTag
 - [x] Emit tokens: StartTag, EndTag, Character, EOF
-- [x] Handle entities: `&amp;`, `&lt;`, `&gt;`, `&quot;`
+- [x] Handle entities: `&amp;`, `&lt;`, `&gt;`, `&quot;` (via `entity.zig`)
 - [x] Error recovery: unclosed tags, mismatched nesting
 
-### DOM Tree (`src/dom/tree.zig`)
-- [x] `Node` union: `Element`, `Text`, `Document`
-- [x] `Element`: tag name, attributes (ArrayList), children
-- [x] Arena allocator per document (`std.heap.ArenaAllocator`)
-- [x] Tree operations: `appendChild`, `removeChild`, `querySelector` (basic)
+### DOM Tree (modular split)
+- [x] `tag.zig`: TagName enum with `fromString()` and `isVoid()`
+- [x] `node.zig`: Node, NodeType, DomAttribute, tree operations
+- [x] `document.zig`: Document, Limits, arena lifecycle
+- [x] `mod.zig`: Barrel file re-exporting all public types
 
 ### Tree Builder (`src/dom/builder.zig`)
 - [x] Consume token stream → build DOM tree
@@ -78,10 +78,11 @@
 - [x] API: `parseHTML(allocator, html_bytes) -> *Document`
 
 ### Tests (`tests/dom/`)
-- [x] Tokenizer: 20+ test cases (valid HTML, malformed, edge cases)
-- [x] Tree builder: verify parent/child/sibling relationships
-- [x] Memory: parse 1 MB HTML, close doc, GPA reports zero leaks
-- [x] Fuzz: random byte sequences don't crash the tokenizer
+- [x] Tokenizer: 150+ test cases (valid HTML, malformed, XSS, fuzzing)
+- [x] Tree: 8 test cases (document, node, relationships, queries)
+- [x] Builder: 10 test cases (parsing, implicit elements, void elements)
+- [x] Fuzz: 100+ random byte sequences don't crash the tokenizer
+
 
 ---
 

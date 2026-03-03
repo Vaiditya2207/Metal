@@ -32,3 +32,10 @@ Metal Coding Style Guide
 - Never use catch unreachable on untrusted data paths.
 - Graceful degradation: malformed input must never panic or leak memory.
 - All parsing limits must be loaded from the configuration system at startup.
+
+7. Modularity
+- See modularity.txt for full rules.
+- Max ~200 lines per source file (excluding tests).
+- One primary type/concept per file.
+- Tests in /tests/, not embedded in source.
+- Barrel files (mod.zig) for clean imports.

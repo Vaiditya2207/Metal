@@ -1,0 +1,34 @@
+Metal Modularity Rules
+
+1. File Size
+- Source files MUST NOT exceed ~200 lines (excluding blank lines and comments).
+- If a file grows beyond 200 lines, it MUST be split into focused modules.
+
+2. Single Responsibility
+- Each file should contain ONE primary type, concept, or concern.
+- Do not mix unrelated types in a single file (e.g., TagName enum and Document struct).
+
+3. Tests
+- Embedded tests in source files are PROHIBITED.
+- All tests MUST live in /tests/ mirroring the source directory structure.
+- Example: src/dom/tokenizer.zig -> tests/dom/tokenizer_tests.zig
+
+4. Barrel Files
+- Each module directory MUST have a mod.zig barrel file.
+- The barrel file re-exports all public types for clean imports.
+- External code imports the barrel: @import("dom/mod.zig") not individual files.
+
+5. Imports
+- Prefer importing the barrel file over individual files from other modules.
+- Within a module, direct file imports are acceptable.
+- Circular imports are PROHIBITED.
+
+6. Naming
+- Module directories: snake_case (e.g., src/dom/, src/css/).
+- Files: snake_case matching the primary type (e.g., tag.zig for TagName).
+- Barrel files: always mod.zig.
+
+7. When to Split
+- A struct with more than 3 public methods deserves its own file.
+- An enum with a lookup table (e.g., StaticStringMap) deserves its own file.
+- Helper/utility functions used across files deserve a shared utils.zig.
