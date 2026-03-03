@@ -16,7 +16,15 @@ Process Isolation: No direct data sharing between renderer and UI/GPU processes.
 Metal Pipeline: Use MSDF text system for all rendering.
 Quality of Service (QoS): Always pin high-performance tasks to USER_INTERACTIVE.
 
-4. Documentation Maintenance
+4. Security Guardrails
+Trust Boundary: All data from the network, clipboard, or file system is UNTRUSTED.
+Input Validation: Every parser must enforce configurable maximum sizes on all inputs.
+Arena Isolation: Each document or tab must use its own arena allocator. Closing a tab destroys all associated memory in O(1).
+No Panics on Bad Input: Malformed HTML, CSS, or JS must enter error recovery, never crash the process.
+Bounded Structures: All dynamic arrays, trees, and buffers must have configurable maximum capacities.
+Defense in Depth: Even within a sandboxed process, validate all inputs before processing.
+
+5. Documentation Maintenance
 Asset Organization: All diagrams must be stored in /docs/assets.
 Phase Checklist: Source of truth for project progress.
 

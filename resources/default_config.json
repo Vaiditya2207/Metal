@@ -1,0 +1,22 @@
+{
+  "parser": {
+    "max_document_size_bytes": 52428800,
+    "max_tag_name_length": 128,
+    "max_attribute_name_length": 256,
+    "max_attribute_value_length": 65536,
+    "max_attributes_per_element": 512,
+    "max_tree_depth": 512,
+    "max_children_per_node": 65536,
+    "max_total_nodes": 1000000,
+    "max_entity_length": 32
+  },
+  "window": {
+    "title": "Metal",
+    "width": 1280,
+    "height": 800
+  },
+  "renderer": {
+    "clear_color": [0.1, 0.1, 0.1, 1.0],
+    "target_fps": 120
+  }
+}

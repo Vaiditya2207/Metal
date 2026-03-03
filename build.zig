@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) void {
     });
     exe.addIncludePath(b.path("src/platform"));
 
-    // Link macOS frameworks (using the artifact directly)
+    // Link macOS frameworks
     exe.linkFramework("AppKit");
     exe.linkFramework("Metal");
     exe.linkFramework("MetalKit");
@@ -40,15 +40,15 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    // Tests
-    const exe_unit_tests = b.addTest(.{
+    // Test step — single entry point that imports all testable modules
+    const test_step = b.step("test", "Run unit tests");
+
+    const all_tests = b.addTest(.{
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
+            .root_source_file = b.path("src/test_all.zig"),
             .target = target,
             .optimize = optimize,
         }),
     });
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_exe_unit_tests.step);
+    test_step.dependOn(&b.addRunArtifact(all_tests).step);
 }

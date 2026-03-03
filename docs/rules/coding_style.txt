@@ -24,3 +24,11 @@ Metal Coding Style Guide
 - No hardcoded UI constants.
 - Use JSON or TOML for all application and engine settings.
 - Ensure all parameters are adjustable without recompilation.
+
+6. Security
+- All external input (HTML, CSS, JS, network data) is UNTRUSTED.
+- Enforce configurable bounds on all dynamic structures (tree depth, node count, attribute sizes).
+- Use arena allocators per document for O(1) cleanup.
+- Never use catch unreachable on untrusted data paths.
+- Graceful degradation: malformed input must never panic or leak memory.
+- All parsing limits must be loaded from the configuration system at startup.
