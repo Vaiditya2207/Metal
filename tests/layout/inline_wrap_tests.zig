@@ -65,9 +65,9 @@ test "word wrap within single text node" {
     });
 
     const anon = root.children.items[0];
-    // Parent height should be 2 lines = 32px
-    try std.testing.expectEqual(@as(f32, 32.0), anon.dimensions.content.height);
-    try std.testing.expectEqual(@as(f32, 32.0), root.dimensions.content.height);
+    // Parent height should be 2 lines = 38.4px
+    try std.testing.expectEqual(@as(f32, 38.4), anon.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 38.4), root.dimensions.content.height);
 }
 
 test "no wrap when text fits on one line" {
@@ -107,8 +107,8 @@ test "no wrap when text fits on one line" {
     });
 
     const anon = root.children.items[0];
-    try std.testing.expectEqual(@as(f32, 16.0), anon.dimensions.content.height);
-    try std.testing.expectEqual(@as(f32, 16.0), root.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 19.2), anon.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 19.2), root.dimensions.content.height);
 }
 
 test "empty text node gets zero width" {
@@ -160,7 +160,7 @@ test "multiple words wrap across several lines" {
     // Container width = 40px
     // Line 1: "aa" (16), +space(8)+bb(16)=40 fits => cursor_x=40
     // Line 2: "cc" needs 8+16=24 from 40 => 40+24>40, wrap. cc(16) cursor_x=16, +space(8)+dd(16)=40 fits
-    // So 2 lines => height = 32
+    // So 2 lines => height = 38.4
     var text_node = makeTextNode(allocator, "aa bb cc dd");
     try parent_node.appendChild(&text_node, limits);
 
@@ -190,7 +190,7 @@ test "multiple words wrap across several lines" {
     });
 
     const anon = root.children.items[0];
-    try std.testing.expectEqual(@as(f32, 32.0), anon.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 38.4), anon.dimensions.content.height);
 }
 
 test "word wrap with multiple text nodes" {
@@ -201,10 +201,10 @@ test "word wrap with multiple text nodes" {
 
     // First text: "hello world" in 60px container
     // "hello"(40) fits, space(8)+world(40)=48, 40+48>60 => wrap
-    // After first text: cursor_x=40, cursor_y=16
+    // After first text: cursor_x=40, cursor_y=19.2
     // Second text: "foo" = 24px
-    // cursor_x(40)+24=64 > 60 => wrap again. cursor_y=32, cursor_x=24
-    // Total: 3 lines = 48px
+    // cursor_x(40)+24=64 > 60 => wrap again. cursor_y=38.4, cursor_x=24
+    // Total: 3 lines = 57.6px
     var text1_node = makeTextNode(allocator, "hello world");
     var text2_node = makeTextNode(allocator, "foo");
     try parent_node.appendChild(&text1_node, limits);
@@ -238,7 +238,7 @@ test "word wrap with multiple text nodes" {
     });
 
     const anon = root.children.items[0];
-    try std.testing.expectEqual(@as(f32, 48.0), anon.dimensions.content.height);
+    try std.testing.expectApproxEqAbs(@as(f32, 57.6), anon.dimensions.content.height, 0.001);
 }
 
 test "single word no wrap" {
@@ -281,5 +281,5 @@ test "single word no wrap" {
     try std.testing.expectEqual(@as(f32, 24.0), child.dimensions.content.width);
     try std.testing.expectEqual(@as(f32, 0.0), child.dimensions.content.x);
     try std.testing.expectEqual(@as(f32, 0.0), child.dimensions.content.y);
-    try std.testing.expectEqual(@as(f32, 16.0), anon.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 19.2), anon.dimensions.content.height);
 }

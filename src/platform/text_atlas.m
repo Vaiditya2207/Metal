@@ -46,19 +46,19 @@ static const char *text_shader_source =
 "    return float4(in.color.rgb, in.color.a * alpha);\n"
 "}\n";
 
-void *create_font_atlas(void *device_ptr, float font_size, GlyphMetrics *metrics_out, float *ascent_out) {
+void *create_font_atlas(void *device_ptr, float font_size, float scale_factor, GlyphMetrics *metrics_out, float *ascent_out) {
     id<MTLDevice> device = (__bridge id<MTLDevice>)device_ptr;
     NSFont *font = [NSFont systemFontOfSize:font_size];
     CTFontRef ct_font = (__bridge CTFontRef)font;
 
     if (ascent_out) *ascent_out = (float)CTFontGetAscent(ct_font);
 
-    int atlas_size = 512;
+    int atlas_size = (int)(512 * scale_factor);
     uint8_t *bitmap_data = calloc(atlas_size * atlas_size, 1);
     CGColorSpaceRef color_space = CGColorSpaceCreateDeviceGray();
     CGContextRef context = CGBitmapContextCreate(bitmap_data, atlas_size, atlas_size, 8, atlas_size, color_space, kCGImageAlphaNone);
     CGContextTranslateCTM(context, 0, atlas_size);
-    CGContextScaleCTM(context, 1.0, -1.0);
+    CGContextScaleCTM(context, scale_factor, -scale_factor);
     CGContextSetTextMatrix(context, CGAffineTransformIdentity);
     CGContextSetGrayFillColor(context, 1.0, 1.0);
 
@@ -75,7 +75,7 @@ void *create_font_atlas(void *device_ptr, float font_size, GlyphMetrics *metrics
         CGRect rect = CTFontGetBoundingRectsForGlyphs(ct_font, kCTFontOrientationHorizontal, &glyph, NULL, 1);
         double advance = CTFontGetAdvancesForGlyphs(ct_font, kCTFontOrientationHorizontal, &glyph, NULL, 1);
         
-        if (cur_x + rect.size.width + 2 > atlas_size) {
+        if ((cur_x + rect.size.width + 2) * scale_factor > atlas_size) {
             cur_x = 0;
             cur_y += line_height;
         }
@@ -86,10 +86,10 @@ void *create_font_atlas(void *device_ptr, float font_size, GlyphMetrics *metrics
         CGPoint position = CGPointMake(draw_x, draw_y);
         CTFontDrawGlyphs(ct_font, &glyph, &position, 1, context);
 
-        metrics_out[i].uv_x = (cur_x + 1) / (float)atlas_size;
-        metrics_out[i].uv_y = (cur_y + 1) / (float)atlas_size;
-        metrics_out[i].uv_w = rect.size.width / (float)atlas_size;
-        metrics_out[i].uv_h = rect.size.height / (float)atlas_size;
+        metrics_out[i].uv_x = (cur_x + 1) * scale_factor / (float)atlas_size;
+        metrics_out[i].uv_y = (cur_y + 1) * scale_factor / (float)atlas_size;
+        metrics_out[i].uv_w = rect.size.width * scale_factor / (float)atlas_size;
+        metrics_out[i].uv_h = rect.size.height * scale_factor / (float)atlas_size;
         metrics_out[i].width = rect.size.width;
         metrics_out[i].height = rect.size.height;
         metrics_out[i].bearing_x = rect.origin.x;

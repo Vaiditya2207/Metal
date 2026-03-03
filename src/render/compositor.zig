@@ -64,6 +64,8 @@ pub const Compositor = struct {
         var height: f32 = 0;
         objc.get_drawable_size(view, &width, &height);
 
+        const scale = objc.get_content_scale(view);
+
         objc.set_projection(fc, width, height);
 
         var rect_batch: batch_mod.RectBatch = .{};
@@ -101,17 +103,17 @@ pub const Compositor = struct {
                     const gf = @as(f32, @floatFromInt(t.color.g)) / 255.0;
                     const bf = @as(f32, @floatFromInt(t.color.b)) / 255.0;
                     const af = @as(f32, @floatFromInt(t.color.a)) / 255.0;
-                    self.text_renderer.generateVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af);
+                    self.text_renderer.generateVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size);
                 },
                 .push_clip => |rect| {
                     flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
                     current = .none;
-                    objc.set_scissor_rect(fc, rect.x, rect.y - scroll_y, rect.width, rect.height, height);
+                    objc.set_scissor_rect(fc, rect.x * scale, (rect.y - scroll_y) * scale, rect.width * scale, rect.height * scale, height * scale);
                 },
                 .pop_clip => {
                     flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
                     current = .none;
-                    objc.reset_scissor_rect(fc, width, height);
+                    objc.reset_scissor_rect(fc, width * scale, height * scale);
                 },
             }
         }

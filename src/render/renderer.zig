@@ -38,7 +38,7 @@ pub const Renderer = struct {
 
         const pipeline = objc.create_render_pipeline(device) orelse return error.PipelineCreationFailed;
 
-        const text_renderer = try text.TextRenderer.init(device, 16.0);
+        const text_renderer = try text.TextRenderer.init(device, 16.0, 2.0);
 
         return Renderer{
             .device = device,

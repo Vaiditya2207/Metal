@@ -16,7 +16,7 @@ typedef struct {
 // Create a font atlas texture. Returns opaque MTLTexture handle.
 // Populates the metrics array for ASCII 32..126 (95 glyphs).
 // metrics_out must point to an array of at least 95 GlyphMetrics.
-void *create_font_atlas(void *device, float font_size, GlyphMetrics *metrics_out, float *ascent_out);
+void *create_font_atlas(void *device, float font_size, float scale_factor, GlyphMetrics *metrics_out, float *ascent_out);
 
 // Create a text-specific render pipeline (with texture sampling)
 void *create_text_pipeline(void *device);

@@ -133,7 +133,12 @@ void set_metal_delegate(void *view_ptr, void *zig_context,
 
 void get_drawable_size(void *view_ptr, float *width, float *height) {
   MTKView *view = (__bridge MTKView *)view_ptr;
-  CGSize size = view.drawableSize;
+  CGSize size = view.bounds.size;
   *width = (float)size.width;
   *height = (float)size.height;
+}
+
+float get_content_scale(void *view_ptr) {
+  MTKView *view = (__bridge MTKView *)view_ptr;
+  return (float)view.window.backingScaleFactor;
 }

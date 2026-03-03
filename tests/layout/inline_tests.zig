@@ -64,8 +64,8 @@ test "inline layout side-by-side" {
     try std.testing.expectEqual(@as(f32, 24.0), box2.dimensions.content.x);
     try std.testing.expectEqual(@as(f32, 0.0), box2.dimensions.content.y);
 
-    try std.testing.expectEqual(@as(f32, 16.0), anon.dimensions.content.height);
-    try std.testing.expectEqual(@as(f32, 16.0), root.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 19.2), anon.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 19.2), root.dimensions.content.height);
 }
 
 test "inline layout wrap" {
@@ -122,8 +122,8 @@ test "inline layout wrap" {
 
     try std.testing.expectEqual(@as(f32, 32.0), box2.dimensions.content.width);
     try std.testing.expectEqual(@as(f32, 0.0), box2.dimensions.content.x);
-    try std.testing.expectEqual(@as(f32, 16.0), box2.dimensions.content.y);
+    try std.testing.expectEqual(@as(f32, 19.2), box2.dimensions.content.y);
 
-    try std.testing.expectEqual(@as(f32, 32.0), anon.dimensions.content.height);
-    try std.testing.expectEqual(@as(f32, 32.0), root.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 38.4), anon.dimensions.content.height);
+    try std.testing.expectEqual(@as(f32, 38.4), root.dimensions.content.height);
 }

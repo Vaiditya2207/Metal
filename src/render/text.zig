@@ -10,10 +10,10 @@ pub const TextRenderer = struct {
     font_size: f32,
     font_ascent: f32,
 
-    pub fn init(device: *anyopaque, font_size: f32) !TextRenderer {
+    pub fn init(device: *anyopaque, font_size: f32, scale_factor: f32) !TextRenderer {
         var metrics: [95]objc.GlyphMetrics = undefined;
         var ascent: f32 = 0;
-        const texture = objc.create_font_atlas(device, font_size, @ptrCast(&metrics), &ascent) orelse return error.AtlasCreationFailed;
+        const texture = objc.create_font_atlas(device, font_size, scale_factor, @ptrCast(&metrics), &ascent) orelse return error.AtlasCreationFailed;
         const pipeline = objc.create_text_pipeline(device) orelse return error.PipelineCreationFailed;
 
         return TextRenderer{
@@ -37,16 +37,21 @@ pub const TextRenderer = struct {
         g: f32,
         b: f32,
         a: f32,
+        target_font_size: f32,
     ) void {
+        const scale = target_font_size / self.font_size;
+        const scaled_ascent = self.font_ascent * scale;
         var cur_x = x;
         for (text_str) |c| {
             if (c < 32 or c > 126) continue;
             const idx = c - 32;
             const m = self.glyph_metrics[idx];
-            const gx = cur_x + m.bearing_x;
-            const gy = y + self.font_ascent - m.bearing_y - m.height;
-            batch.appendQuad(gx, gy, m.width, m.height, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
-            cur_x += m.advance;
+            const sw = m.width * scale;
+            const sh = m.height * scale;
+            const gx = cur_x + m.bearing_x * scale;
+            const gy = y + scaled_ascent - m.bearing_y * scale - sh;
+            batch.appendQuad(gx, gy, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
+            cur_x += m.advance * scale;
         }
     }
 

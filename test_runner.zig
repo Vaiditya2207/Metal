@@ -67,6 +67,7 @@ comptime {
     _ = @import("tests/render/hit_test_tests.zig");
     _ = @import("tests/render/resize_tests.zig");
     _ = @import("tests/render/interaction_tests.zig");
+    _ = @import("tests/render/text_scale_tests.zig");
     _ = @import("tests/config_tests.zig");
     _ = @import("src/render/interaction.zig");
     _ = @import("src/render/batch.zig");

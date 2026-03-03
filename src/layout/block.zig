@@ -19,7 +19,8 @@ pub fn layoutBlock(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
             box.dimensions.content.x = cb.dimensions.content.x;
             box.dimensions.content.y = cb.dimensions.content.y + cb.dimensions.content.height;
         }
-        layoutInlineBlock(box);
+        const parent_fs: f32 = if (containing_block) |cb| (if (cb.styled_node) |sn| sn.style.font_size.value else 16.0) else 16.0;
+        layoutInlineBlock(box, parent_fs);
         return;
     }
     calculateWidth(box, containing_block, ctx);
