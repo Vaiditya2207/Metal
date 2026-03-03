@@ -87,7 +87,9 @@ pub const Compositor = struct {
                     rect_batch.appendRect(r.rect.x, r.rect.y - scroll_y, r.rect.width, r.rect.height, rf, gf, bf, af);
                 },
                 .draw_text => |t| {
-                    if (!isVisible(t.rect.y, t.rect.height, scroll_y, height)) continue;
+                    if (!isVisible(t.rect.y, t.rect.height, scroll_y, height)) {
+                        continue;
+                    }
                     if (current != .text) {
                         flushRects(fc, self.device, self.rect_pipeline, &rect_batch);
                         current = .text;

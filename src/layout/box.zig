@@ -93,7 +93,6 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             if (depth > self.max_depth) return error.LayoutDepthExceeded;
             if (self.node_count >= self.max_nodes) return error.LayoutMaxNodesExceeded;
             self.node_count += 1;
-
             if (sn.style.display == .none) return error.SkipNode;
 
             const box_type: BoxType = switch (sn.style.display) {
@@ -119,7 +118,6 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
                 }
             }
 
-            // Handle Anonymous Blocks
             if (root.box_type == .blockNode or root.box_type == .flexNode) {
                 try self.wrapAnonymousBlocks(root);
             }
@@ -131,7 +129,7 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             var has_block = false;
             var has_inline = false;
             for (parent.children.items) |child| {
-                if (child.box_type == .blockNode) has_block = true;
+                if (child.box_type == .blockNode or child.box_type == .flexNode) has_block = true;
                 if (child.box_type == .inlineNode or child.box_type == .anonymousBlock) has_inline = true;
             }
 
@@ -165,7 +163,7 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
 
             var i: usize = 0;
             while (i < parent.children.items.len) {
-                if (parent.children.items[i].box_type == .blockNode) {
+                if (parent.children.items[i].box_type == .blockNode or parent.children.items[i].box_type == .flexNode) {
                     try new_children.append(self.allocator, parent.children.items[i]);
                     i += 1;
                 } else {
@@ -176,7 +174,7 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
                         anon.deinit(self.allocator);
                         self.allocator.destroy(anon);
                     }
-                    while (i < parent.children.items.len and parent.children.items[i].box_type != .blockNode) {
+                    while (i < parent.children.items.len and parent.children.items[i].box_type != .blockNode and parent.children.items[i].box_type != .flexNode) {
                         const child = parent.children.items[i];
                         child.parent = anon;
                         try anon.children.append(self.allocator, child);
@@ -189,12 +187,12 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             parent.children = new_children;
         }
     };
+    const cfg = config.getConfig();
     var state = State{
         .allocator = allocator,
-        .max_nodes = config.getConfig().layout.max_layout_nodes,
-        .max_depth = config.getConfig().layout.max_layout_depth,
+        .max_nodes = cfg.layout.max_layout_nodes,
+        .max_depth = cfg.layout.max_layout_depth,
     };
-
     return state.build(styled_node, 0) catch |err| {
         if (err == error.SkipNode) return error.RootNodeSkipped;
         return err;

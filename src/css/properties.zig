@@ -17,47 +17,38 @@ pub const ComputedStyle = struct {
     position: Position = .static_val,
     overflow: Overflow = .visible,
     box_sizing: BoxSizing = .content_box,
-
     flex_direction: FlexDirection = .row,
     justify_content: JustifyContent = .flex_start,
     align_items: AlignItems = .stretch,
     flex_grow: f32 = 0.0,
     flex_shrink: f32 = 1.0,
     flex_basis: ?Length = null,
-
     width: ?Length = null,
     height: ?Length = null,
     min_width: ?Length = null,
     max_width: ?Length = null,
     min_height: ?Length = null,
     max_height: ?Length = null,
-
     margin_top: Length = .{ .value = 0, .unit = .px },
     margin_right: Length = .{ .value = 0, .unit = .px },
     margin_bottom: Length = .{ .value = 0, .unit = .px },
     margin_left: Length = .{ .value = 0, .unit = .px },
-
     padding_top: Length = .{ .value = 0, .unit = .px },
     padding_right: Length = .{ .value = 0, .unit = .px },
     padding_bottom: Length = .{ .value = 0, .unit = .px },
     padding_left: Length = .{ .value = 0, .unit = .px },
-
     border_width: Length = .{ .value = 0, .unit = .px },
     border_color: CssColor = CssColor.fromRgb(0, 0, 0),
     border_radius: Length = .{ .value = 0, .unit = .px },
-
     color: CssColor = CssColor.fromRgb(0, 0, 0),
     background_color: CssColor = CssColor{ .r = 0, .g = 0, .b = 0, .a = 0 },
-
     font_size: Length = .{ .value = 16, .unit = .px },
     font_family: []const u8 = "sans-serif",
     font_weight: f32 = 400,
-
     top: ?Length = null,
     right_pos: ?Length = null,
     bottom: ?Length = null,
     left_pos: ?Length = null,
-
     z_index: ?i32 = null,
     opacity: f32 = 1.0,
 
@@ -135,11 +126,7 @@ pub const ComputedStyle = struct {
         } else if (std.mem.eql(u8, prop, "font-family")) {
             self.font_family = try allocator.dupe(u8, val);
         } else if (std.mem.eql(u8, prop, "font-weight")) {
-            if (std.mem.eql(u8, val, "normal")) {
-                self.font_weight = 400;
-            } else if (std.mem.eql(u8, val, "bold")) {
-                self.font_weight = 700;
-            } else {
+            if (std.mem.eql(u8, val, "normal")) self.font_weight = 400 else if (std.mem.eql(u8, val, "bold")) self.font_weight = 700 else {
                 self.font_weight = std.fmt.parseFloat(f32, val) catch 400;
             }
         } else if (std.mem.eql(u8, prop, "opacity")) {
@@ -164,6 +151,12 @@ pub const ComputedStyle = struct {
             self.flex_shrink = std.fmt.parseFloat(f32, val) catch 1.0;
         } else if (std.mem.eql(u8, prop, "flex-basis")) {
             self.flex_basis = values_mod.parseLength(val);
+        } else if (std.mem.eql(u8, prop, "flex")) {
+            self.flex_grow = std.fmt.parseFloat(f32, val) catch 0.0;
+            if (self.flex_grow > 0) {
+                self.flex_shrink = 1.0;
+                self.flex_basis = .{ .value = 0, .unit = .px };
+            }
         }
     }
 

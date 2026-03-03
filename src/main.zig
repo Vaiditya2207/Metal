@@ -27,13 +27,21 @@ const default_html =
 ;
 
 const bw = struct {
-    fn ctxCreate() ?*anyopaque { return jsc.jsc_context_create(); }
-    fn ctxRelease(c: ?*anyopaque) void { jsc.jsc_context_release(c); }
+    fn ctxCreate() ?*anyopaque {
+        return jsc.jsc_context_create();
+    }
+    fn ctxRelease(c: ?*anyopaque) void {
+        jsc.jsc_context_release(c);
+    }
     fn eval(c: ?*anyopaque, s: [*]const u8, n: c_int) ?*anyopaque {
         return jsc.jsc_evaluate_script(c, s, n);
     }
-    fn global(c: ?*anyopaque) ?*anyopaque { return jsc.jsc_global_object(c); }
-    fn makeObj(c: ?*anyopaque) ?*anyopaque { return jsc.jsc_make_object(c); }
+    fn global(c: ?*anyopaque) ?*anyopaque {
+        return jsc.jsc_global_object(c);
+    }
+    fn makeObj(c: ?*anyopaque) ?*anyopaque {
+        return jsc.jsc_make_object(c);
+    }
     fn setProp(c: ?*anyopaque, o: ?*anyopaque, nm: [*:0]const u8, v: ?*anyopaque) void {
         jsc.jsc_object_set_property(c, o, nm, v);
     }
@@ -43,15 +51,21 @@ const bw = struct {
     fn makeStr(c: ?*anyopaque, s: [*:0]const u8) ?*anyopaque {
         return jsc.jsc_make_string_value(c, s);
     }
-    fn makeUndef(c: ?*anyopaque) ?*anyopaque { return jsc.jsc_make_undefined(c); }
+    fn makeUndef(c: ?*anyopaque) ?*anyopaque {
+        return jsc.jsc_make_undefined(c);
+    }
     fn valToStr(c: ?*anyopaque, v: ?*anyopaque) ?*anyopaque {
         return jsc.jsc_value_to_string(c, v);
     }
     fn strUtf8(s: ?*anyopaque, b: [*]u8, sz: c_int) c_int {
         return jsc.jsc_string_get_utf8(s, b, sz);
     }
-    fn strRelease(s: ?*anyopaque) void { jsc.jsc_string_release(s); }
-    fn isStr(c: ?*anyopaque, v: ?*anyopaque) c_int { return jsc.jsc_value_is_string(c, v); }
+    fn strRelease(s: ?*anyopaque) void {
+        jsc.jsc_string_release(s);
+    }
+    fn isStr(c: ?*anyopaque, v: ?*anyopaque) c_int {
+        return jsc.jsc_value_is_string(c, v);
+    }
 };
 
 const jsc_bridge = js.context.JsBridge{ .context_create = &bw.ctxCreate, .context_release = &bw.ctxRelease, .evaluate_script = &bw.eval, .global_object = &bw.global, .make_object = &bw.makeObj, .object_set_property = &bw.setProp, .make_function = &bw.makeFn, .make_string_value = &bw.makeStr, .make_undefined = &bw.makeUndef, .value_to_string = &bw.valToStr, .string_get_utf8 = &bw.strUtf8, .string_release = &bw.strRelease, .value_is_string = &bw.isStr };
@@ -160,6 +174,7 @@ pub fn main() !void {
     layout.layoutTree(layout_root, lctx);
 
     const dl = try display_list.buildDisplayList(allocator, layout_root);
+
     my_renderer.setDocument(allocator, layout_root, dl);
 
     std.debug.print("Metal Browser Engine -- Version 0.1.0-draft\n", .{});

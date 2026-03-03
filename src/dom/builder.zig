@@ -37,15 +37,31 @@ pub const TreeBuilder = struct {
     pub fn insertElement(self: *TreeBuilder, tag_name: []const u8, attributes: []const tokenizer_mod.Attribute) !*Node {
         const tag = TagName.fromString(tag_name);
 
+        // 1. Ensure html exists
         if (tag != .html and !self.hasOpenElement(.html)) {
             try self.insertImplicitElement("html");
         }
+
+        // 2. Handle explicit <head>: set flag and ensure correct parenting
+        if (tag == .head) {
+            self.head_inserted = true;
+        }
+
+        // 3. Ensure head exists for head-content tags
         if (tag == .title or tag == .meta or tag == .link or tag == .style) {
             if (!self.head_inserted) {
                 try self.insertImplicitElement("head");
                 self.head_inserted = true;
             }
         }
+
+        // 4. Handle explicit <body>: close head if open, set flag
+        if (tag == .body) {
+            if (self.hasOpenElement(.head)) self.closeUpTo(.head);
+            self.body_inserted = true;
+        }
+
+        // 5. Ensure body exists for body-content tags
         if (tag != .html and tag != .head and tag != .body and
             tag != .title and tag != .meta and tag != .link and tag != .style)
         {
@@ -111,6 +127,17 @@ pub const TreeBuilder = struct {
 
     fn insertText(self: *TreeBuilder, text: []const u8) !void {
         if (text.len == 0) return;
+        // Skip whitespace-only text before body is inserted (inter-element whitespace per HTML5)
+        if (!self.body_inserted) {
+            var all_ws = true;
+            for (text) |c| {
+                if (c != ' ' and c != '\t' and c != '\n' and c != '\r') {
+                    all_ws = false;
+                    break;
+                }
+            }
+            if (all_ws) return;
+        }
         if (!self.body_inserted and !self.hasOpenElement(.head)) {
             if (!self.hasOpenElement(.html)) {
                 try self.insertImplicitElement("html");

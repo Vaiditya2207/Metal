@@ -6,16 +6,8 @@ const layout = @import("layout.zig");
 
 pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.LayoutContext) void {
     const style = if (box.styled_node) |sn| &sn.style else return;
-
-    // 1. Box behaves like a block container from the outside
     const cb_width = if (containing_block) |cb| cb.dimensions.content.width else box.dimensions.content.width;
-    const width = if (style.width) |w| layout.resolveLength(w, cb_width, ctx) else null;
-
-    if (width) |w| {
-        box.dimensions.content.width = w;
-    } else {
-        box.dimensions.content.width = cb_width;
-    }
+    box.dimensions.content.width = if (style.width) |w| layout.resolveLength(w, cb_width, ctx) else cb_width;
 
     if (containing_block) |cb| {
         box.dimensions.content.x = cb.dimensions.content.x;
@@ -26,8 +18,6 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     }
 
     const is_row = style.flex_direction == .row;
-
-    // 2. Collect in-flow children
     var children = std.ArrayListUnmanaged(*LayoutBox){};
     defer children.deinit(ctx.allocator);
 
@@ -36,12 +26,9 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
             sn.style.position == .absolute or sn.style.position == .fixed
         else
             false;
-        if (!is_out_of_flow) {
-            children.append(ctx.allocator, child) catch {};
-        }
+        if (!is_out_of_flow) children.append(ctx.allocator, child) catch {};
     }
 
-    // 3. Base sizes and available space
     var total_base_size: f32 = 0;
     var total_grow: f32 = 0;
     var total_shrink: f32 = 0;
@@ -51,8 +38,6 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
 
     for (children.items, 0..) |child, i| {
         const c_style = if (child.styled_node) |sn| &sn.style else continue;
-
-        // Set child margins/padding/borders
         child.dimensions.margin.left = layout.resolveLength(c_style.margin_left, box.dimensions.content.width, ctx);
         child.dimensions.margin.right = layout.resolveLength(c_style.margin_right, box.dimensions.content.width, ctx);
         child.dimensions.margin.top = layout.resolveLength(c_style.margin_top, box.dimensions.content.width, ctx);
@@ -93,7 +78,6 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     const container_main_size = if (is_row) box.dimensions.content.width else (if (style.height) |h| layout.resolveLength(h, ctx.viewport_height, ctx) else 0);
     var available_space = container_main_size - total_base_size;
 
-    // 4. Flexing
     if (available_space > 0 and total_grow > 0) {
         for (children.items) |child| {
             const c_style = if (child.styled_node) |sn| &sn.style else continue;
@@ -107,7 +91,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         available_space = 0;
     }
 
-    // 4b. Shrinking (only when container has a definite main size)
+    // Shrinking (only when container has a definite main size)
     if (available_space < 0 and total_shrink > 0 and has_definite_main) {
         const overflow = -available_space;
         var total_weighted_shrink: f32 = 0;
@@ -129,10 +113,9 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         }
     }
 
-    // 5. Positioning (Main Axis)
+    // Positioning (Main Axis)
     var main_pos: f32 = 0;
     var spacing: f32 = 0;
-
     if (available_space > 0) {
         switch (style.justify_content) {
             .flex_start => {},
@@ -147,7 +130,6 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     }
 
     var max_cross_size: f32 = 0;
-
     for (children.items) |child| {
         const c_style = if (child.styled_node) |sn| &sn.style else continue;
 
@@ -161,7 +143,6 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         }
 
         const container_cross_size = if (is_row) (if (style.height) |h| layout.resolveLength(h, ctx.viewport_height, ctx) else 0) else box.dimensions.content.width;
-
         if (is_row) {
             if (c_style.height) |h| child.dimensions.content.height = layout.resolveLength(h, container_cross_size, ctx);
         } else {
@@ -169,7 +150,6 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         }
 
         var cross_size = if (is_row) child.dimensions.marginBox().height else child.dimensions.marginBox().width;
-
         if (style.align_items == .stretch and container_cross_size > 0) {
             if (is_row) {
                 if (c_style.height == null) {
@@ -196,6 +176,15 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
             child.dimensions.content.y += cross_offset;
         } else {
             child.dimensions.content.x += cross_offset;
+        }
+    }
+
+    // Recurse into flex item children
+    for (children.items) |child| {
+        child.dimensions.content.height = 0;
+        for (child.children.items) |grandchild| {
+            block.layoutBlock(grandchild, child, ctx);
+            child.dimensions.content.height += grandchild.dimensions.marginBox().height;
         }
     }
 
