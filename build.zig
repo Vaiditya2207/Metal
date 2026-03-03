@@ -45,7 +45,7 @@ pub fn build(b: *std.Build) void {
 
     const all_tests = b.addTest(.{
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/test_all.zig"),
+            .root_source_file = b.path("test_runner.zig"),
             .target = target,
             .optimize = optimize,
         }),
