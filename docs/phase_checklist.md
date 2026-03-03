@@ -58,30 +58,30 @@
 
 ---
 
-## Phase 2 — HTML Tokenizer & DOM Tree *(~2–3 weeks)*
+## Phase 2 — HTML Tokenizer & DOM Tree *(~2–3 weeks)* [x]
 
 ### HTML Tokenizer (`src/dom/tokenizer.zig`)
-- [ ] State machine: Data, TagOpen, TagName, Attribute, SelfClosing, EndTag
-- [ ] Emit tokens: StartTag, EndTag, Character, EOF
-- [ ] Handle entities: `&amp;`, `&lt;`, `&gt;`, `&quot;`
-- [ ] Error recovery: unclosed tags, mismatched nesting
+- [x] State machine: Data, TagOpen, TagName, Attribute, SelfClosing, EndTag
+- [x] Emit tokens: StartTag, EndTag, Character, EOF
+- [x] Handle entities: `&amp;`, `&lt;`, `&gt;`, `&quot;`
+- [x] Error recovery: unclosed tags, mismatched nesting
 
 ### DOM Tree (`src/dom/tree.zig`)
-- [ ] `Node` union: `Element`, `Text`, `Document`
-- [ ] `Element`: tag name, attributes (ArrayList), children
-- [ ] Arena allocator per document (`std.heap.ArenaAllocator`)
-- [ ] Tree operations: `appendChild`, `removeChild`, `querySelector` (basic)
+- [x] `Node` union: `Element`, `Text`, `Document`
+- [x] `Element`: tag name, attributes (ArrayList), children
+- [x] Arena allocator per document (`std.heap.ArenaAllocator`)
+- [x] Tree operations: `appendChild`, `removeChild`, `querySelector` (basic)
 
 ### Tree Builder (`src/dom/builder.zig`)
-- [ ] Consume token stream → build DOM tree
-- [ ] Handle implicit elements (`<html>`, `<head>`, `<body>`)
-- [ ] API: `parseHTML(allocator, html_bytes) -> *Document`
+- [x] Consume token stream → build DOM tree
+- [x] Handle implicit elements (`<html>`, `<head>`, `<body>`)
+- [x] API: `parseHTML(allocator, html_bytes) -> *Document`
 
 ### Tests (`tests/dom/`)
-- [ ] Tokenizer: 20+ test cases (valid HTML, malformed, edge cases)
-- [ ] Tree builder: verify parent/child/sibling relationships
-- [ ] Memory: parse 1 MB HTML, close doc, GPA reports zero leaks
-- [ ] Fuzz: random byte sequences don't crash the tokenizer
+- [x] Tokenizer: 20+ test cases (valid HTML, malformed, edge cases)
+- [x] Tree builder: verify parent/child/sibling relationships
+- [x] Memory: parse 1 MB HTML, close doc, GPA reports zero leaks
+- [x] Fuzz: random byte sequences don't crash the tokenizer
 
 ---
 
