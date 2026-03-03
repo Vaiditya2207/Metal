@@ -19,3 +19,8 @@ Metal Coding Style Guide
 - Use QOS_CLASS_USER_INTERACTIVE for the main loop.
 - Use QOS_CLASS_BACKGROUND for non-critical tasks.
 - Leverage Mach ports for IPC.
+
+5. Configurability
+- No hardcoded UI constants.
+- Use JSON or TOML for all application and engine settings.
+- Ensure all parameters are adjustable without recompilation.

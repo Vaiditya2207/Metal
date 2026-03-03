@@ -32,29 +32,29 @@
 
 ---
 
-## Phase 1 — Native Window & Metal Surface *(~1–2 weeks)*
+## Phase 1 — Native Window & Metal Surface *(~1–2 weeks)* [x]
 
 ### ObjC Bridge (`src/platform/`)
-- [ ] `app.zig` — `NSApplication` setup, run loop
-- [ ] `window.zig` — `NSWindow` creation (title, size, style)
-- [ ] `metal_view.zig` — `MTKView` delegate, `drawInMTKView` callback
-- [ ] `objc_bridge.m` — ObjC implementations for delegate protocols
+- [x] `app.zig` — `NSApplication` setup, run loop
+- [x] `window.zig` — `NSWindow` creation (title, size, style)
+- [x] `metal_view.zig` — `MTKView` delegate, `drawInMTKView` callback
+- [x] `objc_bridge.m` — ObjC implementations for delegate protocols
 
 ### Metal Setup (`src/render/`)
-- [ ] Acquire `MTLDevice` (system default)
-- [ ] Create `MTLCommandQueue`
-- [ ] Implement clear-color render pass (solid background)
-- [ ] Sync to display refresh (`CVDisplayLink` or `MTKViewDelegate`)
+- [x] Acquire `MTLDevice` (system default)
+- [x] Create `MTLCommandQueue`
+- [x] Implement clear-color render pass (solid background)
+- [x] Sync to display refresh (`CVDisplayLink` or `MTKViewDelegate`)
 
 ### QoS Threading
-- [ ] Set render thread to `QOS_CLASS_USER_INTERACTIVE`
-- [ ] Verify with `Activity Monitor` → thread QoS column
+- [x] Set render thread to `QOS_CLASS_USER_INTERACTIVE`
+- [x] Verify with `Activity Monitor` → thread QoS column
 
 ### Verification
-- [ ] Window opens with title "Metal"
-- [ ] Solid color clears at 60/120 Hz (no tearing)
-- [ ] RSS < 20 MB idle
-- [ ] Profile: GPU utilization visible in Xcode Instruments (Metal System Trace)
+- [x] Window opens with title "Metal"
+- [x] Solid color clears at 60/120 Hz (no tearing)
+- [x] RSS < 20 MB idle
+- [x] Profile: GPU utilization visible in Xcode Instruments (Metal System Trace)
 
 ---
 

@@ -9,6 +9,7 @@
 - **Explicit Allocation**: Functions that allocate must accept an `Allocator`.
 - **Zero-Copy**: Prefer passing pointers or shared memory handles over copying data.
 - **Safety**: Use Zig's `try`, `catch`, and `errdefer` for robust error handling.
+- **Configurability**: Hardcoded values are prohibited for UI and engine parameters. Use JSON or TOML for all settings to facilitate a unified preferences system.
 
 ## 3. Objective-C Interop
 We use Zig's `@cImport` to bridge with AppKit and Metal.
