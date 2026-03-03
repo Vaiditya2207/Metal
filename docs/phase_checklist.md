@@ -214,9 +214,22 @@
 ### Tests
 - [x] Render colored divs as solid rectangles on Metal surface
 - [x] Display list builds from layout tree (2 tests)
-- [ ] Render text — crisp at 2x Retina
+- [x] Render text — crisp at 2x Retina (RC-1/RC-2/BUG-C: Retina coords, scaled atlas, pixel snapping)
 - [ ] Zoom 4x — text remains sharp (MSDF)
 - [ ] Frame time < 2 ms on M1 for simple page (measured via Metal GPU profiler)
+
+### Phase 5 Visual Rendering Fixes (4 commits, 11 root causes) [x]
+- [x] RC-1: Point/pixel coordinate space mismatch (get_drawable_size returns points)
+- [x] RC-2: Font atlas rasterized at 1x (now accepts scale_factor, atlas at 512*scale)
+- [x] RC-3: Hardcoded 16px font size in inline layout (now reads styled_node font_size)
+- [x] RC-4: Text renderer ignores CSS font size (scales glyph geometry by target/atlas ratio)
+- [x] BUG-D: Flex row children missing Y position (set content.y in is_row branch)
+- [x] BUG-E: Flex row container height uses stale max_cross_size (recompute after recursion)
+- [x] BUG-J: Flex container ignores own padding/margin/border (resolve like block.zig)
+- [x] BUG-K: Text renderer draws all text on one horizontal line (word wrapping added)
+- [x] BUG-C: Glyph vertices not snapped to pixel boundaries (pixel snap for Retina)
+- [x] BUG-F: Inline child width set to full unwrapped text width (cap at available_width)
+- [x] BUG-H: Space width uses parent font size for all children (per-child computation)
 
 ### Phase 5 Audit Hardening (78 findings, 6 chunks) [x]
 - [x] Chunk A: ObjC/Metal Foundation Fixes (C3, C4, H3, H4, H5, H6)
