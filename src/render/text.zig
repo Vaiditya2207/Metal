@@ -38,20 +38,51 @@ pub const TextRenderer = struct {
         b: f32,
         a: f32,
         target_font_size: f32,
+        max_width: f32,
+        device_scale: f32,
     ) void {
         const scale = target_font_size / self.font_size;
-        const scaled_ascent = self.font_ascent * scale;
+        const line_height = target_font_size * 1.2;
+        const space_advance = self.glyph_metrics[0].advance * scale;
+
         var cur_x = x;
-        for (text_str) |c| {
-            if (c < 32 or c > 126) continue;
-            const idx = c - 32;
-            const m = self.glyph_metrics[idx];
-            const sw = m.width * scale;
-            const sh = m.height * scale;
-            const gx = cur_x + m.bearing_x * scale;
-            const gy = y + scaled_ascent - m.bearing_y * scale - sh;
-            batch.appendQuad(gx, gy, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
-            cur_x += m.advance * scale;
+        var cur_y = y;
+
+        var it = std.mem.tokenizeAny(u8, text_str, " ");
+        var first_word = true;
+
+        while (it.next()) |word| {
+            var word_width: f32 = 0;
+            for (word) |c| {
+                if (c < 32 or c > 126) continue;
+                const idx = c - 32;
+                word_width += self.glyph_metrics[idx].advance * scale;
+            }
+
+            if (!first_word and cur_x + space_advance + word_width > x + max_width) {
+                cur_x = x;
+                cur_y += line_height;
+            } else if (!first_word) {
+                cur_x += space_advance;
+            }
+
+            for (word) |c| {
+                if (c < 32 or c > 126) continue;
+                const idx = c - 32;
+                const m = self.glyph_metrics[idx];
+                const sw = m.width * scale;
+                const sh = m.height * scale;
+                const scaled_ascent = self.font_ascent * scale;
+                const gx = cur_x + m.bearing_x * scale;
+                const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
+
+                const snapped_x = @round(gx * device_scale) / device_scale;
+                const snapped_y = @round(gy * device_scale) / device_scale;
+
+                batch.appendQuad(snapped_x, snapped_y, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
+                cur_x += m.advance * scale;
+            }
+            first_word = false;
         }
     }
 

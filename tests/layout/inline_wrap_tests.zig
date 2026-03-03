@@ -283,3 +283,47 @@ test "single word no wrap" {
     try std.testing.expectEqual(@as(f32, 0.0), child.dimensions.content.y);
     try std.testing.expectEqual(@as(f32, 19.2), anon.dimensions.content.height);
 }
+
+test "wrapped text child width capped at container width" {
+    const allocator = std.testing.allocator;
+
+    var parent_node = dom.Node.init(allocator, .element);
+    parent_node.tag = .div;
+
+    // "hello world" = 11 chars * 8 = 88px total
+    // Container width = 60px
+    // Text should wrap.
+    // BUG-F: Child width would be 88 (too large).
+    // Fix: Child width should be 60.
+    var text_node = makeTextNode(allocator, "hello world");
+    try parent_node.appendChild(&text_node, limits);
+
+    var style = css.ComputedStyle{};
+    style.display = .block;
+
+    var sn_text = makeStyledInline(&text_node);
+    const sn_children = [_]*css.StyledNode{&sn_text};
+    var sn_parent = css.StyledNode{
+        .node = &parent_node,
+        .style = style,
+        .children = &sn_children,
+    };
+
+    const root = try layout.buildLayoutTree(allocator, &sn_parent);
+    defer {
+        root.deinit(allocator);
+        allocator.destroy(root);
+        deinitNode(&parent_node);
+        deinitNode(&text_node);
+    }
+
+    layout.layoutTree(root, .{
+        .allocator = allocator,
+        .viewport_width = 60.0,
+        .viewport_height = 600.0,
+    });
+
+    const anon = root.children.items[0];
+    const child = anon.children.items[0];
+    try std.testing.expectEqual(@as(f32, 60.0), child.dimensions.content.width);
+}

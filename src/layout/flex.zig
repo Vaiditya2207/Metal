@@ -9,12 +9,32 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     const cb_width = if (containing_block) |cb| cb.dimensions.content.width else box.dimensions.content.width;
     box.dimensions.content.width = if (style.width) |w| layout.resolveLength(w, cb_width, ctx) else cb_width;
 
+    // Resolve container's own margin/padding/border
+    box.dimensions.margin.left = layout.resolveLength(style.margin_left, cb_width, ctx);
+    box.dimensions.margin.right = layout.resolveLength(style.margin_right, cb_width, ctx);
+    box.dimensions.margin.top = layout.resolveLength(style.margin_top, cb_width, ctx);
+    box.dimensions.margin.bottom = layout.resolveLength(style.margin_bottom, cb_width, ctx);
+    box.dimensions.padding.left = layout.resolveLength(style.padding_left, cb_width, ctx);
+    box.dimensions.padding.right = layout.resolveLength(style.padding_right, cb_width, ctx);
+    box.dimensions.padding.top = layout.resolveLength(style.padding_top, cb_width, ctx);
+    box.dimensions.padding.bottom = layout.resolveLength(style.padding_bottom, cb_width, ctx);
+    box.dimensions.border.left = layout.resolveLength(style.border_width, cb_width, ctx);
+    box.dimensions.border.right = layout.resolveLength(style.border_width, cb_width, ctx);
+    box.dimensions.border.top = layout.resolveLength(style.border_width, cb_width, ctx);
+    box.dimensions.border.bottom = layout.resolveLength(style.border_width, cb_width, ctx);
+
+    // Subtract container's own padding/border from content width
+    const h_extras = box.dimensions.padding.left + box.dimensions.padding.right + box.dimensions.border.left + box.dimensions.border.right;
+    box.dimensions.content.width = @max(0, box.dimensions.content.width - h_extras);
+
     if (containing_block) |cb| {
-        box.dimensions.content.x = cb.dimensions.content.x;
-        box.dimensions.content.y = cb.dimensions.content.y + cb.dimensions.content.height;
+        box.dimensions.content.x = cb.dimensions.content.x +
+            box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left;
+        box.dimensions.content.y = cb.dimensions.content.y + cb.dimensions.content.height +
+            box.dimensions.margin.top + box.dimensions.border.top + box.dimensions.padding.top;
     } else {
-        box.dimensions.content.x = 0;
-        box.dimensions.content.y = 0;
+        box.dimensions.content.x = box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left;
+        box.dimensions.content.y = box.dimensions.margin.top + box.dimensions.border.top + box.dimensions.padding.top;
     }
 
     const is_row = style.flex_direction == .row;
@@ -134,6 +154,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         const c_style = if (child.styled_node) |sn| &sn.style else continue;
 
         if (is_row) {
+            child.dimensions.content.y = box.dimensions.content.y + child.dimensions.margin.top + child.dimensions.border.top + child.dimensions.padding.top;
             child.dimensions.content.x = box.dimensions.content.x + main_pos + child.dimensions.margin.left + child.dimensions.border.left + child.dimensions.padding.left;
             main_pos += child.dimensions.marginBox().width + spacing;
         } else {
@@ -186,6 +207,13 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
             block.layoutBlock(grandchild, child, ctx);
             child.dimensions.content.height += grandchild.dimensions.marginBox().height;
         }
+    }
+
+    // Recompute max_cross_size after children have their actual dimensions
+    max_cross_size = 0;
+    for (children.items) |child| {
+        const actual_cross = if (is_row) child.dimensions.marginBox().height else child.dimensions.marginBox().width;
+        max_cross_size = @max(max_cross_size, actual_cross);
     }
 
     if (style.height == null) {

@@ -4,7 +4,6 @@ const text_measure = @import("text_measure.zig");
 
 pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32) void {
     const available_width = layout_box.dimensions.content.width;
-    const space_width: f32 = text_measure.measureTextWidth(" ", parent_font_size);
     var cursor_x: f32 = 0;
     var cursor_y: f32 = 0;
     var current_line_height: f32 = parent_font_size * 1.2;
@@ -14,6 +13,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32) 
             sn.style.font_size.value
         else
             parent_font_size;
+        const child_space_width: f32 = text_measure.measureTextWidth(" ", child_font_size);
         const child_line_height: f32 = child_font_size * 1.2;
 
         const text = blk: {
@@ -45,7 +45,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32) 
             const word_width = text_measure.measureTextWidth(word, child_font_size);
 
             if (!first_word and cursor_x > 0) {
-                cursor_x += space_width;
+                cursor_x += child_space_width;
             }
 
             if (cursor_x + word_width > available_width and cursor_x > 0) {
@@ -67,7 +67,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32) 
 
         child.dimensions.content.x = layout_box.dimensions.content.x + child_x;
         child.dimensions.content.y = layout_box.dimensions.content.y + child_y;
-        child.dimensions.content.width = text_measure.measureTextWidth(text, child_font_size);
+        child.dimensions.content.width = @min(text_measure.measureTextWidth(text, child_font_size), available_width);
         child.dimensions.content.height = if (cursor_y > child_y)
             cursor_y - child_y + child_line_height
         else

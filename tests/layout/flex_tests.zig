@@ -209,3 +209,48 @@ test "flex row respects child margins" {
     try std.testing.expectEqual(@as(f32, 10), root.children.items[0].dimensions.content.x);
     try std.testing.expectEqual(@as(f32, 130), root.children.items[1].dimensions.content.x);
 }
+
+test "flex row container with padding positions children correctly" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // Container: 500px wide, padding: 20px, display: flex
+    var container_style = properties.ComputedStyle{};
+    container_style.display = .flex;
+    container_style.width = .{ .value = 500, .unit = .px };
+    container_style.padding_left = .{ .value = 20, .unit = .px };
+    container_style.padding_right = .{ .value = 20, .unit = .px };
+    container_style.padding_top = .{ .value = 20, .unit = .px };
+    container_style.padding_bottom = .{ .value = 20, .unit = .px };
+
+    // Child: 100px wide, 50px high
+    var child_style = properties.ComputedStyle{};
+    child_style.display = .block;
+    child_style.width = .{ .value = 100, .unit = .px };
+    child_style.height = .{ .value = 50, .unit = .px };
+
+    var grandchild_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{} };
+    var child_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{&grandchild_node} };
+
+    var container_node = resolver.StyledNode{
+        .node = undefined,
+        .style = container_style,
+        .children = &.{&child_node},
+    };
+
+    const root = try layout.buildLayoutTree(allocator, &container_node);
+    layout.layoutTree(root, .{ .allocator = allocator, .viewport_width = 1000, .viewport_height = 1000 });
+
+    // Container content.width should be 500 - 40 = 460
+    try std.testing.expectEqual(@as(f32, 460), root.dimensions.content.width);
+
+    // Child 0 x should be 20 (inside padding)
+    try std.testing.expectEqual(@as(f32, 20), root.children.items[0].dimensions.content.x);
+    // Child 0 y should be 20 (inside padding)
+    try std.testing.expectEqual(@as(f32, 20), root.children.items[0].dimensions.content.y);
+
+    // Container height should match tallest child (50)
+    // BUG-E: Currently fails (returns 0)
+    try std.testing.expectEqual(@as(f32, 50), root.dimensions.content.height);
+}

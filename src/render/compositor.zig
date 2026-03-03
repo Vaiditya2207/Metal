@@ -103,7 +103,7 @@ pub const Compositor = struct {
                     const gf = @as(f32, @floatFromInt(t.color.g)) / 255.0;
                     const bf = @as(f32, @floatFromInt(t.color.b)) / 255.0;
                     const af = @as(f32, @floatFromInt(t.color.a)) / 255.0;
-                    self.text_renderer.generateVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size);
+                    self.text_renderer.generateVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size, t.rect.width, scale);
                 },
                 .push_clip => |rect| {
                     flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
