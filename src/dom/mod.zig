@@ -6,6 +6,9 @@ pub const document = @import("document.zig");
 pub const entity = @import("entity.zig");
 pub const tokenizer = @import("tokenizer.zig");
 pub const builder = @import("builder.zig");
+pub const tokenizer_states = @import("tokenizer_states.zig");
+pub const tokenizer_attr_states = @import("tokenizer_attr_states.zig");
+pub const event_target = @import("event_target.zig");
 
 // Re-export commonly used types at the top level
 pub const TagName = tag.TagName;
@@ -19,3 +22,5 @@ pub const TokenType = tokenizer.TokenType;
 pub const Token = tokenizer.Token;
 pub const Attribute = tokenizer.Attribute;
 pub const parseHTML = builder.parseHTML;
+pub const EventTarget = event_target.EventTarget;
+pub const EventListener = event_target.EventListener;

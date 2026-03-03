@@ -11,8 +11,10 @@
 
 @implementation MetalViewDelegate
 - (void)drawInMTKView:(nonnull MTKView *)view {
-  if (self.draw_callback) {
-    self.draw_callback(self.zig_context);
+  @autoreleasepool {
+    if (self.draw_callback) {
+      self.draw_callback(self.zig_context);
+    }
   }
 }
 
@@ -73,13 +75,65 @@ void *create_command_queue(void *device_ptr) {
   return (__bridge_retained void *)[device newCommandQueue];
 }
 
+static FrameContext g_frame_context;
+
+void *begin_frame(void *command_queue_ptr, void *view_ptr) {
+  id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)command_queue_ptr;
+  MTKView *view = (__bridge MTKView *)view_ptr;
+
+  MTLRenderPassDescriptor *renderPassDescriptor = view.currentRenderPassDescriptor;
+  id<CAMetalDrawable> drawable = view.currentDrawable;
+
+  if (renderPassDescriptor == nil || drawable == nil) {
+    return NULL;
+  }
+
+  id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+  id<MTLRenderCommandEncoder> renderEncoder =
+      [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+
+  g_frame_context.commandBuffer = (__bridge_retained void *)commandBuffer;
+  g_frame_context.renderEncoder = (__bridge_retained void *)renderEncoder;
+  g_frame_context.drawable = (__bridge_retained void *)drawable;
+
+  return (void *)&g_frame_context;
+}
+
+void end_frame(void *frame_context_ptr) {
+  if (frame_context_ptr == NULL)
+    return;
+  FrameContext *context = (FrameContext *)frame_context_ptr;
+
+  id<MTLRenderCommandEncoder> renderEncoder = (__bridge_transfer id<MTLRenderCommandEncoder>)context->renderEncoder;
+  id<MTLCommandBuffer> commandBuffer = (__bridge_transfer id<MTLCommandBuffer>)context->commandBuffer;
+  id<MTLDrawable> drawable = (__bridge_transfer id<MTLDrawable>)context->drawable;
+
+  [renderEncoder endEncoding];
+  [commandBuffer presentDrawable:drawable];
+  [commandBuffer commit];
+}
+
+void set_clear_color(void *view_ptr, float r, float g, float b, float a) {
+  MTKView *view = (__bridge MTKView *)view_ptr;
+  view.clearColor = MTLClearColorMake(r, g, b, a);
+}
+
 void run_application(void) { [NSApp run]; }
+
+static MetalViewDelegate *g_delegate = nil;
 
 void set_metal_delegate(void *view_ptr, void *zig_context,
                         void (*draw_callback)(void *)) {
   MTKView *view = (__bridge MTKView *)view_ptr;
-  MetalViewDelegate *delegate = [[MetalViewDelegate alloc] init];
-  delegate.zig_context = zig_context;
-  delegate.draw_callback = draw_callback;
-  [view setDelegate:delegate];
+  g_delegate = [[MetalViewDelegate alloc] init];
+  g_delegate.zig_context = zig_context;
+  g_delegate.draw_callback = draw_callback;
+  [view setDelegate:g_delegate];
+}
+
+void get_drawable_size(void *view_ptr, float *width, float *height) {
+  MTKView *view = (__bridge MTKView *)view_ptr;
+  CGSize size = view.drawableSize;
+  *width = (float)size.width;
+  *height = (float)size.height;
 }

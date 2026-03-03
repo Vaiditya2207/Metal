@@ -9,20 +9,20 @@ const NodeType = node_mod.NodeType;
 const TagName = tag_mod.TagName;
 
 test "create document" {
-    const doc = try Document.init(std.heap.page_allocator);
+    const doc = try Document.init(std.testing.allocator);
     defer doc.deinit();
     try std.testing.expectEqual(NodeType.document, doc.root.node_type);
 }
 
 test "create element" {
-    const doc = try Document.init(std.heap.page_allocator);
+    const doc = try Document.init(std.testing.allocator);
     defer doc.deinit();
     const div = try doc.createElement("div");
     try std.testing.expectEqual(TagName.div, div.tag);
 }
 
 test "appendChild and relationships" {
-    const doc = try Document.init(std.heap.page_allocator);
+    const doc = try Document.init(std.testing.allocator);
     defer doc.deinit();
     const body = try doc.createElement("body");
     try doc.root.appendChild(body, doc.limits);
@@ -32,7 +32,7 @@ test "appendChild and relationships" {
 }
 
 test "removeChild" {
-    const doc = try Document.init(std.heap.page_allocator);
+    const doc = try Document.init(std.testing.allocator);
     defer doc.deinit();
     const body = try doc.createElement("body");
     try doc.root.appendChild(body, doc.limits);
@@ -41,7 +41,7 @@ test "removeChild" {
 }
 
 test "getElementById" {
-    const doc = try Document.init(std.heap.page_allocator);
+    const doc = try Document.init(std.testing.allocator);
     defer doc.deinit();
     const div = try doc.createElement("div");
     try div.attributes.append(doc.arena.allocator(), .{ .name = "id", .value = "main" });
@@ -52,7 +52,7 @@ test "getElementById" {
 }
 
 test "querySelector by tag" {
-    const doc = try Document.init(std.heap.page_allocator);
+    const doc = try Document.init(std.testing.allocator);
     defer doc.deinit();
     const body = try doc.createElement("body");
     try doc.root.appendChild(body, doc.limits);
@@ -63,7 +63,7 @@ test "querySelector by tag" {
 }
 
 test "getTextContent" {
-    const doc = try Document.init(std.heap.page_allocator);
+    const doc = try Document.init(std.testing.allocator);
     defer doc.deinit();
     const p = try doc.createElement("p");
     try doc.root.appendChild(p, doc.limits);
@@ -74,7 +74,7 @@ test "getTextContent" {
 }
 
 test "node count tracking" {
-    const doc = try Document.init(std.heap.page_allocator);
+    const doc = try Document.init(std.testing.allocator);
     defer doc.deinit();
     try std.testing.expect(doc.node_count == 1);
     _ = try doc.createElement("div");

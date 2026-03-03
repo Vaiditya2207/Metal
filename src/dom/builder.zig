@@ -34,7 +34,7 @@ pub const TreeBuilder = struct {
         return self.open_elements.items[self.open_elements.items.len - 1];
     }
 
-    fn insertElement(self: *TreeBuilder, tag_name: []const u8, attributes: []const tokenizer_mod.Attribute) !*Node {
+    pub fn insertElement(self: *TreeBuilder, tag_name: []const u8, attributes: []const tokenizer_mod.Attribute) !*Node {
         const tag = TagName.fromString(tag_name);
 
         if (tag != .html and !self.hasOpenElement(.html)) {
@@ -50,13 +50,14 @@ pub const TreeBuilder = struct {
             tag != .title and tag != .meta and tag != .link and tag != .style)
         {
             if (!self.body_inserted) {
-                self.closeUpTo(.head);
+                if (self.hasOpenElement(.head)) self.closeUpTo(.head);
                 try self.insertImplicitElement("body");
                 self.body_inserted = true;
             }
         }
 
         const elem = try self.doc.createElement(tag_name);
+        elem.tag_name_str = try self.allocator.dupe(u8, tag_name);
         for (attributes) |attr| {
             try elem.attributes.append(self.allocator, .{
                 .name = try self.allocator.dupe(u8, attr.name),
@@ -75,12 +76,13 @@ pub const TreeBuilder = struct {
 
     fn insertImplicitElement(self: *TreeBuilder, tag_name: []const u8) !void {
         const elem = try self.doc.createElement(tag_name);
+        elem.tag_name_str = try self.allocator.dupe(u8, tag_name);
         const parent = self.currentNode();
         parent.appendChild(elem, self.doc.limits) catch return;
         try self.open_elements.append(self.allocator, elem);
     }
 
-    fn hasOpenElement(self: *TreeBuilder, tag: TagName) bool {
+    pub fn hasOpenElement(self: *TreeBuilder, tag: TagName) bool {
         for (self.open_elements.items) |elem| {
             if (elem.tag == tag) return true;
         }

@@ -19,6 +19,22 @@ pub fn build(b: *std.Build) void {
         .file = b.path("src/platform/objc_bridge.m"),
         .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
     });
+    exe.addCSourceFile(.{
+        .file = b.path("src/platform/metal_render.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
+    exe.addCSourceFile(.{
+        .file = b.path("src/platform/text_atlas.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
+    exe.addCSourceFile(.{
+        .file = b.path("src/platform/event_bridge.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
+    exe.addCSourceFile(.{
+        .file = b.path("src/platform/jsc_bridge.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
     exe.addIncludePath(b.path("src/platform"));
 
     // Link macOS frameworks
@@ -26,6 +42,8 @@ pub fn build(b: *std.Build) void {
     exe.linkFramework("Metal");
     exe.linkFramework("MetalKit");
     exe.linkFramework("QuartzCore");
+    exe.linkFramework("CoreText");
+    exe.linkFramework("CoreGraphics");
     exe.linkFramework("JavaScriptCore");
     exe.linkLibC();
 
@@ -50,5 +68,14 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    all_tests.addIncludePath(b.path("src/platform"));
+    all_tests.addCSourceFile(.{
+        .file = b.path("src/platform/event_bridge.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
+    all_tests.linkFramework("AppKit");
+    all_tests.linkFramework("MetalKit");
+    all_tests.linkFramework("Metal");
+    all_tests.linkLibC();
     test_step.dependOn(&b.addRunArtifact(all_tests).step);
 }

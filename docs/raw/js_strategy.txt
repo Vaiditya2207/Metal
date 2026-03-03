@@ -1,0 +1,12 @@
+JavaScript Engine Binding Strategy (Phase 6)
+
+1. Use Apple JavaScriptCore framework (already linked in build.zig).
+2. Create src/js/ module with JSContext wrapper in Zig.
+3. Bridge DOM nodes to JS objects via JSExport protocol.
+4. Implement console.log, document.getElementById, setTimeout.
+5. Parse inline <script> content from DOM tree.
+6. Execute scripts after DOM construction.
+7. Event handlers: onclick/onload via JSValue callbacks.
+8. Security: sandbox all JS execution, no file system access.
+9. Memory: JS objects reference DOM via weak pointers.
+10. Testing: unit tests for each binding in tests/js/.

@@ -1,0 +1,38 @@
+const std = @import("std");
+const layout_box = @import("../layout/box.zig");
+const dom = @import("../dom/mod.zig");
+
+pub const HitTestResult = struct {
+    box: *const layout_box.LayoutBox,
+    node: ?*const dom.Node,
+};
+
+pub fn hitTest(root: *const layout_box.LayoutBox, x: f32, y: f32, scroll_y: f32) ?HitTestResult {
+    const py = y + scroll_y;
+    const px = x;
+
+    // Traverse children in reverse paint order (last to first)
+    var i: usize = root.children.items.len;
+    while (i > 0) {
+        i -= 1;
+        const child = root.children.items[i];
+        if (hitTest(child, x, y, scroll_y)) |result| {
+            return result;
+        }
+    }
+
+    // Check self
+    if (containsPoint(root.dimensions.borderBox(), px, py)) {
+        return HitTestResult{
+            .box = root,
+            .node = if (root.styled_node) |sn| sn.node else null,
+        };
+    }
+
+    return null;
+}
+
+fn containsPoint(rect: layout_box.Rect, px: f32, py: f32) bool {
+    return px >= rect.x and px < rect.x + rect.width and
+        py >= rect.y and py < rect.y + rect.height;
+}

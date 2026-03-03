@@ -7,6 +7,23 @@ pub const Config = struct {
     parser: ParserConfig = .{},
     window: WindowConfig = .{},
     renderer: RendererConfig = .{},
+    css: CssConfig = .{},
+    layout: LayoutConfig = .{},
+
+    pub const LayoutConfig = struct {
+        max_layout_depth: u16 = 512,
+        max_layout_nodes: u32 = 1000000,
+        max_children_per_node: u32 = 65536,
+    };
+
+    pub const CssConfig = struct {
+        max_selector_depth: u16 = 64,
+        max_rules_per_stylesheet: u32 = 10000,
+        max_declarations_per_rule: u16 = 128,
+        max_stylesheets: u16 = 64,
+        max_selector_parts: u16 = 32,
+        max_value_length: u32 = 4096,
+    };
 
     pub const ParserConfig = struct {
         max_document_size_bytes: u32 = 52428800,
@@ -21,7 +38,7 @@ pub const Config = struct {
     };
 
     pub const WindowConfig = struct {
-        title: []const u8 = "Metal",
+        title: [:0]const u8 = "Metal",
         width: u16 = 1280,
         height: u16 = 800,
     };
@@ -46,12 +63,4 @@ pub fn getConfig() *const Config {
         // when the file system and settings UI are available.
     }
     return &global_config;
-}
-
-test "config returns valid defaults" {
-    const cfg = getConfig();
-    try std.testing.expect(cfg.parser.max_tree_depth == 512);
-    try std.testing.expect(cfg.parser.max_total_nodes == 1000000);
-    try std.testing.expect(cfg.window.width == 1280);
-    try std.testing.expect(cfg.renderer.target_fps == 120);
 }

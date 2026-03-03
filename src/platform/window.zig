@@ -11,6 +11,6 @@ pub const Window = struct {
     }
 
     pub fn setMetalView(self: *Window, device: *anyopaque) !*anyopaque {
-        return objc.create_metal_view(self.handle, device) orelse error.ViewCreationFailed;
+        return objc.create_event_metal_view(self.handle, device) orelse error.ViewCreationFailed;
     }
 };
