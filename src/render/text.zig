@@ -10,10 +10,10 @@ pub const TextRenderer = struct {
     font_size: f32,
     font_ascent: f32,
 
-    pub fn init(device: *anyopaque, font_size: f32, scale_factor: f32) !TextRenderer {
+    pub fn init(device: *anyopaque, queue: *anyopaque, font_size: f32, scale_factor: f32) !TextRenderer {
         var metrics: [95]objc.GlyphMetrics = undefined;
         var ascent: f32 = 0;
-        const texture = objc.create_font_atlas(device, font_size, scale_factor, @ptrCast(&metrics), &ascent) orelse return error.AtlasCreationFailed;
+        const texture = objc.create_font_atlas(device, queue, font_size, scale_factor, @ptrCast(&metrics), &ascent) orelse return error.AtlasCreationFailed;
         const pipeline = objc.create_text_pipeline(device) orelse return error.PipelineCreationFailed;
 
         return TextRenderer{

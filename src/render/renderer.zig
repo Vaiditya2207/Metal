@@ -39,7 +39,7 @@ pub const Renderer = struct {
         const pipeline = objc.create_render_pipeline(device) orelse return error.PipelineCreationFailed;
 
         const scale_factor = objc.get_screen_scale_factor();
-        const text_renderer = try text.TextRenderer.init(device, 16.0, scale_factor);
+        const text_renderer = try text.TextRenderer.init(device, queue, 64.0, scale_factor);
 
         return Renderer{
             .device = device,

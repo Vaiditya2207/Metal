@@ -41,19 +41,20 @@ static const char *text_shader_source =
 "}\n"
 "fragment float4 text_fragment_main(TextVertexOut in [[stage_in]],\n"
 "                                    texture2d<float> atlas [[texture(0)]]) {\n"
-"    constexpr sampler s(mag_filter::linear, min_filter::linear);\n"
+"    constexpr sampler s(mag_filter::linear, min_filter::linear, mip_filter::linear);\n"
 "    float alpha = atlas.sample(s, in.uv).r;\n"
 "    return float4(in.color.rgb, in.color.a * alpha);\n"
 "}\n";
 
-void *create_font_atlas(void *device_ptr, float font_size, float scale_factor, GlyphMetrics *metrics_out, float *ascent_out) {
+void *create_font_atlas(void *device_ptr, void *queue_ptr, float font_size, float scale_factor, GlyphMetrics *metrics_out, float *ascent_out) {
     id<MTLDevice> device = (__bridge id<MTLDevice>)device_ptr;
+    id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)queue_ptr;
     NSFont *font = [NSFont systemFontOfSize:font_size];
     CTFontRef ct_font = (__bridge CTFontRef)font;
 
     if (ascent_out) *ascent_out = (float)CTFontGetAscent(ct_font);
 
-    int atlas_size = (int)(512 * scale_factor);
+    int atlas_size = (int)(2048 * scale_factor);
     uint8_t *bitmap_data = calloc(atlas_size * atlas_size, 1);
     CGColorSpaceRef color_space = CGColorSpaceCreateDeviceGray();
     CGContextRef context = CGBitmapContextCreate(bitmap_data, atlas_size, atlas_size, 8, atlas_size, color_space, kCGImageAlphaNone);
@@ -99,9 +100,17 @@ void *create_font_atlas(void *device_ptr, float font_size, float scale_factor, G
         cur_x += rect.size.width + 2;
     }
 
-    MTLTextureDescriptor *desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatR8Unorm width:atlas_size height:atlas_size mipmapped:NO];
+    MTLTextureDescriptor *desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatR8Unorm width:atlas_size height:atlas_size mipmapped:YES];
     id<MTLTexture> texture = [device newTextureWithDescriptor:desc];
     [texture replaceRegion:MTLRegionMake2D(0, 0, atlas_size, atlas_size) mipmapLevel:0 withBytes:bitmap_data bytesPerRow:atlas_size];
+
+    if (queue) {
+        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+        id<MTLBlitCommandEncoder> blitEncoder = [commandBuffer blitCommandEncoder];
+        [blitEncoder generateMipmapsForTexture:texture];
+        [blitEncoder endEncoding];
+        [commandBuffer commit];
+    }
 
     CGContextRelease(context);
     CGColorSpaceRelease(color_space);
