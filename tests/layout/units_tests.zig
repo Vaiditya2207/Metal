@@ -12,7 +12,7 @@ test "layout: units resolution (px, em, rem, vw, vh, %)" {
     var style = properties.ComputedStyle{};
     // Test px (base case)
     try style.applyProperty("width", "100px", allocator);
-    // Test em (relative to root font size for now, as per implementation limitation)
+    // Test em (relative to element font size, which defaults to 16px)
     try style.applyProperty("height", "2em", allocator);
     // Test rem (relative to root font size)
     try style.applyProperty("margin-top", "1.5rem", allocator);
@@ -34,16 +34,16 @@ test "layout: units resolution (px, em, rem, vw, vh, %)" {
 
     // Layout with specific viewport and root font size
     // Viewport: 800x600
-    // Root font size: 20px
+    // Root font size: 20px (element font size remains default 16px)
     layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800.0, .viewport_height = 600.0, .root_font_size = 20.0 });
 
     // 100px -> 100
     try std.testing.expectEqual(@as(f32, 100.0), root.dimensions.content.width);
 
-    // 2em -> 2 * 20 = 40
-    try std.testing.expectEqual(@as(f32, 40.0), root.dimensions.content.height);
+    // 2em -> 2 * 16 (element font size) = 32
+    try std.testing.expectEqual(@as(f32, 32.0), root.dimensions.content.height);
 
-    // 1.5rem -> 1.5 * 20 = 30
+    // 1.5rem -> 1.5 * 20 (root font size) = 30
     try std.testing.expectEqual(@as(f32, 30.0), root.dimensions.margin.top);
 
     // 10vw -> 10% of 800 = 80

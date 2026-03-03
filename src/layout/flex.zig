@@ -7,21 +7,21 @@ const layout = @import("layout.zig");
 pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.LayoutContext) void {
     const style = if (box.styled_node) |sn| &sn.style else return;
     const cb_width = if (containing_block) |cb| cb.dimensions.content.width else box.dimensions.content.width;
-    box.dimensions.content.width = if (style.width) |w| layout.resolveLength(w, cb_width, ctx) else cb_width;
+    box.dimensions.content.width = if (style.width) |w| layout.resolveLength(w, cb_width, ctx, style.font_size.value) else cb_width;
 
     // Resolve container's own margin/padding/border
-    box.dimensions.margin.left = layout.resolveLength(style.margin_left, cb_width, ctx);
-    box.dimensions.margin.right = layout.resolveLength(style.margin_right, cb_width, ctx);
-    box.dimensions.margin.top = layout.resolveLength(style.margin_top, cb_width, ctx);
-    box.dimensions.margin.bottom = layout.resolveLength(style.margin_bottom, cb_width, ctx);
-    box.dimensions.padding.left = layout.resolveLength(style.padding_left, cb_width, ctx);
-    box.dimensions.padding.right = layout.resolveLength(style.padding_right, cb_width, ctx);
-    box.dimensions.padding.top = layout.resolveLength(style.padding_top, cb_width, ctx);
-    box.dimensions.padding.bottom = layout.resolveLength(style.padding_bottom, cb_width, ctx);
-    box.dimensions.border.left = layout.resolveLength(style.border_width, cb_width, ctx);
-    box.dimensions.border.right = layout.resolveLength(style.border_width, cb_width, ctx);
-    box.dimensions.border.top = layout.resolveLength(style.border_width, cb_width, ctx);
-    box.dimensions.border.bottom = layout.resolveLength(style.border_width, cb_width, ctx);
+    box.dimensions.margin.left = layout.resolveLength(style.margin_left, cb_width, ctx, style.font_size.value);
+    box.dimensions.margin.right = layout.resolveLength(style.margin_right, cb_width, ctx, style.font_size.value);
+    box.dimensions.margin.top = layout.resolveLength(style.margin_top, cb_width, ctx, style.font_size.value);
+    box.dimensions.margin.bottom = layout.resolveLength(style.margin_bottom, cb_width, ctx, style.font_size.value);
+    box.dimensions.padding.left = layout.resolveLength(style.padding_left, cb_width, ctx, style.font_size.value);
+    box.dimensions.padding.right = layout.resolveLength(style.padding_right, cb_width, ctx, style.font_size.value);
+    box.dimensions.padding.top = layout.resolveLength(style.padding_top, cb_width, ctx, style.font_size.value);
+    box.dimensions.padding.bottom = layout.resolveLength(style.padding_bottom, cb_width, ctx, style.font_size.value);
+    box.dimensions.border.left = layout.resolveLength(style.border_width, cb_width, ctx, style.font_size.value);
+    box.dimensions.border.right = layout.resolveLength(style.border_width, cb_width, ctx, style.font_size.value);
+    box.dimensions.border.top = layout.resolveLength(style.border_width, cb_width, ctx, style.font_size.value);
+    box.dimensions.border.bottom = layout.resolveLength(style.border_width, cb_width, ctx, style.font_size.value);
 
     // Subtract container's own padding/border from content width
     const h_extras = box.dimensions.padding.left + box.dimensions.padding.right + box.dimensions.border.left + box.dimensions.border.right;
@@ -58,26 +58,26 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
 
     for (children.items, 0..) |child, i| {
         const c_style = if (child.styled_node) |sn| &sn.style else continue;
-        child.dimensions.margin.left = layout.resolveLength(c_style.margin_left, box.dimensions.content.width, ctx);
-        child.dimensions.margin.right = layout.resolveLength(c_style.margin_right, box.dimensions.content.width, ctx);
-        child.dimensions.margin.top = layout.resolveLength(c_style.margin_top, box.dimensions.content.width, ctx);
-        child.dimensions.margin.bottom = layout.resolveLength(c_style.margin_bottom, box.dimensions.content.width, ctx);
-        child.dimensions.padding.left = layout.resolveLength(c_style.padding_left, box.dimensions.content.width, ctx);
-        child.dimensions.padding.right = layout.resolveLength(c_style.padding_right, box.dimensions.content.width, ctx);
-        child.dimensions.padding.top = layout.resolveLength(c_style.padding_top, box.dimensions.content.width, ctx);
-        child.dimensions.padding.bottom = layout.resolveLength(c_style.padding_bottom, box.dimensions.content.width, ctx);
-        child.dimensions.border.left = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx);
-        child.dimensions.border.right = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx);
-        child.dimensions.border.top = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx);
-        child.dimensions.border.bottom = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx);
+        child.dimensions.margin.left = layout.resolveLength(c_style.margin_left, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.margin.right = layout.resolveLength(c_style.margin_right, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.margin.top = layout.resolveLength(c_style.margin_top, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.margin.bottom = layout.resolveLength(c_style.margin_bottom, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.padding.left = layout.resolveLength(c_style.padding_left, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.padding.right = layout.resolveLength(c_style.padding_right, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.padding.top = layout.resolveLength(c_style.padding_top, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.padding.bottom = layout.resolveLength(c_style.padding_bottom, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.border.left = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.border.right = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.border.top = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx, c_style.font_size.value);
+        child.dimensions.border.bottom = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx, c_style.font_size.value);
 
         var base_size: f32 = 0;
         if (c_style.flex_basis) |fb| {
-            base_size = layout.resolveLength(fb, if (is_row) box.dimensions.content.width else (if (style.height) |h| layout.resolveLength(h, ctx.viewport_height, ctx) else 0), ctx);
+            base_size = layout.resolveLength(fb, if (is_row) box.dimensions.content.width else (if (style.height) |h| layout.resolveLength(h, ctx.viewport_height, ctx, style.font_size.value) else 0), ctx, c_style.font_size.value);
         } else if (is_row) {
-            if (c_style.width) |w| base_size = layout.resolveLength(w, box.dimensions.content.width, ctx);
+            if (c_style.width) |w| base_size = layout.resolveLength(w, box.dimensions.content.width, ctx, c_style.font_size.value);
         } else {
-            if (c_style.height) |h| base_size = layout.resolveLength(h, if (style.height) |sh| layout.resolveLength(sh, ctx.viewport_height, ctx) else 0, ctx);
+            if (c_style.height) |h| base_size = layout.resolveLength(h, if (style.height) |sh| layout.resolveLength(sh, ctx.viewport_height, ctx, style.font_size.value) else 0, ctx, c_style.font_size.value);
         }
 
         base_sizes[i] = base_size;
@@ -95,7 +95,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     }
 
     const has_definite_main = is_row or style.height != null;
-    const container_main_size = if (is_row) box.dimensions.content.width else (if (style.height) |h| layout.resolveLength(h, ctx.viewport_height, ctx) else 0);
+    const container_main_size = if (is_row) box.dimensions.content.width else (if (style.height) |h| layout.resolveLength(h, ctx.viewport_height, ctx, style.font_size.value) else 0);
     var available_space = container_main_size - total_base_size;
 
     if (available_space > 0 and total_grow > 0) {
@@ -163,11 +163,11 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
             main_pos += child.dimensions.marginBox().height + spacing;
         }
 
-        const container_cross_size = if (is_row) (if (style.height) |h| layout.resolveLength(h, ctx.viewport_height, ctx) else 0) else box.dimensions.content.width;
+        const container_cross_size = if (is_row) (if (style.height) |h| layout.resolveLength(h, ctx.viewport_height, ctx, style.font_size.value) else 0) else box.dimensions.content.width;
         if (is_row) {
-            if (c_style.height) |h| child.dimensions.content.height = layout.resolveLength(h, container_cross_size, ctx);
+            if (c_style.height) |h| child.dimensions.content.height = layout.resolveLength(h, container_cross_size, ctx, c_style.font_size.value);
         } else {
-            if (c_style.width) |w| child.dimensions.content.width = layout.resolveLength(w, container_cross_size, ctx);
+            if (c_style.width) |w| child.dimensions.content.width = layout.resolveLength(w, container_cross_size, ctx, c_style.font_size.value);
         }
 
         var cross_size = if (is_row) child.dimensions.marginBox().height else child.dimensions.marginBox().width;
@@ -223,6 +223,6 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
             box.dimensions.content.height = main_pos;
         }
     } else {
-        box.dimensions.content.height = layout.resolveLength(style.height, ctx.viewport_height, ctx);
+        box.dimensions.content.height = layout.resolveLength(style.height, ctx.viewport_height, ctx, style.font_size.value);
     }
 }

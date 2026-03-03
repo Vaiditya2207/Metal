@@ -142,3 +142,7 @@ float get_content_scale(void *view_ptr) {
   MTKView *view = (__bridge MTKView *)view_ptr;
   return (float)view.window.backingScaleFactor;
 }
+
+float get_screen_scale_factor(void) {
+  return (float)[NSScreen mainScreen].backingScaleFactor;
+}

@@ -26,15 +26,15 @@ pub fn applyPositioning(box: *LayoutBox, ctx: layout.LayoutContext) void {
         .static_val => {},
         .relative => {
             if (style.top) |t| {
-                box.dimensions.content.y += layout.resolveLength(t, ctx.viewport_height, ctx);
+                box.dimensions.content.y += layout.resolveLength(t, ctx.viewport_height, ctx, style.font_size.value);
             } else if (style.bottom) |b| {
-                box.dimensions.content.y -= layout.resolveLength(b, ctx.viewport_height, ctx);
+                box.dimensions.content.y -= layout.resolveLength(b, ctx.viewport_height, ctx, style.font_size.value);
             }
 
             if (style.left_pos) |l| {
-                box.dimensions.content.x += layout.resolveLength(l, ctx.viewport_width, ctx);
+                box.dimensions.content.x += layout.resolveLength(l, ctx.viewport_width, ctx, style.font_size.value);
             } else if (style.right_pos) |r| {
-                box.dimensions.content.x -= layout.resolveLength(r, ctx.viewport_width, ctx);
+                box.dimensions.content.x -= layout.resolveLength(r, ctx.viewport_width, ctx, style.font_size.value);
             }
         },
         .absolute => {
@@ -48,23 +48,23 @@ pub fn applyPositioning(box: *LayoutBox, ctx: layout.LayoutContext) void {
             };
 
             if (style.top) |t| {
-                box.dimensions.content.y = cb_rect.y + layout.resolveLength(t, cb_rect.height, ctx) + box.dimensions.margin.top + box.dimensions.border.top + box.dimensions.padding.top;
+                box.dimensions.content.y = cb_rect.y + layout.resolveLength(t, cb_rect.height, ctx, style.font_size.value) + box.dimensions.margin.top + box.dimensions.border.top + box.dimensions.padding.top;
             } else if (style.bottom) |b| {
-                box.dimensions.content.y = cb_rect.y + cb_rect.height - layout.resolveLength(b, cb_rect.height, ctx) - box.dimensions.content.height - box.dimensions.margin.bottom - box.dimensions.border.bottom - box.dimensions.padding.bottom;
+                box.dimensions.content.y = cb_rect.y + cb_rect.height - layout.resolveLength(b, cb_rect.height, ctx, style.font_size.value) - box.dimensions.content.height - box.dimensions.margin.bottom - box.dimensions.border.bottom - box.dimensions.padding.bottom;
             }
 
             if (style.left_pos) |l| {
-                box.dimensions.content.x = cb_rect.x + layout.resolveLength(l, cb_rect.width, ctx) + box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left;
+                box.dimensions.content.x = cb_rect.x + layout.resolveLength(l, cb_rect.width, ctx, style.font_size.value) + box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left;
             } else if (style.right_pos) |r| {
-                box.dimensions.content.x = cb_rect.x + cb_rect.width - layout.resolveLength(r, cb_rect.width, ctx) - box.dimensions.content.width - box.dimensions.margin.right - box.dimensions.border.right - box.dimensions.padding.right;
+                box.dimensions.content.x = cb_rect.x + cb_rect.width - layout.resolveLength(r, cb_rect.width, ctx, style.font_size.value) - box.dimensions.content.width - box.dimensions.margin.right - box.dimensions.border.right - box.dimensions.padding.right;
             }
         },
         .fixed => {
             if (style.top) |t| {
-                box.dimensions.content.y = layout.resolveLength(t, ctx.viewport_height, ctx) + box.dimensions.margin.top + box.dimensions.border.top + box.dimensions.padding.top;
+                box.dimensions.content.y = layout.resolveLength(t, ctx.viewport_height, ctx, style.font_size.value) + box.dimensions.margin.top + box.dimensions.border.top + box.dimensions.padding.top;
             }
             if (style.left_pos) |l| {
-                box.dimensions.content.x = layout.resolveLength(l, ctx.viewport_width, ctx) + box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left;
+                box.dimensions.content.x = layout.resolveLength(l, ctx.viewport_width, ctx, style.font_size.value) + box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left;
             }
         },
     }

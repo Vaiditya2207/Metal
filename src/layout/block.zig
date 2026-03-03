@@ -45,16 +45,16 @@ fn calculateWidth(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.La
     };
 
     const width = if (style.width) |w|
-        if (w.unit == .auto) null else layout.resolveLength(w, cb_width, ctx)
+        if (w.unit == .auto) null else layout.resolveLength(w, cb_width, ctx, style.font_size.value)
     else
         null;
 
-    var margin_left = layout.resolveLength(style.margin_left, cb_width, ctx);
-    var margin_right = layout.resolveLength(style.margin_right, cb_width, ctx);
-    const padding_left = layout.resolveLength(style.padding_left, cb_width, ctx);
-    const padding_right = layout.resolveLength(style.padding_right, cb_width, ctx);
-    const border_left = layout.resolveLength(style.border_width, cb_width, ctx);
-    const border_right = layout.resolveLength(style.border_width, cb_width, ctx);
+    var margin_left = layout.resolveLength(style.margin_left, cb_width, ctx, style.font_size.value);
+    var margin_right = layout.resolveLength(style.margin_right, cb_width, ctx, style.font_size.value);
+    const padding_left = layout.resolveLength(style.padding_left, cb_width, ctx, style.font_size.value);
+    const padding_right = layout.resolveLength(style.padding_right, cb_width, ctx, style.font_size.value);
+    const border_left = layout.resolveLength(style.border_width, cb_width, ctx, style.font_size.value);
+    const border_right = layout.resolveLength(style.border_width, cb_width, ctx, style.font_size.value);
 
     const total_extras = margin_left + margin_right + padding_left + padding_right + border_left + border_right;
 
@@ -70,7 +70,7 @@ fn calculateWidth(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.La
     }
 
     if (style.min_width) |mw| {
-        const min_w = layout.resolveLength(mw, cb_width, ctx);
+        const min_w = layout.resolveLength(mw, cb_width, ctx, style.font_size.value);
         if (style.box_sizing == .border_box) {
             const horizontal_extras = padding_left + padding_right + border_left + border_right;
             box.dimensions.content.width = @max(box.dimensions.content.width, @max(0, min_w - horizontal_extras));
@@ -80,7 +80,7 @@ fn calculateWidth(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.La
     }
 
     if (style.max_width) |mw| {
-        const max_w = layout.resolveLength(mw, cb_width, ctx);
+        const max_w = layout.resolveLength(mw, cb_width, ctx, style.font_size.value);
         if (style.box_sizing == .border_box) {
             const horizontal_extras = padding_left + padding_right + border_left + border_right;
             box.dimensions.content.width = @min(box.dimensions.content.width, @max(0, max_w - horizontal_extras));
@@ -131,12 +131,12 @@ fn calculatePosition(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
 
     const cb_width = if (containing_block) |cb| cb.dimensions.content.width else box.dimensions.content.width;
 
-    box.dimensions.margin.top = layout.resolveLength(style.margin_top, cb_width, ctx);
-    box.dimensions.margin.bottom = layout.resolveLength(style.margin_bottom, cb_width, ctx);
-    box.dimensions.padding.top = layout.resolveLength(style.padding_top, cb_width, ctx);
-    box.dimensions.padding.bottom = layout.resolveLength(style.padding_bottom, cb_width, ctx);
-    box.dimensions.border.top = layout.resolveLength(style.border_width, cb_width, ctx);
-    box.dimensions.border.bottom = layout.resolveLength(style.border_width, cb_width, ctx);
+    box.dimensions.margin.top = layout.resolveLength(style.margin_top, cb_width, ctx, style.font_size.value);
+    box.dimensions.margin.bottom = layout.resolveLength(style.margin_bottom, cb_width, ctx, style.font_size.value);
+    box.dimensions.padding.top = layout.resolveLength(style.padding_top, cb_width, ctx, style.font_size.value);
+    box.dimensions.padding.bottom = layout.resolveLength(style.padding_bottom, cb_width, ctx, style.font_size.value);
+    box.dimensions.border.top = layout.resolveLength(style.border_width, cb_width, ctx, style.font_size.value);
+    box.dimensions.border.bottom = layout.resolveLength(style.border_width, cb_width, ctx, style.font_size.value);
 
     if (containing_block) |cb| {
         box.dimensions.content.x = cb.dimensions.content.x +
@@ -197,7 +197,7 @@ fn calculateHeight(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
         const cb_height = if (containing_block) |cb| cb.dimensions.content.height else ctx.viewport_height;
 
         if (sn.style.height) |h| {
-            const height = layout.resolveLength(h, cb_height, ctx);
+            const height = layout.resolveLength(h, cb_height, ctx, sn.style.font_size.value);
 
             if (sn.style.box_sizing == .border_box) {
                 const vertical_extras = box.dimensions.padding.top + box.dimensions.padding.bottom +
@@ -209,7 +209,7 @@ fn calculateHeight(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
         }
 
         if (sn.style.min_height) |mh| {
-            const min_h = layout.resolveLength(mh, cb_height, ctx);
+            const min_h = layout.resolveLength(mh, cb_height, ctx, sn.style.font_size.value);
             if (sn.style.box_sizing == .border_box) {
                 const vertical_extras = box.dimensions.padding.top + box.dimensions.padding.bottom +
                     box.dimensions.border.top + box.dimensions.border.bottom;
@@ -220,7 +220,7 @@ fn calculateHeight(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
         }
 
         if (sn.style.max_height) |mh| {
-            const max_h = layout.resolveLength(mh, cb_height, ctx);
+            const max_h = layout.resolveLength(mh, cb_height, ctx, sn.style.font_size.value);
             if (sn.style.box_sizing == .border_box) {
                 const vertical_extras = box.dimensions.padding.top + box.dimensions.padding.bottom +
                     box.dimensions.border.top + box.dimensions.border.bottom;

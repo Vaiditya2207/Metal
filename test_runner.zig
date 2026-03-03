@@ -58,6 +58,7 @@ comptime {
     _ = @import("tests/layout/text_measure_tests.zig");
     _ = @import("tests/layout/position_tests.zig");
     _ = @import("tests/layout/units_tests.zig");
+    _ = @import("tests/layout/resolve_length_tests.zig");
     _ = @import("tests/layout/flex_tests.zig");
     _ = @import("tests/layout/flex_shrink_tests.zig");
     _ = @import("tests/layout/margin_collapse_tests.zig");

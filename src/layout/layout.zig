@@ -20,11 +20,11 @@ pub fn layoutTree(root: *LayoutBox, ctx: LayoutContext) void {
     }
 }
 
-pub fn resolveLength(length: ?values.Length, containing_size: f32, ctx: LayoutContext) f32 {
+pub fn resolveLength(length: ?values.Length, containing_size: f32, ctx: LayoutContext, element_font_size: f32) f32 {
     const l = length orelse return 0;
     return switch (l.unit) {
         .px => l.value,
-        .em => l.value * ctx.root_font_size, // TODO: Should be element font size, but for now root
+        .em => l.value * element_font_size,
         .rem => l.value * ctx.root_font_size,
         .percent => (l.value / 100.0) * containing_size,
         .auto, .none => 0,

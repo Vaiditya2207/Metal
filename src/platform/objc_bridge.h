@@ -52,6 +52,9 @@ void get_drawable_size(void *view, float *width, float *height);
 // Get the backing scale factor (1.0 for standard, 2.0 for Retina)
 float get_content_scale(void *view);
 
+// Get the main screen backing scale factor (does not require a view)
+float get_screen_scale_factor(void);
+
 // Batched draw: submit all rect vertices in a single draw call
 void batch_solid_rects(void *frame_context, void *device, const void *vertex_data, int vertex_count);
 

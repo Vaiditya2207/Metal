@@ -124,13 +124,16 @@ test "em unit resolves relative to font size" {
 
     var style = properties.ComputedStyle{};
     try style.applyProperty("width", "10em", allocator);
+    // Set element font size to 20px so em resolves against it
+    try style.applyProperty("font-size", "20px", allocator);
 
     const sn = try allocator.create(resolver.StyledNode);
     sn.* = .{ .node = undefined, .style = style, .children = &[_]*resolver.StyledNode{} };
 
     var root = layout.LayoutBox.init(.blockNode, sn);
-    layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800, .viewport_height = 600, .root_font_size = 20.0 });
+    layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800, .viewport_height = 600, .root_font_size = 16.0 });
 
+    // 10em * 20px (element font size) = 200
     try std.testing.expectEqual(@as(f32, 200), root.dimensions.content.width);
 }
 
