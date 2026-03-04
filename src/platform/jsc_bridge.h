@@ -63,6 +63,33 @@ void *jsc_object_get_private(JSObjectHandle obj);
 // Exception checking
 int jsc_has_exception(JSContextHandle ctx);
 
+// Callback typedefs for property interceptors
+typedef JSValueHandle (*JSCGetPropCallback)(JSContextHandle ctx, JSObjectHandle object,
+                                            const char *property_name, void *private_data);
+typedef int (*JSCSetPropCallback)(JSContextHandle ctx, JSObjectHandle object,
+                                  const char *property_name, JSValueHandle value,
+                                  void *private_data);
+
+// GC protection
+void jsc_value_protect(JSContextHandle ctx, JSValueHandle value);
+void jsc_value_unprotect(JSContextHandle ctx, JSValueHandle value);
+
+// Class instance with property interceptors
+JSObjectHandle jsc_make_class_instance(JSContextHandle ctx, void *private_data,
+                                        JSCGetPropCallback get_cb, JSCSetPropCallback set_cb);
+
+// Call a JS function with arguments
+JSValueHandle jsc_call_function(JSContextHandle ctx, JSObjectHandle function,
+                                 JSObjectHandle this_object, int arg_count,
+                                 const JSValueHandle *args);
+
+// Retrieve user private_data from a class instance created by jsc_make_class_instance
+void *jsc_class_get_user_data(JSObjectHandle obj);
+
+// Exception retrieval
+JSValueHandle jsc_get_exception(JSContextHandle ctx);
+void jsc_clear_exception(JSContextHandle ctx);
+
 #ifdef __cplusplus
 }
 #endif

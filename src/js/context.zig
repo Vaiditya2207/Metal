@@ -29,6 +29,18 @@ pub const JsBridge = struct {
     string_get_utf8: StringGetUtf8Fn,
     string_release: VoidHandleFn,
     value_is_string: ValueIsStringFn,
+    value_protect: *const fn (JsHandle, JsHandle) void,
+    value_unprotect: *const fn (JsHandle, JsHandle) void,
+    make_class_instance: *const fn (JsHandle, ?*anyopaque, ?*const anyopaque, ?*const anyopaque) JsHandle,
+    object_get_private: *const fn (JsHandle) ?*anyopaque,
+    object_get_property: *const fn (JsHandle, JsHandle, [*:0]const u8) JsHandle,
+    make_number_value: *const fn (JsHandle, f64) JsHandle,
+    value_to_number: *const fn (JsHandle, JsHandle) f64,
+    value_is_number: *const fn (JsHandle, JsHandle) c_int,
+    make_null: *const fn (JsHandle) JsHandle,
+    call_function: *const fn (JsHandle, JsHandle, JsHandle, c_int, ?[*]const JsHandle) JsHandle,
+    class_get_user_data: *const fn (JsHandle) ?*anyopaque,
+    has_exception: *const fn (JsHandle) c_int,
 };
 
 pub const JsContext = struct {
@@ -69,5 +81,13 @@ pub const JsContext = struct {
 
     pub fn getLogOutput(self: *const JsContext) []const u8 {
         return self.log_buffer.items;
+    }
+
+    pub fn hasException(self: *JsContext) bool {
+        return self.bridge.has_exception(self.ctx) != 0;
+    }
+
+    pub fn clearException(self: *JsContext) void {
+        _ = self.bridge.evaluate_script(self.ctx, "".ptr, 0);
     }
 };

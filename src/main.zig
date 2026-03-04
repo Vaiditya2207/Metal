@@ -66,9 +66,68 @@ const bw = struct {
     fn isStr(c: ?*anyopaque, v: ?*anyopaque) c_int {
         return jsc.jsc_value_is_string(c, v);
     }
+    fn valueProtect(c: ?*anyopaque, v: ?*anyopaque) void {
+        jsc.jsc_value_protect(c, v);
+    }
+    fn valueUnprotect(c: ?*anyopaque, v: ?*anyopaque) void {
+        jsc.jsc_value_unprotect(c, v);
+    }
+    fn makeClassInstance(c: ?*anyopaque, pd: ?*anyopaque, get_cb: ?*const anyopaque, set_cb: ?*const anyopaque) ?*anyopaque {
+        return jsc.jsc_make_class_instance(c, pd, @ptrCast(@alignCast(get_cb)), @ptrCast(@alignCast(set_cb)));
+    }
+    fn objectGetPrivate(o: ?*anyopaque) ?*anyopaque {
+        return jsc.jsc_object_get_private(o);
+    }
+    fn objectGetProperty(c: ?*anyopaque, o: ?*anyopaque, n: [*:0]const u8) ?*anyopaque {
+        return jsc.jsc_object_get_property(c, o, n);
+    }
+    fn makeNumberValue(c: ?*anyopaque, v: f64) ?*anyopaque {
+        return jsc.jsc_make_number_value(c, v);
+    }
+    fn valueToNumber(c: ?*anyopaque, v: ?*anyopaque) f64 {
+        return jsc.jsc_value_to_number(c, v);
+    }
+    fn valueIsNumber(c: ?*anyopaque, v: ?*anyopaque) c_int {
+        return jsc.jsc_value_is_number(c, v);
+    }
+    fn makeNull(c: ?*anyopaque) ?*anyopaque {
+        return jsc.jsc_make_null(c);
+    }
+    fn callFunction(c: ?*anyopaque, f: ?*anyopaque, t: ?*anyopaque, n: c_int, a: ?[*]const ?*anyopaque) ?*anyopaque {
+        return jsc.jsc_call_function(c, f, t, n, a);
+    }
+    fn classGetUserData(o: ?*anyopaque) ?*anyopaque {
+        return jsc.jsc_class_get_user_data(o);
+    }
+    fn hasException(c: ?*anyopaque) c_int {
+        return jsc.jsc_has_exception(c);
+    }
 };
 
-const jsc_bridge = js.context.JsBridge{ .context_create = &bw.ctxCreate, .context_release = &bw.ctxRelease, .evaluate_script = &bw.eval, .global_object = &bw.global, .make_object = &bw.makeObj, .object_set_property = &bw.setProp, .make_function = &bw.makeFn, .make_string_value = &bw.makeStr, .make_undefined = &bw.makeUndef, .value_to_string = &bw.valToStr, .string_get_utf8 = &bw.strUtf8, .string_release = &bw.strRelease, .value_is_string = &bw.isStr };
+const jsc_bridge = js.context.JsBridge{ .context_create = &bw.ctxCreate, .context_release = &bw.ctxRelease, .evaluate_script = &bw.eval, .global_object = &bw.global, .make_object = &bw.makeObj, .object_set_property = &bw.setProp, .make_function = &bw.makeFn, .make_string_value = &bw.makeStr, .make_undefined = &bw.makeUndef, .value_to_string = &bw.valToStr, .string_get_utf8 = &bw.strUtf8, .string_release = &bw.strRelease, .value_is_string = &bw.isStr, .value_protect = &bw.valueProtect, .value_unprotect = &bw.valueUnprotect, .make_class_instance = &bw.makeClassInstance, .object_get_private = &bw.objectGetPrivate, .object_get_property = &bw.objectGetProperty, .make_number_value = &bw.makeNumberValue, .value_to_number = &bw.valueToNumber, .value_is_number = &bw.valueIsNumber, .make_null = &bw.makeNull, .call_function = &bw.callFunction, .class_get_user_data = &bw.classGetUserData, .has_exception = &bw.hasException };
+
+fn jsConsolePrint(
+    ctx_handle: ?*anyopaque,
+    arg_count: c_int,
+    args: ?[*]const ?*anyopaque,
+    prefix: []const u8,
+) ?*anyopaque {
+    if (arg_count > 0) {
+        if (args) |arg_ptr| {
+            for (arg_ptr[0..@as(usize, @intCast(arg_count))]) |arg| {
+                if (arg) |val| {
+                    const sr = jsc.jsc_value_to_string(ctx_handle, val) orelse continue;
+                    var buf: [1024]u8 = undefined;
+                    const len = jsc.jsc_string_get_utf8(sr, &buf, 1024);
+                    if (len > 1) std.debug.print("{s}{s}", .{ prefix, buf[0..@as(usize, @intCast(len - 1))] });
+                    jsc.jsc_string_release(sr);
+                }
+            }
+            std.debug.print("\n", .{});
+        }
+    }
+    return jsc.jsc_make_undefined(ctx_handle);
+}
 
 fn jsConsoleLog(
     ctx_handle: ?*anyopaque,
@@ -77,21 +136,27 @@ fn jsConsoleLog(
     arg_count: c_int,
     args: ?[*]const ?*anyopaque,
 ) callconv(.c) ?*anyopaque {
-    if (arg_count > 0) {
-        if (args) |arg_ptr| {
-            for (arg_ptr[0..@as(usize, @intCast(arg_count))]) |arg| {
-                if (arg) |val| {
-                    const sr = jsc.jsc_value_to_string(ctx_handle, val) orelse continue;
-                    var buf: [1024]u8 = undefined;
-                    const len = jsc.jsc_string_get_utf8(sr, &buf, 1024);
-                    if (len > 1) std.debug.print("[JS] {s}", .{buf[0..@as(usize, @intCast(len - 1))]});
-                    jsc.jsc_string_release(sr);
-                }
-            }
-            std.debug.print("\n", .{});
-        }
-    }
-    return jsc.jsc_make_undefined(ctx_handle);
+    return jsConsolePrint(ctx_handle, arg_count, args, "[JS] ");
+}
+
+fn jsConsoleWarn(
+    ctx_handle: ?*anyopaque,
+    _: ?*anyopaque,
+    _: ?*anyopaque,
+    arg_count: c_int,
+    args: ?[*]const ?*anyopaque,
+) callconv(.c) ?*anyopaque {
+    return jsConsolePrint(ctx_handle, arg_count, args, "[JS WARN] ");
+}
+
+fn jsConsoleError(
+    ctx_handle: ?*anyopaque,
+    _: ?*anyopaque,
+    _: ?*anyopaque,
+    arg_count: c_int,
+    args: ?[*]const ?*anyopaque,
+) callconv(.c) ?*anyopaque {
+    return jsConsolePrint(ctx_handle, arg_count, args, "[JS ERROR] ");
 }
 
 fn coreMeasure(text_str: []const u8, font_size: f32) f32 {
@@ -143,7 +208,12 @@ pub fn main() !void {
 
     var js_ctx = try js.context.JsContext.init(allocator, &jsc_bridge);
     defer js_ctx.deinit();
-    js.console.bindConsole(&js_ctx, @ptrCast(&jsConsoleLog));
+    js.console.bindConsole(&js_ctx, @ptrCast(&jsConsoleLog), @ptrCast(&jsConsoleWarn), @ptrCast(&jsConsoleError));
+
+    var js_runtime = js.wiring.JsRuntime.initRuntime(allocator, &js_ctx);
+    defer js_runtime.deinit(allocator, &js_ctx);
+    try js_runtime.wire(allocator, &js_ctx, document);
+
     const scripts = try js.script_runner.extractScripts(allocator, document.root);
     defer js.script_runner.freeScripts(allocator, scripts);
     js.script_runner.executeScripts(&js_ctx, scripts);
@@ -158,14 +228,9 @@ pub fn main() !void {
 
     var resolver = css.resolver.StyleResolver.init(allocator);
     const styled_root = try resolver.resolve(document.root, all_sheets.items);
-    defer resolver.freeStyledNode(styled_root);
 
     layout.text_measure.setMeasureFn(&coreMeasure);
     const layout_root = try layout.buildLayoutTree(allocator, styled_root);
-    defer {
-        layout_root.deinit(allocator);
-        allocator.destroy(layout_root);
-    }
     const lctx = layout.LayoutContext{
         .allocator = allocator,
         .viewport_width = @floatFromInt(cfg.window.width),
@@ -176,6 +241,14 @@ pub fn main() !void {
     const dl = try display_list.buildDisplayList(allocator, layout_root);
 
     my_renderer.setDocument(allocator, layout_root, dl);
+    my_renderer.setFrameContext(.{
+        .timer_queue = &js_runtime.timer_queue,
+        .raf_queue = &js_runtime.raf_queue,
+        .event_dispatcher = &js_runtime.event_dispatcher,
+        .pipeline_state = &js_runtime.pipeline_state,
+    });
+    my_renderer.setRenderContext(document, all_sheets.items);
+    my_renderer.styled_root = styled_root;
 
     std.debug.print("Metal Browser Engine -- Version 0.1.0-draft\n", .{});
     app.objc.run_application();

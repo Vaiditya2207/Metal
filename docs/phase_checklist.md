@@ -242,50 +242,105 @@
 
 ---
 
-## Phase 6 — JavaScript Engine Binding *(~3–4 weeks)*
+## Phase 6 — JavaScript Engine Binding *(~3–4 weeks)* [x]
 
-### JavaScriptCore Integration (`src/js/jsc.zig`)
-- [ ] Link `JavaScriptCore.framework`
-- [ ] Create `JSGlobalContextRef` per tab
-- [ ] `JSEvaluateScript()` — execute JS strings
-- [ ] Inject native functions via `JSObjectMakeFunctionWithCallback`
-- [ ] Error handling: catch JS exceptions, surface to console
+### JavaScriptCore Integration (`src/js/context.zig`, `src/platform/jsc_bridge.h/m`)
+- [x] Link `JavaScriptCore.framework`
+- [x] Create `JSGlobalContextRef` per tab (via JsContext + JsBridge vtable)
+- [x] `JSEvaluateScript()` — execute JS strings
+- [x] Inject native functions via `JSObjectMakeFunctionWithCallback`
+- [x] Error handling: catch JS exceptions, surface to console (has_exception vtable entry)
 
 ### QuickJS Integration (`src/js/quickjs.zig`)
-- [ ] Vendor QuickJS C source (or use `zig-quickjs-ng`)
-- [ ] Create `JSRuntime` + `JSContext` per tab
-- [ ] `JS_Eval()` — execute JS strings
-- [ ] Inject native functions via `JS_NewCFunction`
+- [ ] Vendor QuickJS C source (or use `zig-quickjs-ng`) -- deferred to Phase 10
+- [ ] Create `JSRuntime` + `JSContext` per tab -- deferred to Phase 10
+- [ ] `JS_Eval()` — execute JS strings -- deferred to Phase 10
+- [ ] Inject native functions via `JS_NewCFunction` -- deferred to Phase 10
 
-### DOM Bindings (`src/js/dom_bindings.zig`)
-- [ ] `document.getElementById(id)` → DOM node lookup
-- [ ] `document.querySelector(selector)` → CSS selector match
-- [ ] `document.createElement(tag)` → allocate new node
-- [ ] `node.appendChild(child)` → tree manipulation
-- [ ] `node.removeChild(child)`
-- [ ] `node.textContent` (get/set)
-- [ ] `node.innerHTML` (get/set → re-parse)
-- [ ] `node.setAttribute(name, value)`
-- [ ] `node.addEventListener(event, callback)`
+### DOM Bindings (`src/js/dom_bindings.zig`, `node_wrap.zig`, `node_props.zig`, `node_methods.zig`, `document_global.zig`)
+- [x] `document.getElementById(id)` — DOM node lookup
+- [x] `document.querySelector(selector)` — CSS selector match
+- [x] `document.querySelectorAll(selector)` — CSS selector match (all)
+- [x] `document.createElement(tag)` — allocate new node
+- [x] `document.createTextNode(text)` — allocate text node
+- [x] `node.appendChild(child)` — tree manipulation
+- [x] `node.removeChild(child)`
+- [x] `node.textContent` (get/set)
+- [x] `node.tagName`, `node.nodeName`, `node.nodeType` (get)
+- [x] `node.parentNode`, `node.firstChild`, `node.lastChild` (get)
+- [x] `node.nextSibling`, `node.previousSibling` (get)
+- [x] `node.id`, `node.className` (get/set)
+- [x] `node.setAttribute(name, value)`
+- [x] `node.getAttribute(name)`
+- [x] `node.removeAttribute(name)`
+- [x] `node.hasAttribute(name)`
+- [x] `node.addEventListener(event, callback)`
+- [x] `node.removeEventListener(event, callback)`
+- [ ] `node.innerHTML` (get/set -- re-parse) -- deferred (getter only, no setter parse)
+
+### Event System (`src/js/event_dispatch.zig`, `callback_registry.zig`)
+- [x] CallbackRegistry with GC protection (value_protect/unprotect)
+- [x] EventDispatcher with bubble phase
+- [x] createEvent (type, target, bubbles, preventDefault, stopPropagation)
+- [x] dispatchEvent walks DOM tree (target + bubble phases)
 
 ### Timer APIs (`src/js/timers.zig`)
-- [ ] `setTimeout(fn, ms)` / `clearTimeout`
-- [ ] `setInterval(fn, ms)` / `clearInterval`
-- [ ] `requestAnimationFrame(fn)`
+- [x] `setTimeout(fn, ms)` / `clearTimeout`
+- [x] `setInterval(fn, ms)` / `clearInterval`
+- [x] `requestAnimationFrame(fn)` / `cancelAnimationFrame` (in `src/js/raf.zig`)
 
 ### Console (`src/js/console.zig`)
-- [ ] `console.log()`, `.warn()`, `.error()` → native log output
+- [x] `console.log()`, `.warn()`, `.error()` — native log output
+
+### Re-render Pipeline (`src/js/pipeline.zig`)
+- [x] PipelineState dirty flag
+- [x] DOM mutations trigger markDirty (node_props.zig, node_methods.zig)
+- [x] has_exception in JsBridge vtable for exception checking
+
+### Integration Wiring (`src/js/wiring.zig`)
+- [x] JsRuntime struct with two-phase init (initRuntime + wire)
+- [x] Single-call wiring of all JS subsystems in main.zig
+- [x] Interactive demo at resources/demo.html
 
 ### Engine Switching
-- [ ] JSC → QuickJS state migration for backgrounded tabs
-- [ ] Serialize essential state (variables, pending timers)
+- [ ] JSC to QuickJS state migration for backgrounded tabs -- deferred to Phase 10
+- [ ] Serialize essential state (variables, pending timers) -- deferred to Phase 10
 
-### Tests
-- [ ] `document.getElementById('x').textContent = 'Hello'` → text updates on screen
-- [ ] `addEventListener('click', fn)` → click div → callback fires
-- [ ] `setTimeout(() => ..., 100)` → fires after ~100 ms
-- [ ] QuickJS context < 500 KB RSS
-- [ ] JSC context cold-start < 5 ms
+### Tests (521 total, 0 failures, 0 memory leaks)
+- [x] `document.getElementById('x').textContent = 'Hello'` -- text updates via DOM binding
+- [x] `addEventListener('click', fn)` -- click div, callback fires via EventDispatcher
+- [x] `setTimeout(() => ..., 100)` -- fires after delay via TimerQueue.tick()
+- [ ] QuickJS context < 500 KB RSS -- deferred (QuickJS not yet integrated)
+- [ ] JSC context cold-start < 5 ms -- not measured (functional tests only)
+
+---
+
+## Phase 6.5 — Interactive Runtime (Segfault Fix + Runtime Wiring) [x]
+
+### Segfault Fix (3 pointer-type bugs)
+- [x] `node_wrap.zig`: heap-allocate `NodeContext`, pass as private_data (was raw `*Node`)
+- [x] `node_methods.zig`: use `class_get_user_data` via g_bridge global (was direct pointer cast)
+- [x] `node_event_methods.zig`: use `class_get_user_data` via g_js_ctx (same issue)
+- [x] `wiring.zig`: wire `setBridge()` and `setGlobal()` during init
+
+### Runtime Loop Wiring (5 disconnections)
+- [x] Timer ticking: `draw()` calls `TimerQueue.tick(now_ms)` every frame
+- [x] rAF ticking: `draw()` calls `RafQueue.tick(timestamp)` every frame
+- [x] Click event dispatch: `processEvents()` calls `EventDispatcher.dispatchEvent()` on hit target
+- [x] Dirty re-render: `draw()` checks `PipelineState.isDirty()`, triggers `rebuildRenderTree()`
+- [x] FrameContext bridge: `Renderer` holds `{*TimerQueue, *RafQueue, *EventDispatcher, *PipelineState}`
+
+### Hit-Test Fix (anonymous block click-through)
+- [x] Anonymous blocks (from `wrapAnonymousBlocks`) returned null DOM node on hit
+- [x] Fix: walk up layout `.parent` chain to find nearest ancestor with a `styled_node`
+- [x] Clicking anywhere on a colored box (not just text) now dispatches events correctly
+
+### Runtime Verification
+- [x] `zig build run -- resources/demo.html`: click counter increments on box click
+- [x] Timer text changes after 2 seconds ("Timer fired after 2 seconds!")
+- [x] "Created by JavaScript" text appears via `createElement` + `appendChild`
+- [x] Smooth scrolling works with momentum physics
+- [x] 521+ tests passing, 0 failures, 0 memory leaks
 
 ---
 

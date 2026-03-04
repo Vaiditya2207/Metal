@@ -31,6 +31,18 @@ comptime {
     _ = @import("src/js/console.zig");
     _ = @import("src/js/dom_bindings.zig");
     _ = @import("src/js/script_runner.zig");
+    _ = @import("src/js/node_wrap.zig");
+    _ = @import("src/js/node_props.zig");
+    _ = @import("src/js/node_methods.zig");
+    _ = @import("src/js/document_global.zig");
+    _ = @import("src/js/callback_registry.zig");
+    _ = @import("src/js/event_dispatch.zig");
+    _ = @import("src/js/node_event_methods.zig");
+    _ = @import("src/js/node_method_dispatch.zig");
+    _ = @import("src/js/timers.zig");
+    _ = @import("src/js/raf.zig");
+    _ = @import("src/js/pipeline.zig");
+    _ = @import("src/js/wiring.zig");
 
     // External test files
     _ = @import("tests/dom/tokenizer_tests.zig");
@@ -79,6 +91,17 @@ comptime {
     _ = @import("tests/js/console_tests.zig");
     _ = @import("tests/js/dom_bindings_tests.zig");
     _ = @import("tests/js/script_runner_tests.zig");
+    _ = @import("tests/js/node_wrap_tests.zig");
+    _ = @import("tests/js/node_props_tests.zig");
+    _ = @import("tests/js/node_methods_tests.zig");
+    _ = @import("tests/js/document_global_tests.zig");
+    _ = @import("tests/js/callback_registry_tests.zig");
+    _ = @import("tests/js/event_dispatch_tests.zig");
+    _ = @import("tests/js/node_event_methods_tests.zig");
+    _ = @import("tests/js/node_method_dispatch_tests.zig");
+    _ = @import("tests/js/timer_tests.zig");
+    _ = @import("tests/js/raf_tests.zig");
+    _ = @import("tests/js/pipeline_tests.zig");
 }
 
 test "test runner loaded" {}

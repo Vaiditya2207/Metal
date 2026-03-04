@@ -13,6 +13,17 @@ const layout_mod = @import("../layout/layout.zig");
 const display_list_mod = @import("display_list.zig");
 const interaction_mod = @import("interaction.zig");
 
+const js = @import("../js/mod.zig");
+const dom = @import("../dom/mod.zig");
+const css = @import("../css/mod.zig");
+
+pub const FrameContext = struct {
+    timer_queue: *js.timers.TimerQueue,
+    raf_queue: *js.raf.RafQueue,
+    event_dispatcher: *js.event_dispatch.EventDispatcher,
+    pipeline_state: *js.pipeline.PipelineState,
+};
+
 extern "C" fn MTLCreateSystemDefaultDevice() ?*anyopaque;
 extern "C" fn set_cursor_style(style: i32) void;
 extern "C" fn terminate_application() void;
@@ -29,6 +40,10 @@ pub const Renderer = struct {
     allocator: ?std.mem.Allocator = null,
     scroll: scroll_mod.ScrollController = .{},
     interaction: interaction_mod.InteractionHandler = .{},
+    frame_ctx: ?FrameContext = null,
+    document: ?*dom.Document = null,
+    stylesheets: []const css.Stylesheet = &.{},
+    styled_root: ?*css.StyledNode = null,
 
     pub fn init() !Renderer {
         // MTLCreateSystemDefaultDevice
@@ -65,6 +80,15 @@ pub const Renderer = struct {
         self.owned_display_list = dl;
     }
 
+    pub fn setFrameContext(self: *Renderer, ctx: FrameContext) void {
+        self.frame_ctx = ctx;
+    }
+
+    pub fn setRenderContext(self: *Renderer, doc: *dom.Document, sheets: []const css.Stylesheet) void {
+        self.document = doc;
+        self.stylesheets = sheets;
+    }
+
     pub fn processEvents(self: *Renderer) void {
         while (events.global_queue.pop()) |event| {
             switch (event.event_type) {
@@ -87,7 +111,12 @@ pub const Renderer = struct {
                 },
                 .mouse_down => {
                     if (self.layout_root) |root| {
-                        _ = self.interaction.handleClick(root, event.x, event.y, self.scroll.scroll_y);
+                        const click = self.interaction.handleClick(root, event.x, event.y, self.scroll.scroll_y);
+                        if (click.target_node) |target| {
+                            if (self.frame_ctx) |*fc| {
+                                _ = fc.event_dispatcher.dispatchEvent(@constCast(target), "click");
+                            }
+                        }
                     }
                 },
                 .key_down => {
@@ -134,6 +163,19 @@ pub const Renderer = struct {
         self.scroll.tick();
         self.processEvents();
 
+        if (self.frame_ctx) |*fc| {
+            const now_ms = std.time.milliTimestamp();
+            fc.timer_queue.tick(now_ms);
+            fc.raf_queue.tick(@as(f64, @floatFromInt(now_ms)));
+        }
+
+        if (self.frame_ctx) |*fc| {
+            if (fc.pipeline_state.isDirty()) {
+                self.rebuildRenderTree();
+                fc.pipeline_state.clearDirty();
+            }
+        }
+
         const view = self.view orelse return;
 
         const frame_context = objc.begin_frame(self.command_queue, view);
@@ -168,5 +210,56 @@ pub const Renderer = struct {
 
             objc.end_frame(fc);
         }
+    }
+
+    fn rebuildRenderTree(self: *Renderer) void {
+        const alloc = self.allocator orelse return;
+        const doc = self.document orelse return;
+
+        if (self.styled_root) |old_styled| {
+            var res = css.StyleResolver.init(alloc);
+            res.freeStyledNode(@constCast(old_styled));
+        }
+
+        var resolver = css.StyleResolver.init(alloc);
+        const new_styled = resolver.resolve(doc.root, self.stylesheets) catch return;
+        self.styled_root = new_styled;
+
+        const new_layout = layout_box.buildLayoutTree(alloc, new_styled) catch return;
+
+        var vw: f32 = 1280;
+        var vh: f32 = 800;
+        if (self.view) |view| {
+            var width: f32 = 0;
+            var height: f32 = 0;
+            objc.get_drawable_size(view, &width, &height);
+            if (width > 0) vw = width;
+            if (height > 0) vh = height;
+        }
+
+        const lctx = layout_mod.LayoutContext{
+            .allocator = alloc,
+            .viewport_width = vw,
+            .viewport_height = vh,
+        };
+        layout_mod.layoutTree(new_layout, lctx);
+
+        const new_dl = display_list_mod.buildDisplayList(alloc, new_layout) catch {
+            new_layout.deinit(alloc);
+            alloc.destroy(new_layout);
+            return;
+        };
+
+        if (self.layout_root) |old_root| {
+            if (self.owned_display_list) |*old_dl| {
+                old_dl.deinit();
+            }
+            old_root.deinit(alloc);
+            alloc.destroy(old_root);
+        }
+
+        self.layout_root = new_layout;
+        self.owned_display_list = new_dl;
+        self.scroll.setContentHeight(new_layout.dimensions.marginBox().height);
     }
 };

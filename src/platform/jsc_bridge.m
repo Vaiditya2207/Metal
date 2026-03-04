@@ -1,6 +1,8 @@
 #import <JavaScriptCore/JavaScriptCore.h>
 #import "jsc_bridge.h"
 
+_Thread_local JSValueRef g_last_exception = NULL;
+
 JSContextHandle jsc_context_create(void) {
     JSGlobalContextRef ctx = JSGlobalContextCreate(NULL);
     return (JSContextHandle)ctx;
@@ -37,7 +39,11 @@ JSValueHandle jsc_evaluate_script(JSContextHandle ctx, const char *script, int s
     JSValueRef result = JSEvaluateScript(
         (JSGlobalContextRef)ctx, js_script, NULL, NULL, 0, &exception);
     JSStringRelease(js_script);
-    if (exception) return NULL;
+    if (exception) {
+        g_last_exception = exception;
+        return NULL;
+    }
+    g_last_exception = NULL;
     return (JSValueHandle)result;
 }
 
@@ -182,8 +188,6 @@ void *jsc_object_get_private(JSObjectHandle obj) {
 }
 
 int jsc_has_exception(JSContextHandle ctx) {
-    // JSC uses per-call exception out-parameters rather than global state.
-    // Callers should check return values from evaluate/property calls.
     (void)ctx;
-    return 0;
+    return g_last_exception != NULL ? 1 : 0;
 }

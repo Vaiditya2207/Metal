@@ -1,6 +1,7 @@
 const hit_test = @import("hit_test.zig");
 const layout_box = @import("../layout/box.zig");
 const dom = @import("../dom/mod.zig");
+const Node = dom.Node;
 const events = @import("../platform/events.zig");
 const std = @import("std");
 
@@ -20,6 +21,11 @@ pub const InteractionHandler = struct {
         scroll_down,
         scroll_to_top,
         scroll_to_bottom,
+    };
+
+    pub const ClickResult = struct {
+        href: ?[]const u8,
+        target_node: ?*const Node,
     };
 
     pub fn handleMouseMove(
@@ -53,21 +59,23 @@ pub const InteractionHandler = struct {
         x: f32,
         y: f32,
         scroll_y: f32,
-    ) ?[]const u8 {
+    ) ClickResult {
         const maybe_result = hit_test.hitTest(root, x, y, scroll_y);
         self.last_hit = maybe_result;
 
         if (maybe_result) |result| {
+            var href: ?[]const u8 = null;
             var current_node = result.node;
             while (current_node) |node| {
-                if (node.tag == .a) {
-                    return node.getAttribute("href");
+                if (node.tag == .a and href == null) {
+                    href = node.getAttribute("href");
                 }
                 current_node = node.parent;
             }
+            return .{ .href = href, .target_node = result.node };
         }
 
-        return null;
+        return .{ .href = null, .target_node = null };
     }
 
     pub fn handleKeyDown(keycode: u32, modifiers: u32) ?KeyAction {

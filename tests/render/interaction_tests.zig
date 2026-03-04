@@ -69,9 +69,10 @@ test "Click on link with href" {
     defer root.deinit(allocator);
 
     var handler = interaction.InteractionHandler{};
-    const href = handler.handleClick(&root, 10, 10, 0);
-    try std.testing.expect(href != null);
-    try std.testing.expectEqualStrings("https://example.com", href.?);
+    const result = handler.handleClick(&root, 10, 10, 0);
+    try std.testing.expect(result.href != null);
+    try std.testing.expectEqualStrings("https://example.com", result.href.?);
+    try std.testing.expect(result.target_node != null);
 }
 
 test "Click on non-link" {
@@ -92,8 +93,9 @@ test "Click on non-link" {
     defer root.deinit(allocator);
 
     var handler = interaction.InteractionHandler{};
-    const href = handler.handleClick(&root, 10, 10, 0);
-    try std.testing.expect(href == null);
+    const result = handler.handleClick(&root, 10, 10, 0);
+    try std.testing.expect(result.href == null);
+    try std.testing.expect(result.target_node != null);
 }
 
 test "Keyboard Cmd+Q" {
@@ -180,7 +182,31 @@ test "Click on link with href ancestor-walking" {
     defer root.deinit(allocator);
 
     var handler = interaction.InteractionHandler{};
-    const href = handler.handleClick(&root, 10, 10, 0);
-    try std.testing.expect(href != null);
-    try std.testing.expectEqualStrings("https://example.com", href.?);
+    const result = handler.handleClick(&root, 10, 10, 0);
+    try std.testing.expect(result.href != null);
+    try std.testing.expectEqualStrings("https://example.com", result.href.?);
+    try std.testing.expect(result.target_node != null);
+}
+
+test "Click miss returns no target" {
+    const allocator = std.testing.allocator;
+    var node = dom.Node.init(allocator, .element);
+    node.tag = .div;
+    defer node.deinit(allocator);
+
+    const style = properties.ComputedStyle{};
+    const sn = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 50, .height = 50 };
+    defer root.deinit(allocator);
+
+    var handler = interaction.InteractionHandler{};
+    const result = handler.handleClick(&root, 999, 999, 0);
+    try std.testing.expect(result.href == null);
+    try std.testing.expect(result.target_node == null);
 }

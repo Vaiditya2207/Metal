@@ -44,6 +44,39 @@ fn mockValIsStr(_: ?*anyopaque, _: ?*anyopaque) c_int {
     return 0;
 }
 
+fn mockValueProtect(_: ?*anyopaque, _: ?*anyopaque) void {}
+fn mockValueUnprotect(_: ?*anyopaque, _: ?*anyopaque) void {}
+fn mockMakeClassInstance(_: ?*anyopaque, _: ?*anyopaque, _: ?*const anyopaque, _: ?*const anyopaque) ?*anyopaque {
+    return @ptrFromInt(0xBEEF);
+}
+fn mockObjectGetPrivate(_: ?*anyopaque) ?*anyopaque {
+    return null;
+}
+fn mockObjectGetProperty(_: ?*anyopaque, _: ?*anyopaque, _: [*:0]const u8) ?*anyopaque {
+    return @ptrFromInt(0xBEEF);
+}
+fn mockMakeNumberValue(_: ?*anyopaque, _: f64) ?*anyopaque {
+    return @ptrFromInt(0xBEEF);
+}
+fn mockValueToNumber(_: ?*anyopaque, _: ?*anyopaque) f64 {
+    return 0.0;
+}
+fn mockValueIsNumber(_: ?*anyopaque, _: ?*anyopaque) c_int {
+    return 0;
+}
+fn mockMakeNull(_: ?*anyopaque) ?*anyopaque {
+    return @ptrFromInt(0xBEEF);
+}
+fn mockCallFunction(_: ?*anyopaque, _: ?*anyopaque, _: ?*anyopaque, _: c_int, _: ?[*]const ?*anyopaque) ?*anyopaque {
+    return @ptrFromInt(0xBEEF);
+}
+fn mockClassGetUserData(_: ?*anyopaque) ?*anyopaque {
+    return null;
+}
+fn mockHasException(_: ?*anyopaque) c_int {
+    return 0;
+}
+
 const mock_bridge = context_mod.JsBridge{
     .context_create = mockCreate,
     .context_release = mockRelease,
@@ -58,6 +91,18 @@ const mock_bridge = context_mod.JsBridge{
     .string_get_utf8 = mockStrGetUtf8,
     .string_release = mockStrRelease,
     .value_is_string = mockValIsStr,
+    .value_protect = &mockValueProtect,
+    .value_unprotect = &mockValueUnprotect,
+    .make_class_instance = &mockMakeClassInstance,
+    .object_get_private = &mockObjectGetPrivate,
+    .object_get_property = &mockObjectGetProperty,
+    .make_number_value = &mockMakeNumberValue,
+    .value_to_number = &mockValueToNumber,
+    .value_is_number = &mockValueIsNumber,
+    .make_null = &mockMakeNull,
+    .call_function = &mockCallFunction,
+    .class_get_user_data = &mockClassGetUserData,
+    .has_exception = &mockHasException,
 };
 
 // --- Tests -----------------------------------------------------------------------

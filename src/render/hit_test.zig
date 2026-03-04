@@ -23,9 +23,25 @@ pub fn hitTest(root: *const layout_box.LayoutBox, x: f32, y: f32, scroll_y: f32)
 
     // Check self
     if (containsPoint(root.dimensions.borderBox(), px, py)) {
+        // If this box has a styled_node, use its DOM node directly.
+        // Anonymous blocks (from wrapAnonymousBlocks) have no styled_node,
+        // so walk up the layout parent chain to find the nearest real DOM node.
+        var node: ?*const dom.Node = null;
+        if (root.styled_node) |sn| {
+            node = sn.node;
+        } else {
+            var ancestor = root.parent;
+            while (ancestor) |a| {
+                if (a.styled_node) |sn| {
+                    node = sn.node;
+                    break;
+                }
+                ancestor = a.parent;
+            }
+        }
         return HitTestResult{
             .box = root,
-            .node = if (root.styled_node) |sn| sn.node else null,
+            .node = node,
         };
     }
 

@@ -1,74 +1,81 @@
+<!DOCTYPE html>
 <html>
 <head>
 <style>
-  body {
-    background-color: #0d1117;
-    color: #c9d1d9;
-    padding: 24px;
-  }
-  h1 {
-    color: #e6854a;
-    margin-bottom: 16px;
-  }
-  h2 {
-    color: #58a6ff;
-    margin-bottom: 12px;
-  }
-  .header {
-    background-color: #161b22;
-    padding: 20px;
-    margin-bottom: 20px;
-  }
-  .content {
-    background-color: #21262d;
-    padding: 16px;
-    margin-bottom: 16px;
-  }
-  .flex-row {
-    display: flex;
-    margin-bottom: 16px;
-  }
-  .card {
-    background-color: #161b22;
-    padding: 16px;
-    margin-right: 12px;
-    flex: 1;
-  }
-  .accent {
-    background-color: #e6854a;
-    color: #0d1117;
-    padding: 12px;
-  }
+body {
+  background-color: #1a1a2e;
+  padding: 20px;
+  color: #e0e0e0;
+}
+h1 {
+  color: #e94560;
+  margin-bottom: 16px;
+}
+.card {
+  background-color: #16213e;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+#click-target {
+  background-color: #0f3460;
+  color: #ffffff;
+  padding: 20px;
+}
+#timer-output {
+  background-color: #1a1a2e;
+  padding: 12px;
+  color: #53d769;
+}
+#counter {
+  color: #e94560;
+}
+.accent {
+  background-color: #e94560;
+  color: #0d1117;
+  padding: 12px;
+}
 </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Metal Browser Engine</h1>
-    <p>A macOS-native browser engine built with Zig and Apple Metal. This page demonstrates HTML parsing, CSS styling, block and inline layout, flex containers, and word wrapping.</p>
+  <h1>Metal Browser Engine</h1>
+  <div class="card">
+    <div id="counter">Count: 0</div>
   </div>
-  <div class="content">
-    <h2>Rendering Pipeline</h2>
-    <p>The engine reads an HTML file from disk, tokenizes it into a DOM tree, extracts and parses CSS from style elements, resolves computed styles using cascade and specificity rules, performs block and inline layout with word wrapping, builds a display list of drawing commands, and rasterizes everything through a batched Metal pipeline with MSDF text rendering.</p>
+  <div id="click-target">Click me to increment</div>
+  <div class="card">
+    <div id="timer-output">Waiting for timer...</div>
   </div>
-  <div class="flex-row">
-    <div class="card">
-      <h2>DOM</h2>
-      <p>Full HTML5 tokenizer with entity decoding, void element handling, and tree construction. Supports attribute and tree mutation APIs.</p>
-    </div>
-    <div class="card">
-      <h2>CSS</h2>
-      <p>Tokenizer, parser, selector matching with specificity, cascade resolution, and a user-agent stylesheet. Supports class, ID, and type selectors.</p>
-    </div>
-    <div class="card">
-      <h2>Layout</h2>
-      <p>Block formatting context, inline word wrapping, flexbox with grow and shrink, auto margins, margin collapsing, box-sizing, and min-max constraints.</p>
-    </div>
-  </div>
+  <div id="app"></div>
   <div class="accent">
-    <p>Phase 6: File loading, style extraction, word wrapping, glyph metrics bridge, and JavaScript execution via JavaScriptCore.</p>
+    <p>Full pipeline: File to DOM to JavaScript to CSS to Layout to Metal GPU</p>
   </div>
-  <script>
-    console.log("Metal Browser Engine -- JavaScript active");
-  </script>
+<script>
+  var count = 0;
+  var counter = document.getElementById('counter');
+  var target = document.getElementById('click-target');
+
+  if (target) {
+    target.addEventListener('click', function(e) {
+      count = count + 1;
+      counter.textContent = 'Count: ' + count;
+    });
+  }
+
+  setTimeout(function() {
+    var output = document.getElementById('timer-output');
+    if (output) {
+      output.textContent = 'Timer fired after 2 seconds!';
+    }
+  }, 2000);
+
+  var app = document.getElementById('app');
+  if (app) {
+    var p = document.createElement('p');
+    p.textContent = 'Created by JavaScript';
+    app.appendChild(p);
+  }
+
+  console.log('Demo script loaded successfully');
+</script>
 </body>
 </html>
