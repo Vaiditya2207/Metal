@@ -74,7 +74,7 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "relative")) self.position = .relative;
             if (std.mem.eql(u8, val, "absolute")) self.position = .absolute;
             if (std.mem.eql(u8, val, "fixed")) self.position = .fixed;
-        } else if (std.mem.eql(u8, prop, "overflow")) {
+        } else if (std.mem.startsWith(u8, prop, "overflow")) {
             if (std.mem.eql(u8, val, "visible")) self.overflow = .visible;
             if (std.mem.eql(u8, val, "hidden")) self.overflow = .hidden;
             if (std.mem.eql(u8, val, "scroll")) self.overflow = .scroll;
@@ -116,13 +116,23 @@ pub const ComputedStyle = struct {
             self.left_pos = values_mod.parseLength(val);
         } else if (std.mem.eql(u8, prop, "z-index")) {
             self.z_index = std.fmt.parseInt(i32, val, 10) catch null;
-        } else if (std.mem.startsWith(u8, prop, "border-")) {
+        } else if (std.mem.startsWith(u8, prop, "border-") and prop.len > 7) {
             if (std.mem.eql(u8, prop, "border-width")) {
                 if (values_mod.parseLength(val)) |l| self.border_width = l;
             } else if (std.mem.eql(u8, prop, "border-color")) {
                 if (values_mod.parseColor(val)) |c| self.border_color = c;
             } else if (std.mem.eql(u8, prop, "border-radius")) {
                 if (values_mod.parseLength(val)) |l| self.border_radius = l;
+            }
+        } else if (std.mem.eql(u8, prop, "border")) {
+            // border shorthand: border-width border-style border-color
+            var iter = std.mem.tokenizeAny(u8, val, " \t");
+            while (iter.next()) |token| {
+                if (values_mod.parseLength(token)) |l| {
+                    self.border_width = l;
+                } else if (values_mod.parseColor(token)) |c| {
+                    self.border_color = c;
+                }
             }
         } else if (std.mem.eql(u8, prop, "color")) {
             if (values_mod.parseColor(val)) |c| self.color = c;
@@ -146,6 +156,16 @@ pub const ComputedStyle = struct {
             if (values_mod.parseLength(val)) |l| self.font_size = l;
         } else if (std.mem.eql(u8, prop, "font-family")) {
             self.font_family = try allocator.dupe(u8, val);
+        } else if (std.mem.eql(u8, prop, "font")) {
+            var iter = std.mem.tokenizeAny(u8, val, " \t");
+            while (iter.next()) |token| {
+                if (values_mod.parseLength(token)) |l| {
+                    self.font_size = l;
+                } else if (!std.mem.eql(u8, token, "bold") and !std.mem.eql(u8, token, "normal") and !std.mem.eql(u8, token, "italic")) {
+                    // Primitive font-family extraction (last token usually)
+                    self.font_family = try allocator.dupe(u8, token);
+                }
+            }
         } else if (std.mem.eql(u8, prop, "font-weight")) {
             if (std.mem.eql(u8, val, "normal")) self.font_weight = 400 else if (std.mem.eql(u8, val, "bold")) self.font_weight = 700 else {
                 self.font_weight = std.fmt.parseFloat(f32, val) catch 400;
