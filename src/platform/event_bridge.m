@@ -126,6 +126,8 @@ void *create_event_metal_view(void *window, void *device) {
 
   win.contentView = view;
   [win makeFirstResponder:view];
+  [win makeKeyAndOrderFront:nil];
+  [NSApp activateIgnoringOtherApps:YES];
 
   return (__bridge_retained void *)view;
 }

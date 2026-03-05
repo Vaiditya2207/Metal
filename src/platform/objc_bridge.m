@@ -164,3 +164,8 @@ float get_content_scale(void *view_ptr) {
 float get_screen_scale_factor(void) {
   return (float)[NSScreen mainScreen].backingScaleFactor;
 }
+
+void activate_app(void) {
+  [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+  [NSApp activateIgnoringOtherApps:YES];
+}

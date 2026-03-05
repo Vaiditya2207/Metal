@@ -29,6 +29,7 @@ void set_clear_color(void *view, float r, float g, float b, float a);
 void set_metal_delegate(void *view, void *zig_context,
                         void (*draw_callback)(void *));
 void run_application(void);
+void activate_app(void);
 
 // Create pipeline state from embedded shader source
 void *create_render_pipeline(void *device);

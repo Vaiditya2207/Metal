@@ -410,6 +410,7 @@ pub fn main() !void {
     };
 
     std.debug.print("Metal Browser Engine -- Version 0.1.0-draft\n", .{});
+    app.objc.activate_app();
     app.objc.run_application();
 }
 

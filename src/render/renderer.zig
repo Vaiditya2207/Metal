@@ -155,8 +155,13 @@ pub const Renderer = struct {
                 },
                 .key_down => {
                     var handled = false;
+                    std.debug.print("[KEY] key_down: keycode={d} text={any} focused={}\n", .{ event.keycode, event.text[0..4].*, self.input_manager.focused_node != null });
                     if (self.allocator) |alloc| {
-                        const input_res = self.input_manager.handleEvent(alloc, event) catch .ignored;
+                        const input_res = self.input_manager.handleEvent(alloc, event) catch |err| blk: {
+                            std.debug.print("[KEY] handleEvent error: {}\n", .{err});
+                            break :blk .ignored;
+                        };
+                        std.debug.print("[KEY] handleEvent result: {}\n", .{input_res});
                         if (input_res == .submit) {
                             if (self.input_manager.focused_node) |node| {
                                 self.handleFormSubmission(node);
