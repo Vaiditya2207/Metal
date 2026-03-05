@@ -155,13 +155,8 @@ pub const Renderer = struct {
                 },
                 .key_down => {
                     var handled = false;
-                    std.debug.print("[KEY] key_down: keycode={d} text={any} focused={}\n", .{ event.keycode, event.text[0..4].*, self.input_manager.focused_node != null });
                     if (self.allocator) |alloc| {
-                        const input_res = self.input_manager.handleEvent(alloc, event) catch |err| blk: {
-                            std.debug.print("[KEY] handleEvent error: {}\n", .{err});
-                            break :blk .ignored;
-                        };
-                        std.debug.print("[KEY] handleEvent result: {}\n", .{input_res});
+                        const input_res = self.input_manager.handleEvent(alloc, event) catch .ignored;
                         if (input_res == .submit) {
                             if (self.input_manager.focused_node) |node| {
                                 self.handleFormSubmission(node);
@@ -399,13 +394,15 @@ pub const Renderer = struct {
         };
         alloc.free(resp.body);
 
-        // 4. Discover and load sub-resources
+        // 4. Discover and load sub-resources (cap at 5 to avoid UI freeze)
         var resource_loader = net.loader.ResourceLoader.init(alloc, nav.fetch_client, nav.base_url);
         const refs = resource_loader.discoverResources(new_doc.root) catch &[_]net.loader.ResourceRef{};
-        const loaded = resource_loader.loadResources(refs) catch &[_]net.loader.LoadedResource{};
+        const max_resources = @min(refs.len, 5);
+        const limited_refs = refs[0..max_resources];
+        const loaded = resource_loader.loadResources(limited_refs) catch &[_]net.loader.LoadedResource{};
 
         if (refs.len > 0) {
-            std.debug.print("[nav] Discovered {d} sub-resources\n", .{refs.len});
+            std.debug.print("[nav] Discovered {d} sub-resources, loading {d}\n", .{ refs.len, max_resources });
         }
 
         // 5. Build stylesheets (UA + inline + external CSS)
