@@ -167,5 +167,42 @@ float get_screen_scale_factor(void) {
 
 void activate_app(void) {
   [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+
+  // Create application menu
+  NSMenu *menubar = [[NSMenu alloc] init];
+  NSMenuItem *appMenuItem = [[NSMenuItem alloc] init];
+  [menubar addItem:appMenuItem];
+  [NSApp setMainMenu:menubar];
+
+  NSMenu *appMenu = [[NSMenu alloc] init];
+  NSString *appName = [[NSProcessInfo processInfo] processName];
+  NSString *quitTitle = [@"Quit " stringByAppendingString:appName];
+  NSMenuItem *quitMenuItem =
+      [[NSMenuItem alloc] initWithTitle:quitTitle
+                                 action:@selector(terminate:)
+                          keyEquivalent:@"q"];
+  [appMenu addItem:quitMenuItem];
+  [appMenuItem setSubmenu:appMenu];
+
+  // Add Edit menu for Copy/Paste shortcuts
+  NSMenuItem *editMenuItem = [[NSMenuItem alloc] initWithTitle:@"Edit"
+                                                        action:nil
+                                                 keyEquivalent:@""];
+  [menubar addItem:editMenuItem];
+  NSMenu *editMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
+  [editMenu addItem:[[NSMenuItem alloc] initWithTitle:@"Cut"
+                                               action:@selector(cut:)
+                                        keyEquivalent:@"x"]];
+  [editMenu addItem:[[NSMenuItem alloc] initWithTitle:@"Copy"
+                                               action:@selector(copy:)
+                                        keyEquivalent:@"c"]];
+  [editMenu addItem:[[NSMenuItem alloc] initWithTitle:@"Paste"
+                                               action:@selector(paste:)
+                                        keyEquivalent:@"v"]];
+  [editMenu addItem:[[NSMenuItem alloc] initWithTitle:@"Select All"
+                                               action:@selector(selectAll:)
+                                        keyEquivalent:@"a"]];
+  [editMenuItem setSubmenu:editMenu];
+
   [NSApp activateIgnoringOtherApps:YES];
 }
