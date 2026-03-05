@@ -22,14 +22,23 @@ pub const LoadedResource = struct {
 
     pub fn deinit(self: *LoadedResource, allocator: std.mem.Allocator) void {
         allocator.free(self.url);
-        allocator.free(self.body);
+        if (self.body.len > 0) {
+            allocator.free(self.body);
+        }
     }
+};
+
+pub const PendingResource = struct {
+    ref: ResourceRef,
+    handle: fetch.FetchHandle,
 };
 
 pub const ResourceLoader = struct {
     allocator: std.mem.Allocator,
     fetch_client: *fetch.FetchClient,
     base_url: url.Url,
+    pending: std.ArrayListUnmanaged(PendingResource) = .{},
+    loaded: std.ArrayListUnmanaged(LoadedResource) = .{},
 
     pub fn init(allocator: std.mem.Allocator, fetch_client: *fetch.FetchClient, base_url: url.Url) ResourceLoader {
         return .{
@@ -81,47 +90,64 @@ pub const ResourceLoader = struct {
 
     /// Loads the discovered resources. In this basic MVP, they are loaded synchronously
     /// in priority order (CSS -> JS -> Images), but this can be parallelized later.
-    pub fn loadResources(self: *ResourceLoader, refs: []const ResourceRef) ![]LoadedResource {
-        var loaded = std.ArrayListUnmanaged(LoadedResource){};
-        errdefer {
-            for (loaded.items) |*res| res.deinit(self.allocator);
-            loaded.deinit(self.allocator);
-        }
+    /// Loads the discovered resources asynchronously.
 
-        // Priority 1: CSS
-        for (refs) |ref| {
-            if (ref.type == .CSS) try self.loadOne(ref, &loaded);
-        }
 
-        // Priority 2: JS
-        for (refs) |ref| {
-            if (ref.type == .JS) try self.loadOne(ref, &loaded);
+    pub fn deinit(self: *ResourceLoader) void {
+        for (self.pending.items) |p| {
+            self.fetch_client.bridge.net_fetch_free(p.handle);
+            self.allocator.free(p.ref.url);
         }
-
-        // Priority 3: Images
-        for (refs) |ref| {
-            if (ref.type == .Image) try self.loadOne(ref, &loaded);
-        }
-
-        return try loaded.toOwnedSlice(self.allocator);
+        self.pending.deinit(self.allocator);
+        
+        for (self.loaded.items) |*l| l.deinit(self.allocator);
+        self.loaded.deinit(self.allocator);
     }
 
-    fn loadOne(self: *ResourceLoader, ref: ResourceRef, loaded: *std.ArrayListUnmanaged(LoadedResource)) !void {
-        std.debug.print("Fetching resource: {s}...\n", .{ref.url});
-        var response = self.fetch_client.fetch(.{ .url = ref.url }) catch |err| {
-            std.debug.print("Failed to fetch resource {s}: {}\n", .{ ref.url, err });
-            return;
-        };
-
-        if (response.status_code == 200) {
-            try loaded.append(self.allocator, .{
-                .type = ref.type,
-                .url = try self.allocator.dupe(u8, ref.url),
-                .body = response.body, // Ownership transferred
+    pub fn startLoading(self: *ResourceLoader, refs: []const ResourceRef) !void {
+        for (refs) |ref| {
+            const handle = self.fetch_client.startFetch(.{ .url = ref.url }) catch |err| {
+                std.debug.print("Failed to start fetch for {s}: {}\n", .{ref.url, err});
+                continue;
+            };
+            try self.pending.append(self.allocator, .{
+                .ref = .{ .url = try self.allocator.dupe(u8, ref.url), .type = ref.type },
+                .handle = handle,
             });
-        } else {
-            response.deinit(self.allocator);
-            std.debug.print("Failed to fetch resource {s}: HTTP {d}\n", .{ ref.url, response.status_code });
         }
+    }
+
+    /// Polls pending requests and returns a slice of newly loaded resources.
+    /// The caller does NOT own the returned slice, but the resources themselves
+    /// are owned by the ResourceLoader until deinit().
+    pub fn poll(self: *ResourceLoader) ![]LoadedResource {
+        const start_loaded = self.loaded.items.len;
+        var i: usize = 0;
+        while (i < self.pending.items.len) {
+            const p = self.pending.items[i];
+            
+            if (self.fetch_client.pollFetch(p.handle) catch null) |r| {
+                var resp = r;
+                defer self.fetch_client.bridge.net_fetch_free(p.handle);
+                
+                if (resp.status_code == 200) {
+                    try self.loaded.append(self.allocator, .{
+                        .type = p.ref.type,
+                        .url = p.ref.url, // Ownership transfers to LoadedResource
+                        .body = resp.body,
+                    });
+                } else {
+                    resp.deinit(self.allocator);
+                    self.allocator.free(p.ref.url);
+                    std.debug.print("Failed to fetch resource {s}: HTTP {d}\n", .{ p.ref.url, resp.status_code });
+                }
+                
+                _ = self.pending.orderedRemove(i);
+            } else {
+                i += 1;
+            }
+        }
+        
+        return self.loaded.items[start_loaded..];
     }
 };

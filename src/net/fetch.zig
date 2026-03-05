@@ -37,6 +37,20 @@ pub const FetchClient = struct {
     }
 
     pub fn fetch(self: *FetchClient, request: types.HttpRequest) !types.HttpResponse {
+        const handle = try self.startFetch(request);
+        defer self.bridge.net_fetch_free(handle);
+
+        var timer = try std.time.Timer.start();
+        const timeout_ns = @as(u64, self.cfg.request_timeout_ms) * 1_000_000;
+
+        while (true) {
+            if (try self.pollFetch(handle)) |resp| return resp;
+            if (timer.read() > timeout_ns) return error.Timeout;
+            std.Thread.sleep(1_000_000); // 1ms
+        }
+    }
+
+    pub fn startFetch(self: *FetchClient, request: types.HttpRequest) !FetchHandle {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
 
@@ -62,25 +76,16 @@ pub const FetchClient = struct {
         );
 
         if (handle == null) return error.BridgeError;
-        defer self.bridge.net_fetch_free(handle);
+        return handle;
+    }
 
-        var timer = try std.time.Timer.start();
-        const timeout_ns = @as(u64, self.cfg.request_timeout_ms) * 1_000_000;
-
-        // Poll wait loop
-        while (true) {
-            const status = self.bridge.net_fetch_poll(handle);
-            switch (status) {
-                .SUCCESS => break,
-                .ERROR => return error.ConnectionFailed,
-                .TIMEOUT => return error.Timeout,
-                .PENDING => {
-                    if (timer.read() > timeout_ns) {
-                        return error.Timeout;
-                    }
-                    std.Thread.sleep(1_000_000); // 1ms poll interval
-                },
-            }
+    pub fn pollFetch(self: *FetchClient, handle: FetchHandle) !?types.HttpResponse {
+        const status = self.bridge.net_fetch_poll(handle);
+        switch (status) {
+            .PENDING => return null,
+            .ERROR => return error.ConnectionFailed,
+            .TIMEOUT => return error.Timeout,
+            .SUCCESS => {},
         }
 
         const status_code = self.bridge.net_fetch_get_status_code(handle);
@@ -97,7 +102,6 @@ pub const FetchClient = struct {
             response_body = try self.allocator.dupe(u8, src_slice);
         }
 
-        // Extract response headers
         const resp_headers = try self.extractHeaders(handle);
 
         return types.HttpResponse{

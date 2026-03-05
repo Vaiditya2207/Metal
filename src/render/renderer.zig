@@ -54,9 +54,10 @@ pub const Renderer = struct {
     input_manager: ui.input.InputManager,
     frame_ctx: ?FrameContext = null,
     document: ?*dom.Document = null,
-    stylesheets: []const css.Stylesheet = &.{},
+    stylesheets: std.ArrayListUnmanaged(css.Stylesheet) = .{},
     styled_root: ?*css.StyledNode = null,
     nav_ctx: ?NavigationContext = null,
+    resource_loader: ?net.loader.ResourceLoader = null,
     pending_url: [4096]u8 = undefined,
     pending_url_len: usize = 0,
 
@@ -103,7 +104,10 @@ pub const Renderer = struct {
 
     pub fn setRenderContext(self: *Renderer, doc: *dom.Document, sheets: []const css.Stylesheet) void {
         self.document = doc;
-        self.stylesheets = sheets;
+        if (self.allocator) |alloc| {
+            self.stylesheets.clearRetainingCapacity();
+            self.stylesheets.appendSlice(alloc, sheets) catch {};
+        }
     }
 
     pub fn processEvents(self: *Renderer) void {
@@ -250,6 +254,28 @@ pub const Renderer = struct {
             }
         }
 
+        // Poll async resources
+        if (self.resource_loader) |*rl| {
+            if (rl.poll() catch null) |newly_loaded| {
+                if (newly_loaded.len > 0) {
+                    var needs_rebuild = false;
+                    for (newly_loaded) |res| {
+                        if (res.type == .CSS) {
+                            std.debug.print("[async] Applying CSS: {s}\n", .{res.url});
+                            if (self.allocator) |alloc| {
+                                const sheet = css.parser.Parser.parse(alloc, res.body) catch continue;
+                                self.stylesheets.append(alloc, sheet) catch {};
+                                needs_rebuild = true;
+                            }
+                        }
+                    }
+                    if (needs_rebuild) {
+                        self.rebuildRenderTree();
+                    }
+                }
+            }
+        }
+
         const view = self.view orelse return;
 
         const frame_context = objc.begin_frame(self.command_queue, view);
@@ -297,7 +323,7 @@ pub const Renderer = struct {
         }
 
         var resolver = css.StyleResolver.init(alloc);
-        const new_styled = resolver.resolve(doc.root, self.stylesheets) catch return;
+        const new_styled = resolver.resolve(doc.root, self.stylesheets.items) catch return;
         self.styled_root = new_styled;
 
         const new_layout = layout_mod.buildLayoutTree(alloc, new_styled) catch return;
@@ -394,35 +420,31 @@ pub const Renderer = struct {
         };
         alloc.free(resp.body);
 
-        // 4. Discover and load sub-resources (cap at 5 to avoid UI freeze)
-        var resource_loader = net.loader.ResourceLoader.init(alloc, nav.fetch_client, nav.base_url);
-        const refs = resource_loader.discoverResources(new_doc.root) catch &[_]net.loader.ResourceRef{};
-        const max_resources = @min(refs.len, 5);
+        // 4. Discover and async load sub-resources
+        if (self.resource_loader) |*rl| {
+            rl.deinit();
+        }
+        self.resource_loader = net.loader.ResourceLoader.init(alloc, nav.fetch_client, nav.base_url);
+        
+        const refs = self.resource_loader.?.discoverResources(new_doc.root) catch &[_]net.loader.ResourceRef{};
+        
+        // Cap async loading at 20 resources for now to prevent overwhelming
+        const max_resources = @min(refs.len, 20);
         const limited_refs = refs[0..max_resources];
-        const loaded = resource_loader.loadResources(limited_refs) catch &[_]net.loader.LoadedResource{};
+        
+        self.resource_loader.?.startLoading(limited_refs) catch {};
 
         if (refs.len > 0) {
-            std.debug.print("[nav] Discovered {d} sub-resources, loading {d}\n", .{ refs.len, max_resources });
+            std.debug.print("[nav] Discovered {d} sub-resources, loading {d} asynchronously\n", .{ refs.len, max_resources });
         }
 
-        // 5. Build stylesheets (UA + inline + external CSS)
+        // 5. Build initial stylesheets (UA + inline)
         const ua_sheet = css.user_agent.getStylesheet(alloc) catch return;
         const page_sheets = css.style_extract.extractStylesheets(alloc, new_doc.root) catch &[_]css.Stylesheet{};
-        var all_sheets = std.ArrayListUnmanaged(css.Stylesheet){};
-        all_sheets.append(alloc, ua_sheet) catch return;
-        for (page_sheets) |s| all_sheets.append(alloc, s) catch {};
-
-        // Parse external CSS
-        for (loaded) |res| {
-            switch (res.type) {
-                .CSS => {
-                    std.debug.print("[nav] Applying CSS: {s}\n", .{res.url});
-                    const sheet = css.parser.Parser.parse(alloc, res.body) catch continue;
-                    all_sheets.append(alloc, sheet) catch {};
-                },
-                else => {},
-            }
-        }
+        
+        self.stylesheets.clearRetainingCapacity();
+        self.stylesheets.append(alloc, ua_sheet) catch return;
+        self.stylesheets.appendSlice(alloc, page_sheets) catch {};
 
         // 6. Free old state
         if (self.document) |old_doc| {
@@ -431,19 +453,16 @@ pub const Renderer = struct {
 
         // 7. Update renderer state
         self.document = new_doc;
-        self.stylesheets = all_sheets.items;
 
-        // 8. Rebuild render tree (style resolve + layout + display list)
+        // 8. Rebuild initial render tree
         self.rebuildRenderTree();
         self.scroll.setScrollY(0);
 
-        // Cleanup sub-resource refs
+        // Cleanup temporary refs
         for (refs) |ref| alloc.free(ref.url);
         alloc.free(refs);
-        for (loaded) |*res| @constCast(res).deinit(alloc);
-        alloc.free(loaded);
 
-        std.debug.print("Navigation complete\n", .{});
+        std.debug.print("Initial Navigation complete\n", .{});
     }
 
     fn handleFormSubmission(self: *Renderer, input_node: *@import("../dom/node.zig").Node) void {

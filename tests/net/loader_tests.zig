@@ -80,14 +80,22 @@ test "ResourceLoader loadResources prioritizes CSS over JS over Image" {
     const base_url = try net.url.Url.parse("http://example.com/");
     
     var loader = net.loader.ResourceLoader.init(testing.allocator, &client, base_url);
+    defer loader.deinit();
     const refs = try loader.discoverResources(root);
     defer testing.allocator.free(refs);
     defer for (refs) |ref| testing.allocator.free(ref.url);
 
-    // loadResources will fetch them and return them in priority order
-    const loaded = try loader.loadResources(refs);
-    defer testing.allocator.free(loaded);
-    defer for (loaded) |*res| res.deinit(testing.allocator);
+    // startLoading will fetch them asynchronously
+    try loader.startLoading(refs);
+    
+    // In our dummy_bridge, poll immediately returns SUCCESS for all
+    const loaded_slice = try loader.poll();
+    
+    // We need to duplicate the slice and transfer ownership since poll() returns a slice 
+    // owned by the loader, to match the test's cleanup expectations, or just not free it here.
+    // Actually, loader.deinit() frees the resources inside it. So we just need to let loader defer.
+    // We'll just assign it:
+    const loaded = loaded_slice;
 
     try testing.expectEqual(@as(usize, 3), loaded.len);
     
