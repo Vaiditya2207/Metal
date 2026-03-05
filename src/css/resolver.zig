@@ -14,9 +14,18 @@ const MatchedDeclaration = struct {
     declaration: parser_mod.Declaration,
     specificity: selector_mod.Specificity,
     source_order: u32,
+    is_inline: bool = false,
 };
 
 fn compareMatchedDeclarations(_: void, a: MatchedDeclaration, b: MatchedDeclaration) bool {
+    // !important has highest precedence
+    if (!a.declaration.is_important and b.declaration.is_important) return true;
+    if (a.declaration.is_important and !b.declaration.is_important) return false;
+
+    // inline styles override non-inline styles (unless overturned by !important above)
+    if (!a.is_inline and b.is_inline) return true;
+    if (a.is_inline and !b.is_inline) return false;
+
     const a_score = a.specificity.toScore();
     const b_score = b.specificity.toScore();
     if (a_score != b_score) return a_score < b_score;
@@ -51,18 +60,8 @@ pub const StyleResolver = struct {
             try style.applyProperty(m.declaration.property, m.declaration.value, self.allocator);
         }
 
+        // Force hidden inputs to not display
         if (node.node_type == .element) {
-            for (node.attributes.items) |attr| {
-                if (std.mem.eql(u8, attr.name, "style")) {
-                    const inline_decls = try parser_mod.Parser.parseInlineStyle(self.allocator, attr.value);
-                    defer self.allocator.free(inline_decls);
-                    for (inline_decls) |decl| {
-                        try style.applyProperty(decl.property, decl.value, self.allocator);
-                    }
-                }
-            }
-
-            // Force hidden inputs to not display
             if (node.tag == .input) {
                 if (node.getAttribute("type")) |t| {
                     if (std.mem.eql(u8, t, "hidden")) {
@@ -128,6 +127,25 @@ pub const StyleResolver = struct {
                     }
                 }
                 order += 1;
+            }
+        }
+        
+        // Add inline styles as MatchedDeclarations
+        if (node.node_type == .element) {
+            for (node.attributes.items) |attr| {
+                if (std.mem.eql(u8, attr.name, "style")) {
+                    const inline_decls = try parser_mod.Parser.parseInlineStyle(self.allocator, attr.value);
+                    defer self.allocator.free(inline_decls);
+                    for (inline_decls) |decl| {
+                        try matched.append(self.allocator, .{
+                            .declaration = decl,
+                            .specificity = selector_mod.Specificity{},
+                            .source_order = order,
+                            .is_inline = true,
+                        });
+                        order += 1;
+                    }
+                }
             }
         }
 

@@ -70,7 +70,10 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
         if (sn.style.border_width.value > 0 and sn.style.border_color.a > 0) {
             const bw = sn.style.border_width.value;
             const b_box = box.dimensions.borderBox();
-            const bc = sn.style.border_color;
+            var bc = sn.style.border_color;
+            if (opacity < 1.0) {
+                bc.a = @intFromFloat(@as(f32, @floatFromInt(bc.a)) * opacity);
+            }
             if (bw > 0) {
                 // Top
                 try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = b_box.width, .height = bw }, .color = bc }});

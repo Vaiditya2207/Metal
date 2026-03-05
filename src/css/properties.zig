@@ -3,7 +3,7 @@ const values_mod = @import("values.zig");
 const Length = values_mod.Length;
 const CssColor = values_mod.CssColor;
 
-pub const Display = enum { block, inline_val, inline_block, none, flex };
+pub const Display = enum { block, inline_val, inline_block, none, flex, table, table_row, table_cell };
 pub const Position = enum { static_val, relative, absolute, fixed };
 pub const Overflow = enum { visible, hidden, scroll, auto_val };
 pub const BoxSizing = enum { content_box, border_box };
@@ -69,6 +69,9 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "inline-block")) self.display = .inline_block;
             if (std.mem.eql(u8, val, "none")) self.display = .none;
             if (std.mem.eql(u8, val, "flex")) self.display = .flex;
+            if (std.mem.eql(u8, val, "table")) self.display = .table;
+            if (std.mem.eql(u8, val, "table-row")) self.display = .table_row;
+            if (std.mem.eql(u8, val, "table-cell")) self.display = .table_cell;
         } else if (std.mem.eql(u8, prop, "position")) {
             if (std.mem.eql(u8, val, "static")) self.position = .static_val;
             if (std.mem.eql(u8, val, "relative")) self.position = .relative;
@@ -116,6 +119,10 @@ pub const ComputedStyle = struct {
             self.left_pos = values_mod.parseLength(val);
         } else if (std.mem.eql(u8, prop, "z-index")) {
             self.z_index = std.fmt.parseInt(i32, val, 10) catch null;
+        } else if (std.mem.eql(u8, prop, "opacity")) {
+            if (std.fmt.parseFloat(f32, val)) |opacity_val| {
+                self.opacity = @max(0.0, @min(1.0, opacity_val));
+            } else |_| {}
         } else if (std.mem.startsWith(u8, prop, "border-") and prop.len > 7) {
             if (std.mem.eql(u8, prop, "border-width")) {
                 if (values_mod.parseLength(val)) |l| self.border_width = l;

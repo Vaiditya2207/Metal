@@ -21,6 +21,7 @@ typedef struct {
 
 void *create_application_delegate(void);
 void *create_window(const char *title, float width, float height);
+void set_window_title(void *window, const char *title);
 void *create_metal_view(void *window, void *device);
 void *create_command_queue(void *device);
 void *begin_frame(void *command_queue, void *view);

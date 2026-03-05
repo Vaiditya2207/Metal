@@ -202,6 +202,7 @@ pub fn main() !void {
 
     const view = try my_window.setMetalView(my_renderer.device);
     my_renderer.view = view;
+    my_renderer.setWindow(my_window.handle);
     app.objc.set_event_callback(view, null, events.eventCallback);
     app.objc.set_metal_delegate(view, &my_renderer, renderer.Renderer.draw);
     my_renderer.setClearColor(cfg.renderer.clear_color);
@@ -277,13 +278,12 @@ pub fn main() !void {
         std.debug.print("Discovered {d} sub-resources\n", .{refs.len});
     }
 
-    const loaded_resources = resource_loader.loadResources(refs) catch &[_]net.loader.LoadedResource{};
-    defer {
-        for (loaded_resources) |*res| {
-            @constCast(res).deinit(allocator);
-        }
-        allocator.free(loaded_resources);
+    resource_loader.startLoading(refs) catch {};
+    while (resource_loader.pending.items.len > 0) {
+        _ = resource_loader.poll() catch {};
+        std.Thread.sleep(10 * std.time.ns_per_ms);
     }
+    const loaded_resources = resource_loader.loaded.items;
 
     // --- JS Context ---
     var js_ctx = try js.context.JsContext.init(allocator, &jsc_bridge);

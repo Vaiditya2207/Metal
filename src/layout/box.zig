@@ -57,6 +57,9 @@ pub const BoxType = enum {
     inlineNode,
     inlineBlockNode,
     flexNode,
+    tableNode,
+    tableRowNode,
+    tableCellNode,
     anonymousBlock,
 };
 
@@ -124,6 +127,9 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             const box_type: BoxType = switch (sn.style.display) {
                 .block => .blockNode,
                 .flex => .flexNode,
+                .table => .tableNode,
+                .table_row => .tableRowNode,
+                .table_cell => .tableCellNode,
                 .inline_val => .inlineNode,
                 .inline_block => .inlineBlockNode,
                 .none => unreachable,

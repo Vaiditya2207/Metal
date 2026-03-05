@@ -191,7 +191,11 @@ fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
             false;
 
         if (is_out_of_flow) {
-            layoutBlock(child, box, ctx);
+            if (child.box_type == .tableNode) {
+                @import("table.zig").layoutTable(child, box, ctx);
+            } else {
+                layoutBlock(child, box, ctx);
+            }
             position.applyPositioning(child, ctx);
             continue;
         }
@@ -204,7 +208,11 @@ fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
         else
             @as(f32, 0);
 
-        layoutBlock(child, box, ctx);
+        if (child.box_type == .tableNode) {
+            @import("table.zig").layoutTable(child, box, ctx);
+        } else {
+            layoutBlock(child, box, ctx);
+        }
 
         // After layoutBlock, the child's margin.top may have been inflated
         // by its own children's margin collapsing. Use this updated value

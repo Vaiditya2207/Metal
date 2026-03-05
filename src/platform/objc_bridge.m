@@ -72,6 +72,11 @@ void *create_window(const char *title, float width, float height) {
   return (__bridge_retained void *)window;
 }
 
+void set_window_title(void *window_ptr, const char *title) {
+  NSWindow *window = (__bridge NSWindow *)window_ptr;
+  [window setTitle:[NSString stringWithUTF8String:title]];
+}
+
 void *create_metal_view(void *window_ptr, void *device_ptr) {
   NSWindow *window = (__bridge NSWindow *)window_ptr;
   id<MTLDevice> device = (__bridge id<MTLDevice>)device_ptr;

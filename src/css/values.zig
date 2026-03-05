@@ -48,18 +48,158 @@ pub const CssColor = struct {
     }
 
     pub fn fromNamed(name: []const u8) ?CssColor {
-        if (std.mem.eql(u8, name, "red")) return fromRgb(255, 0, 0);
-        if (std.mem.eql(u8, name, "blue")) return fromRgb(0, 0, 255);
-        if (std.mem.eql(u8, name, "black")) return fromRgb(0, 0, 0);
-        if (std.mem.eql(u8, name, "white")) return fromRgb(255, 255, 255);
-        if (std.mem.eql(u8, name, "green")) return fromRgb(0, 128, 0);
-        if (std.mem.eql(u8, name, "yellow")) return fromRgb(255, 255, 0);
-        if (std.mem.eql(u8, name, "cyan")) return fromRgb(0, 255, 255);
-        if (std.mem.eql(u8, name, "magenta")) return fromRgb(255, 0, 255);
-        if (std.mem.eql(u8, name, "orange")) return fromRgb(255, 165, 0);
-        if (std.mem.eql(u8, name, "gray")) return fromRgb(128, 128, 128);
         if (std.mem.eql(u8, name, "transparent")) return CssColor{ .r = 0, .g = 0, .b = 0, .a = 0 };
-        return null;
+        const ColorMap = std.StaticStringMap(CssColor).initComptime(.{
+            .{ "aliceblue", CssColor{ .r = 240, .g = 248, .b = 255, .a = 255 } },
+            .{ "antiquewhite", CssColor{ .r = 250, .g = 235, .b = 215, .a = 255 } },
+            .{ "aqua", CssColor{ .r = 0, .g = 255, .b = 255, .a = 255 } },
+            .{ "aquamarine", CssColor{ .r = 127, .g = 255, .b = 212, .a = 255 } },
+            .{ "azure", CssColor{ .r = 240, .g = 255, .b = 255, .a = 255 } },
+            .{ "beige", CssColor{ .r = 245, .g = 245, .b = 220, .a = 255 } },
+            .{ "bisque", CssColor{ .r = 255, .g = 228, .b = 196, .a = 255 } },
+            .{ "black", CssColor{ .r = 0, .g = 0, .b = 0, .a = 255 } },
+            .{ "blanchedalmond", CssColor{ .r = 255, .g = 235, .b = 205, .a = 255 } },
+            .{ "blue", CssColor{ .r = 0, .g = 0, .b = 255, .a = 255 } },
+            .{ "blueviolet", CssColor{ .r = 138, .g = 43, .b = 226, .a = 255 } },
+            .{ "brown", CssColor{ .r = 165, .g = 42, .b = 42, .a = 255 } },
+            .{ "burlywood", CssColor{ .r = 222, .g = 184, .b = 135, .a = 255 } },
+            .{ "cadetblue", CssColor{ .r = 95, .g = 158, .b = 160, .a = 255 } },
+            .{ "chartreuse", CssColor{ .r = 127, .g = 255, .b = 0, .a = 255 } },
+            .{ "chocolate", CssColor{ .r = 210, .g = 105, .b = 30, .a = 255 } },
+            .{ "coral", CssColor{ .r = 255, .g = 127, .b = 80, .a = 255 } },
+            .{ "cornflowerblue", CssColor{ .r = 100, .g = 149, .b = 237, .a = 255 } },
+            .{ "cornsilk", CssColor{ .r = 255, .g = 248, .b = 220, .a = 255 } },
+            .{ "crimson", CssColor{ .r = 220, .g = 20, .b = 60, .a = 255 } },
+            .{ "cyan", CssColor{ .r = 0, .g = 255, .b = 255, .a = 255 } },
+            .{ "darkblue", CssColor{ .r = 0, .g = 0, .b = 139, .a = 255 } },
+            .{ "darkcyan", CssColor{ .r = 0, .g = 139, .b = 139, .a = 255 } },
+            .{ "darkgoldenrod", CssColor{ .r = 184, .g = 134, .b = 11, .a = 255 } },
+            .{ "darkgray", CssColor{ .r = 169, .g = 169, .b = 169, .a = 255 } },
+            .{ "darkgreen", CssColor{ .r = 0, .g = 100, .b = 0, .a = 255 } },
+            .{ "darkgrey", CssColor{ .r = 169, .g = 169, .b = 169, .a = 255 } },
+            .{ "darkkhaki", CssColor{ .r = 189, .g = 183, .b = 107, .a = 255 } },
+            .{ "darkmagenta", CssColor{ .r = 139, .g = 0, .b = 139, .a = 255 } },
+            .{ "darkolivegreen", CssColor{ .r = 85, .g = 107, .b = 47, .a = 255 } },
+            .{ "darkorange", CssColor{ .r = 255, .g = 140, .b = 0, .a = 255 } },
+            .{ "darkorchid", CssColor{ .r = 153, .g = 50, .b = 204, .a = 255 } },
+            .{ "darkred", CssColor{ .r = 139, .g = 0, .b = 0, .a = 255 } },
+            .{ "darksalmon", CssColor{ .r = 233, .g = 150, .b = 122, .a = 255 } },
+            .{ "darkseagreen", CssColor{ .r = 143, .g = 188, .b = 143, .a = 255 } },
+            .{ "darkslateblue", CssColor{ .r = 72, .g = 61, .b = 139, .a = 255 } },
+            .{ "darkslategray", CssColor{ .r = 47, .g = 79, .b = 79, .a = 255 } },
+            .{ "darkslategrey", CssColor{ .r = 47, .g = 79, .b = 79, .a = 255 } },
+            .{ "darkturquoise", CssColor{ .r = 0, .g = 206, .b = 209, .a = 255 } },
+            .{ "darkviolet", CssColor{ .r = 148, .g = 0, .b = 211, .a = 255 } },
+            .{ "deeppink", CssColor{ .r = 255, .g = 20, .b = 147, .a = 255 } },
+            .{ "deepskyblue", CssColor{ .r = 0, .g = 191, .b = 255, .a = 255 } },
+            .{ "dimgray", CssColor{ .r = 105, .g = 105, .b = 105, .a = 255 } },
+            .{ "dimgrey", CssColor{ .r = 105, .g = 105, .b = 105, .a = 255 } },
+            .{ "dodgerblue", CssColor{ .r = 30, .g = 144, .b = 255, .a = 255 } },
+            .{ "firebrick", CssColor{ .r = 178, .g = 34, .b = 34, .a = 255 } },
+            .{ "floralwhite", CssColor{ .r = 255, .g = 250, .b = 240, .a = 255 } },
+            .{ "forestgreen", CssColor{ .r = 34, .g = 139, .b = 34, .a = 255 } },
+            .{ "fuchsia", CssColor{ .r = 255, .g = 0, .b = 255, .a = 255 } },
+            .{ "gainsboro", CssColor{ .r = 220, .g = 220, .b = 220, .a = 255 } },
+            .{ "ghostwhite", CssColor{ .r = 248, .g = 248, .b = 255, .a = 255 } },
+            .{ "gold", CssColor{ .r = 255, .g = 215, .b = 0, .a = 255 } },
+            .{ "goldenrod", CssColor{ .r = 218, .g = 165, .b = 32, .a = 255 } },
+            .{ "gray", CssColor{ .r = 128, .g = 128, .b = 128, .a = 255 } },
+            .{ "green", CssColor{ .r = 0, .g = 128, .b = 0, .a = 255 } },
+            .{ "greenyellow", CssColor{ .r = 173, .g = 255, .b = 47, .a = 255 } },
+            .{ "grey", CssColor{ .r = 128, .g = 128, .b = 128, .a = 255 } },
+            .{ "honeydew", CssColor{ .r = 240, .g = 255, .b = 240, .a = 255 } },
+            .{ "hotpink", CssColor{ .r = 255, .g = 105, .b = 180, .a = 255 } },
+            .{ "indianred", CssColor{ .r = 205, .g = 92, .b = 92, .a = 255 } },
+            .{ "indigo", CssColor{ .r = 75, .g = 0, .b = 130, .a = 255 } },
+            .{ "ivory", CssColor{ .r = 255, .g = 255, .b = 240, .a = 255 } },
+            .{ "khaki", CssColor{ .r = 240, .g = 230, .b = 140, .a = 255 } },
+            .{ "lavender", CssColor{ .r = 230, .g = 230, .b = 250, .a = 255 } },
+            .{ "lavenderblush", CssColor{ .r = 255, .g = 240, .b = 245, .a = 255 } },
+            .{ "lawngreen", CssColor{ .r = 124, .g = 252, .b = 0, .a = 255 } },
+            .{ "lemonchiffon", CssColor{ .r = 255, .g = 250, .b = 205, .a = 255 } },
+            .{ "lightblue", CssColor{ .r = 173, .g = 216, .b = 230, .a = 255 } },
+            .{ "lightcoral", CssColor{ .r = 240, .g = 128, .b = 128, .a = 255 } },
+            .{ "lightcyan", CssColor{ .r = 224, .g = 255, .b = 255, .a = 255 } },
+            .{ "lightgoldenrodyellow", CssColor{ .r = 250, .g = 250, .b = 210, .a = 255 } },
+            .{ "lightgray", CssColor{ .r = 211, .g = 211, .b = 211, .a = 255 } },
+            .{ "lightgreen", CssColor{ .r = 144, .g = 238, .b = 144, .a = 255 } },
+            .{ "lightgrey", CssColor{ .r = 211, .g = 211, .b = 211, .a = 255 } },
+            .{ "lightpink", CssColor{ .r = 255, .g = 182, .b = 193, .a = 255 } },
+            .{ "lightsalmon", CssColor{ .r = 255, .g = 160, .b = 122, .a = 255 } },
+            .{ "lightseagreen", CssColor{ .r = 32, .g = 178, .b = 170, .a = 255 } },
+            .{ "lightskyblue", CssColor{ .r = 135, .g = 206, .b = 250, .a = 255 } },
+            .{ "lightslategray", CssColor{ .r = 119, .g = 136, .b = 153, .a = 255 } },
+            .{ "lightslategrey", CssColor{ .r = 119, .g = 136, .b = 153, .a = 255 } },
+            .{ "lightsteelblue", CssColor{ .r = 176, .g = 196, .b = 222, .a = 255 } },
+            .{ "lightyellow", CssColor{ .r = 255, .g = 255, .b = 224, .a = 255 } },
+            .{ "lime", CssColor{ .r = 0, .g = 255, .b = 0, .a = 255 } },
+            .{ "limegreen", CssColor{ .r = 50, .g = 205, .b = 50, .a = 255 } },
+            .{ "linen", CssColor{ .r = 250, .g = 240, .b = 230, .a = 255 } },
+            .{ "magenta", CssColor{ .r = 255, .g = 0, .b = 255, .a = 255 } },
+            .{ "maroon", CssColor{ .r = 128, .g = 0, .b = 0, .a = 255 } },
+            .{ "mediumaquamarine", CssColor{ .r = 102, .g = 205, .b = 170, .a = 255 } },
+            .{ "mediumblue", CssColor{ .r = 0, .g = 0, .b = 205, .a = 255 } },
+            .{ "mediumorchid", CssColor{ .r = 186, .g = 85, .b = 211, .a = 255 } },
+            .{ "mediumpurple", CssColor{ .r = 147, .g = 112, .b = 219, .a = 255 } },
+            .{ "mediumseagreen", CssColor{ .r = 60, .g = 179, .b = 113, .a = 255 } },
+            .{ "mediumslateblue", CssColor{ .r = 123, .g = 104, .b = 238, .a = 255 } },
+            .{ "mediumspringgreen", CssColor{ .r = 0, .g = 250, .b = 154, .a = 255 } },
+            .{ "mediumturquoise", CssColor{ .r = 72, .g = 209, .b = 204, .a = 255 } },
+            .{ "mediumvioletred", CssColor{ .r = 199, .g = 21, .b = 133, .a = 255 } },
+            .{ "midnightblue", CssColor{ .r = 25, .g = 25, .b = 112, .a = 255 } },
+            .{ "mintcream", CssColor{ .r = 245, .g = 255, .b = 250, .a = 255 } },
+            .{ "mistyrose", CssColor{ .r = 255, .g = 228, .b = 225, .a = 255 } },
+            .{ "moccasin", CssColor{ .r = 255, .g = 228, .b = 181, .a = 255 } },
+            .{ "navajowhite", CssColor{ .r = 255, .g = 222, .b = 173, .a = 255 } },
+            .{ "navy", CssColor{ .r = 0, .g = 0, .b = 128, .a = 255 } },
+            .{ "oldlace", CssColor{ .r = 253, .g = 245, .b = 230, .a = 255 } },
+            .{ "olive", CssColor{ .r = 128, .g = 128, .b = 0, .a = 255 } },
+            .{ "olivedrab", CssColor{ .r = 107, .g = 142, .b = 35, .a = 255 } },
+            .{ "orange", CssColor{ .r = 255, .g = 165, .b = 0, .a = 255 } },
+            .{ "orangered", CssColor{ .r = 255, .g = 69, .b = 0, .a = 255 } },
+            .{ "orchid", CssColor{ .r = 218, .g = 112, .b = 214, .a = 255 } },
+            .{ "palegoldenrod", CssColor{ .r = 238, .g = 232, .b = 170, .a = 255 } },
+            .{ "palegreen", CssColor{ .r = 152, .g = 251, .b = 152, .a = 255 } },
+            .{ "paleturquoise", CssColor{ .r = 175, .g = 238, .b = 238, .a = 255 } },
+            .{ "palevioletred", CssColor{ .r = 219, .g = 112, .b = 147, .a = 255 } },
+            .{ "papayawhip", CssColor{ .r = 255, .g = 239, .b = 213, .a = 255 } },
+            .{ "peachpuff", CssColor{ .r = 255, .g = 218, .b = 185, .a = 255 } },
+            .{ "peru", CssColor{ .r = 205, .g = 133, .b = 63, .a = 255 } },
+            .{ "pink", CssColor{ .r = 255, .g = 192, .b = 203, .a = 255 } },
+            .{ "plum", CssColor{ .r = 221, .g = 160, .b = 221, .a = 255 } },
+            .{ "powderblue", CssColor{ .r = 176, .g = 224, .b = 230, .a = 255 } },
+            .{ "purple", CssColor{ .r = 128, .g = 0, .b = 128, .a = 255 } },
+            .{ "rebeccapurple", CssColor{ .r = 102, .g = 51, .b = 153, .a = 255 } },
+            .{ "red", CssColor{ .r = 255, .g = 0, .b = 0, .a = 255 } },
+            .{ "rosybrown", CssColor{ .r = 188, .g = 143, .b = 143, .a = 255 } },
+            .{ "royalblue", CssColor{ .r = 65, .g = 105, .b = 225, .a = 255 } },
+            .{ "saddlebrown", CssColor{ .r = 139, .g = 69, .b = 19, .a = 255 } },
+            .{ "salmon", CssColor{ .r = 250, .g = 128, .b = 114, .a = 255 } },
+            .{ "sandybrown", CssColor{ .r = 244, .g = 164, .b = 96, .a = 255 } },
+            .{ "seagreen", CssColor{ .r = 46, .g = 139, .b = 87, .a = 255 } },
+            .{ "seashell", CssColor{ .r = 255, .g = 245, .b = 238, .a = 255 } },
+            .{ "sienna", CssColor{ .r = 160, .g = 82, .b = 45, .a = 255 } },
+            .{ "silver", CssColor{ .r = 192, .g = 192, .b = 192, .a = 255 } },
+            .{ "skyblue", CssColor{ .r = 135, .g = 206, .b = 235, .a = 255 } },
+            .{ "slateblue", CssColor{ .r = 106, .g = 90, .b = 205, .a = 255 } },
+            .{ "slategray", CssColor{ .r = 112, .g = 128, .b = 144, .a = 255 } },
+            .{ "slategrey", CssColor{ .r = 112, .g = 128, .b = 144, .a = 255 } },
+            .{ "snow", CssColor{ .r = 255, .g = 250, .b = 250, .a = 255 } },
+            .{ "springgreen", CssColor{ .r = 0, .g = 255, .b = 127, .a = 255 } },
+            .{ "steelblue", CssColor{ .r = 70, .g = 130, .b = 180, .a = 255 } },
+            .{ "tan", CssColor{ .r = 210, .g = 180, .b = 140, .a = 255 } },
+            .{ "teal", CssColor{ .r = 0, .g = 128, .b = 128, .a = 255 } },
+            .{ "thistle", CssColor{ .r = 216, .g = 191, .b = 216, .a = 255 } },
+            .{ "tomato", CssColor{ .r = 255, .g = 99, .b = 71, .a = 255 } },
+            .{ "turquoise", CssColor{ .r = 64, .g = 224, .b = 208, .a = 255 } },
+            .{ "violet", CssColor{ .r = 238, .g = 130, .b = 238, .a = 255 } },
+            .{ "wheat", CssColor{ .r = 245, .g = 222, .b = 179, .a = 255 } },
+            .{ "white", CssColor{ .r = 255, .g = 255, .b = 255, .a = 255 } },
+            .{ "whitesmoke", CssColor{ .r = 245, .g = 245, .b = 245, .a = 255 } },
+            .{ "yellow", CssColor{ .r = 255, .g = 255, .b = 0, .a = 255 } },
+            .{ "yellowgreen", CssColor{ .r = 154, .g = 205, .b = 50, .a = 255 } },
+        });
+        return ColorMap.get(name);
     }
 
     pub fn fromRgb(r: u8, g: u8, b: u8) CssColor {
@@ -124,6 +264,9 @@ pub fn parseColor(value_str: []const u8) ?CssColor {
         if (std.mem.startsWith(u8, value_str, "rgb(") or std.mem.startsWith(u8, value_str, "rgba(")) {
             return parseRgbFunc(value_str);
         }
+        if (std.mem.startsWith(u8, value_str, "hsl(") or std.mem.startsWith(u8, value_str, "hsla(")) {
+            return parseHslFunc(value_str);
+        }
     }
     if (CssColor.fromHex(value_str)) |c| return c;
     return CssColor.fromNamed(value_str);
@@ -156,4 +299,106 @@ fn parseRgbFunc(value_str: []const u8) ?CssColor {
         }
     }
     return CssColor{ .r = r, .g = g, .b = b, .a = a };
+}
+
+fn hslToRgb(h: f32, s: f32, l: f32) [3]u8 {
+    const c = (1.0 - @abs(2.0 * l - 1.0)) * s;
+    const x = c * (1.0 - @abs(@mod(h / 60.0, 2.0) - 1.0));
+    const m = l - c / 2.0;
+
+    var r: f32 = 0;
+    var g: f32 = 0;
+    var b: f32 = 0;
+
+    if (h >= 0 and h < 60) {
+        r = c; g = x; b = 0;
+    } else if (h >= 60 and h < 120) {
+        r = x; g = c; b = 0;
+    } else if (h >= 120 and h < 180) {
+        r = 0; g = c; b = x;
+    } else if (h >= 180 and h < 240) {
+        r = 0; g = x; b = c;
+    } else if (h >= 240 and h < 300) {
+        r = x; g = 0; b = c;
+    } else if (h >= 300 and h < 360) {
+        r = c; g = 0; b = x;
+    }
+
+    return [3]u8{
+        @intFromFloat((r + m) * 255.0),
+        @intFromFloat((g + m) * 255.0),
+        @intFromFloat((b + m) * 255.0),
+    };
+}
+
+fn parseHslFunc(value_str: []const u8) ?CssColor {
+    const open = std.mem.indexOf(u8, value_str, "(") orelse return null;
+    const close = std.mem.lastIndexOf(u8, value_str, ")") orelse return null;
+    if (close <= open + 1) return null;
+    const content = value_str[open + 1 .. close];
+    
+    var parts: [4][]const u8 = undefined;
+    var count: usize = 0;
+    
+    // Split by comma or space
+    var iter = std.mem.tokenizeAny(u8, content, ", \t\n\r");
+    while (iter.next()) |part| {
+        if (std.mem.eql(u8, part, "/")) continue; // handle space-separated syntax
+        if (count >= 4) return null;
+        parts[count] = part;
+        count += 1;
+    }
+    if (count < 3 or count > 4) return null;
+
+    // Parse HSL
+    // H can be deg, turn, rad, grad, or unitless
+    var h_val: f32 = 0;
+    if (std.mem.endsWith(u8, parts[0], "deg")) {
+        h_val = std.fmt.parseFloat(f32, parts[0][0..parts[0].len-3]) catch return null;
+    } else if (std.mem.endsWith(u8, parts[0], "turn")) {
+        h_val = (std.fmt.parseFloat(f32, parts[0][0..parts[0].len-4]) catch return null) * 360.0;
+    } else {
+        h_val = std.fmt.parseFloat(f32, parts[0]) catch return null;
+    }
+    // wrap h
+    h_val = @mod(h_val, 360.0);
+    if (h_val < 0) h_val += 360.0;
+
+    // Parse S, L (can be % or number 0-1)
+    var s_val: f32 = 0;
+    if (std.mem.endsWith(u8, parts[1], "%")) {
+        s_val = (std.fmt.parseFloat(f32, parts[1][0..parts[1].len-1]) catch return null) / 100.0;
+    } else {
+        s_val = std.fmt.parseFloat(f32, parts[1]) catch return null;
+    }
+
+    var l_val: f32 = 0;
+    if (std.mem.endsWith(u8, parts[2], "%")) {
+        l_val = (std.fmt.parseFloat(f32, parts[2][0..parts[2].len-1]) catch return null) / 100.0;
+    } else {
+        l_val = std.fmt.parseFloat(f32, parts[2]) catch return null;
+    }
+    s_val = std.math.clamp(s_val, 0.0, 1.0);
+    l_val = std.math.clamp(l_val, 0.0, 1.0);
+
+    const rgb = hslToRgb(h_val, s_val, l_val);
+
+    var a: u8 = 255;
+    if (count == 4) {
+        if (std.mem.endsWith(u8, parts[3], "%")) {
+            const af = (std.fmt.parseFloat(f32, parts[3][0..parts[3].len-1]) catch return null) / 100.0;
+            a = @intFromFloat(std.math.clamp(af, 0.0, 1.0) * 255.0);
+        } else if (std.mem.indexOf(u8, parts[3], ".")) |_| {
+            const af = std.fmt.parseFloat(f32, parts[3]) catch return null;
+            a = @intFromFloat(std.math.clamp(af, 0.0, 1.0) * 255.0);
+        } else {
+            const af = std.fmt.parseFloat(f32, parts[3]) catch return null;
+            if (af <= 1.0 and af >= 0.0) {
+                a = @intFromFloat(std.math.clamp(af, 0.0, 1.0) * 255.0);
+            } else {
+                a = std.fmt.parseInt(u8, parts[3], 10) catch return null;
+            }
+        }
+    }
+    return CssColor{ .r = rgb[0], .g = rgb[1], .b = rgb[2], .a = a };
 }

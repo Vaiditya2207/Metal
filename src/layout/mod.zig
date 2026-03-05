@@ -17,3 +17,4 @@ pub const resolveLength = layout.resolveLength;
 pub const layoutBlock = block.layoutBlock;
 pub const layoutInlineBlock = inline_layout.layoutInlineBlock;
 pub const flex = @import("flex.zig");
+pub const table = @import("table.zig");

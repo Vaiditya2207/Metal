@@ -119,6 +119,8 @@
 - [x] `font-size`, `font-family`, `font-weight`
 - [x] `position`, `top`, `right`, `bottom`, `left`
 - [x] `overflow`, `z-index`, `opacity`
+- [x] CSS `!important` declaration support
+- [x] `@media screen` / `@media all` query parsing
 
 ### Style Resolution (`src/css/resolver.zig`)
 - [x] Cascade: author stylesheets → inline styles (inline wins)
@@ -206,9 +208,9 @@
 - [x] Scroll offset subtracted from all Y coordinates
 
 ### Image Rendering (`src/render/image.zig`)
-- [ ] Decode JPEG/PNG via `ImageIO.framework`
-- [ ] Upload decoded bitmap as `MTLTexture`
-- [ ] Render as textured quad in the existing pipeline
+- [x] Decode JPEG/PNG via `ImageIO.framework` (image_bridge.m)
+- [x] Upload decoded bitmap as `MTLTexture`
+- [x] Render as textured quad in the existing pipeline
 - [ ] Sparse textures for large images (Metal 3)
 
 ### Tests
@@ -344,7 +346,7 @@
 
 ---
 
-## Phase 7 — Networking & Resource Loader *(~2–3 weeks)* [/]
+## Phase 7 — Networking & Resource Loader *(~2–3 weeks)* [x]
 
 ### Network Layer (`src/net/fetch.zig`, `src/platform/net_bridge.m`)
 - [x] ObjC bridge for `NSURLSession` (shared session)
@@ -360,6 +362,7 @@
 - [x] Priority: HTML > CSS > JS > images
 - [x] Sub-resource discovery from DOM: `<link>`, `<script src>`, `<img src>`
 - [x] Wired into main.zig (external CSS parsed, external JS executed)
+- [x] Async sub-resource loading with `startLoading()` + `poll()` loop
 - [ ] `@import` CSS discovery
 - [ ] Parallel fetching with concurrency limit
 
@@ -404,19 +407,27 @@
 - [x] Content overflow detection
 - [x] Smooth scroll with momentum (trackpad physics)
 - [x] Scroll offset → viewport transform in Metal
-- [ ] Scroll bar rendering (native-style overlay)
+- [x] Scroll bar rendering (semi-transparent overlay thumb)
 
 ### Navigation
 - [x] Click `<a href="...">` → trigger page load with full re-render
 - [x] Relative URL resolution via `url.Url.resolve()`
-- [ ] Form submission (GET)
+- [x] Form submission (GET) — `<form>` action + input values
+- [x] Back/Forward keyboard shortcuts (⌘[ / ⌘])
+- [x] Navigation history stack (64-entry)
 - [ ] `history.pushState` / `popState` (basic)
 
 ### Text Input (`src/ui/input.zig`)
-- [ ] `<input type="text">` — cursor, character insertion, deletion
+- [x] `<input type="text">` — cursor, character insertion, deletion
 - [ ] `<textarea>` — multi-line input
 - [ ] Clipboard: ⌘C, ⌘V, ⌘X
 - [ ] Text selection (click-drag, ⌘A)
+
+### URL Bar (`src/render/renderer.zig`)
+- [x] Interactive URL text input at top of window
+- [x] Type URL and press Enter to navigate
+- [x] Page title display in URL bar and macOS title bar
+- [x] Loading progress indicator (animated bar)
 
 ### Cursor
 - [x] Arrow cursor (default)
@@ -424,7 +435,7 @@
 - [ ] Text cursor (over input fields)
 
 ### Tests
-- [ ] Click link → navigate to new page
+- [x] Click link → navigate to new page
 - [x] Scroll long page smoothly at 120 Hz
 - [ ] Type into input field → characters appear
 - [ ] ⌘V paste → text inserted
@@ -468,26 +479,26 @@
 
 ---
 
-## Phase 10 — Tab Manager & Browser Chrome *(~2–3 weeks)*
+## Phase 10 — Tab Manager & Browser Chrome *(~2–3 weeks)* [/]
 
 ### Tab Bar (`src/ui/tab_bar.zig`)
 - [ ] Metal-rendered tabs with smooth open/close animations
-- [ ] Tab title from `<title>` element
+- [x] Tab title from `<title>` element (via `findTitleNode` + macOS `set_window_title`)
 - [ ] Favicon display
 - [ ] Close button per tab
 - [ ] Tab drag reordering
 
-### URL Bar (`src/ui/url_bar.zig`)
-- [ ] `NSTextField` embedded in chrome
-- [ ] Show current URL
-- [ ] Edit → Enter → navigate
+### URL Bar (`src/render/renderer.zig` — Metal-rendered)
+- [x] Metal-rendered URL bar at top 40px of window
+- [x] Show current URL
+- [x] Edit → Enter → navigate
 - [ ] Autocomplete from history
 
-### Navigation Controls (`src/ui/nav.zig`)
-- [ ] Back / Forward buttons (per-tab history stack)
+### Navigation Controls (`src/render/renderer.zig`)
+- [x] Back / Forward (⌘[ / ⌘]) — per-tab history stack
 - [ ] Reload button
 - [ ] Stop loading button
-- [ ] Loading progress indicator
+- [x] Loading progress indicator (animated teal bar)
 
 ### Background Tab Management
 - [ ] JSC → QuickJS swap after 30s background
@@ -499,14 +510,14 @@
 - [ ] ⌘W — close tab
 - [ ] ⌘L — focus URL bar
 - [ ] ⌘R — reload
-- [ ] ⌘[ / ⌘] — back / forward
+- [x] ⌘[ / ⌘] — back / forward
 - [ ] ⌘1–⌘9 — switch to tab N
 
 ### Tests
 - [ ] Open 50 tabs → RSS < 1 GB
 - [ ] Switch tab → instant restore (< 50 ms)
 - [ ] Close tab → RSS drops proportionally
-- [ ] Back/forward navigates correctly
+- [x] Back/forward navigates correctly
 - [ ] All keyboard shortcuts work
 
 ---

@@ -60,6 +60,57 @@ pub const Renderer = struct {
     resource_loader: ?net.loader.ResourceLoader = null,
     pending_url: [4096]u8 = undefined,
     pending_url_len: usize = 0,
+    url_bar_focused: bool = false,
+    url_bar_text: [4096]u8 = undefined,
+    url_bar_len: usize = 0,
+
+    history: [64][4096]u8 = undefined,
+    history_len: [64]usize = undefined,
+    history_count: usize = 0,
+    history_pos: usize = 0,
+    pending_is_history: bool = false,
+
+    window: ?*anyopaque = null,
+    page_title: [1024]u8 = undefined,
+    page_title_len: usize = 0,
+    loading_animation_time: f32 = 0.0,
+
+    pub fn setWindow(self: *Renderer, window_handle: *anyopaque) void {
+        self.window = window_handle;
+    }
+
+    fn findTitleNode(self: *Renderer, node: *dom.Node) ?*dom.Node {
+        if (node.node_type == .element and node.tag == .title) {
+            return node;
+        }
+        for (node.children.items) |child| {
+            if (self.findTitleNode(child)) |found| return found;
+        }
+        return null;
+    }
+
+    fn goBack(self: *Renderer) void {
+        if (self.history_pos > 1) {
+            self.history_pos -= 1;
+            const url = self.history[self.history_pos - 1][0..self.history_len[self.history_pos - 1]];
+            self.queueHistoryNavigation(url);
+        }
+    }
+
+    fn goForward(self: *Renderer) void {
+        if (self.history_pos < self.history_count) {
+            const url = self.history[self.history_pos][0..self.history_len[self.history_pos]];
+            self.history_pos += 1;
+            self.queueHistoryNavigation(url);
+        }
+    }
+
+    fn queueHistoryNavigation(self: *Renderer, url: []const u8) void {
+        const len = @min(url.len, self.pending_url.len);
+        @memcpy(self.pending_url[0..len], url[0..len]);
+        self.pending_url_len = len;
+        self.pending_is_history = true;
+    }
 
     pub fn init() !Renderer {
         // MTLCreateSystemDefaultDevice
@@ -117,9 +168,11 @@ pub const Renderer = struct {
                     self.scroll.scrollBy(event.y);
                 },
                 .mouse_moved => {
-                    if (self.layout_root) |root| {
+                    if (event.y < 40) {
+                        set_cursor_style(2); // text cursor
+                    } else if (self.layout_root) |root| {
                         const old_state = self.interaction.cursor_state;
-                        const new_state = self.interaction.handleMouseMove(root, event.x, event.y, self.scroll.scroll_y);
+                        const new_state = self.interaction.handleMouseMove(root, event.x, event.y - 40.0, self.scroll.scroll_y);
                         if (new_state != old_state) {
                             const style: i32 = switch (new_state) {
                                 .default_cursor => 0,
@@ -131,35 +184,64 @@ pub const Renderer = struct {
                     }
                 },
                 .mouse_down => {
-                    if (self.layout_root) |root| {
-                        const click = self.interaction.handleClick(root, event.x, event.y, self.scroll.scroll_y);
-                        if (click.target_node) |target| {
-                            if (target.node_type == .element and (target.tag == .input or target.tag == .textarea)) {
-                                // Focus input — do NOT navigate
-                                self.input_manager.focus(@constCast(target));
-                            } else {
-                                self.input_manager.blur();
-                                // Only navigate links when the target is not an input
-                                if (click.href) |href| {
-                                    self.queueNavigation(href);
+                    if (event.y < 40) {
+                        self.url_bar_focused = true;
+                        self.input_manager.blur();
+                        set_cursor_style(2);
+                    } else {
+                        self.url_bar_focused = false;
+                        if (self.layout_root) |root| {
+                            const click = self.interaction.handleClick(root, event.x, event.y - 40.0, self.scroll.scroll_y);
+                            if (click.target_node) |target| {
+                                if (target.node_type == .element and (target.tag == .input or target.tag == .textarea)) {
+                                    // Focus input — do NOT navigate
+                                    self.input_manager.focus(@constCast(target));
+                                } else {
+                                    self.input_manager.blur();
+                                    // Only navigate links when the target is not an input
+                                    if (click.href) |href| {
+                                        self.queueNavigation(href);
+                                    }
                                 }
-                            }
-                            if (self.frame_ctx) |*fc| {
-                                _ = fc.event_dispatcher.dispatchEvent(@constCast(target), "click");
-                            }
-                            // Rebuild display list so cursor appears/disappears
-                            if (self.allocator) |alloc| {
-                                if (self.owned_display_list) |*old_dl| {
-                                    old_dl.deinit();
+                                if (self.frame_ctx) |*fc| {
+                                    _ = fc.event_dispatcher.dispatchEvent(@constCast(target), "click");
                                 }
-                                self.owned_display_list = display_list_mod.buildDisplayList(alloc, root, self.input_manager.focused_node) catch null;
+                                // Rebuild display list so cursor appears/disappears
+                                if (self.allocator) |alloc| {
+                                    if (self.owned_display_list) |*old_dl| {
+                                        old_dl.deinit();
+                                    }
+                                    self.owned_display_list = display_list_mod.buildDisplayList(alloc, root, self.input_manager.focused_node) catch null;
+                                }
                             }
                         }
                     }
                 },
                 .key_down => {
                     var handled = false;
-                    if (self.allocator) |alloc| {
+                    if (self.url_bar_focused) {
+                        handled = true;
+                        if (event.keycode == 51) {
+                            if (self.url_bar_len > 0) self.url_bar_len -= 1;
+                        } else {
+                            var text_len: usize = 0;
+                            while (text_len < 8 and event.text[text_len] != 0) : (text_len += 1) {}
+                            if (text_len > 0) {
+                                const slice = event.text[0..text_len];
+                                if (std.mem.indexOfScalar(u8, slice, '\r') != null or std.mem.indexOfScalar(u8, slice, '\n') != null) {
+                                    self.url_bar_focused = false;
+                                    self.queueNavigation(self.url_bar_text[0..self.url_bar_len]);
+                                } else {
+                                    for (slice) |c| {
+                                        if (c >= 32 and c < 127 and self.url_bar_len < self.url_bar_text.len) {
+                                            self.url_bar_text[self.url_bar_len] = c;
+                                            self.url_bar_len += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if (self.allocator) |alloc| {
                         const input_res = self.input_manager.handleEvent(alloc, event) catch .ignored;
                         if (input_res == .submit) {
                             if (self.input_manager.focused_node) |node| {
@@ -189,6 +271,17 @@ pub const Renderer = struct {
                         }
                     }
                     if (!handled) {
+                        if (event.modifiers & events.MOD_COMMAND != 0) {
+                            if (event.keycode == 33) { // [
+                                self.goBack();
+                                handled = true;
+                            } else if (event.keycode == 30) { // ]
+                                self.goForward();
+                                handled = true;
+                            }
+                        }
+                    }
+                    if (!handled) {
                         if (interaction_mod.InteractionHandler.handleKeyDown(event.keycode, event.modifiers)) |action| {
                             switch (action) {
                                 .quit => terminate_application(),
@@ -203,17 +296,18 @@ pub const Renderer = struct {
                 .resize => {
                     if (self.layout_root) |root| {
                         if (self.allocator) |alloc| {
+                            const adj_height = if (event.height > 40) event.height - 40 else 0;
                             const ctx = layout_mod.LayoutContext{
                                 .allocator = alloc,
                                 .viewport_width = event.width,
-                                .viewport_height = event.height,
+                                .viewport_height = adj_height,
                             };
                             layout_mod.layoutTree(root, ctx);
                             if (self.owned_display_list) |*old_dl| {
                                 old_dl.deinit();
                             }
                             self.owned_display_list = display_list_mod.buildDisplayList(alloc, root, self.input_manager.focused_node) catch null;
-                            self.scroll.setViewportHeight(event.height);
+                            self.scroll.setViewportHeight(adj_height);
                             // Update content height from layout root
                             if (self.owned_display_list != null) {
                                 self.scroll.setContentHeight(root.dimensions.marginBox().height);
@@ -237,8 +331,9 @@ pub const Renderer = struct {
         if (self.pending_url_len > 0) {
             const url_copy = self.pending_url[0..self.pending_url_len];
             std.debug.print("Navigating to: {s}\n", .{url_copy});
-            self.navigateTo(url_copy);
+            self.navigateTo(url_copy, self.pending_is_history);
             self.pending_url_len = 0;
+            self.pending_is_history = false;
         }
 
         if (self.frame_ctx) |*fc| {
@@ -289,7 +384,7 @@ pub const Renderer = struct {
                             .image_pipeline = objc.create_image_pipeline(self.device),
                             .device = self.device,
                         };
-                        comp.render(fc, view, dl, self.scroll.scroll_y);
+                        comp.render(fc, view, dl, self.scroll.scroll_y - 40.0);
                     }
                 }
             } else {
@@ -306,6 +401,71 @@ pub const Renderer = struct {
 
                 if (self.text_renderer) |tr| {
                     tr.drawText(fc, "Hello Metal (No Display List)", 50, 200, 1.0, 1.0, 1.0, 1.0);
+                }
+            }
+
+            var width: f32 = 0;
+            var height: f32 = 0;
+            objc.get_drawable_size(view, &width, &height);
+
+            // Render URL Bar on top
+            if (self.pipeline_state) |ps| {
+                objc.set_pipeline(fc, ps);
+                objc.set_projection(fc, width, height);
+                // Outer bar bg
+                objc.draw_solid_rect(fc, 0, 0, width, 40, 0.95, 0.95, 0.95, 1.0);
+                
+                // Input box
+                const box_stroke = if (self.url_bar_focused) @as(f32, 0.6) else @as(f32, 0.8);
+                objc.draw_solid_rect(fc, 10, 5, width - 20, 30, box_stroke, box_stroke, box_stroke, 1.0);
+                objc.draw_solid_rect(fc, 11, 6, width - 22, 28, 1.0, 1.0, 1.0, 1.0);
+                
+                if (self.text_renderer) |*tr| {
+                    const app_mod = @import("../platform/app.zig");
+                    app_mod.objc.set_pipeline(fc, tr.text_pipeline);
+                    const url_to_draw = if (self.url_bar_len > 0) self.url_bar_text[0..self.url_bar_len] else "Enter URL...";
+                    tr.drawText(fc, url_to_draw, 18, 25, 0.1, 0.1, 0.1, 1.0);
+                    
+                    if (self.page_title_len > 0) {
+                        const title_text = self.page_title[0..self.page_title_len];
+                        // Draw title towards the right side of the address bar
+                        tr.drawText(fc, title_text, width - 300, 25, 0.4, 0.4, 0.4, 1.0);
+                    }
+                }
+
+                // Loading Bar
+                var is_loading = false;
+                if (self.resource_loader) |rl| {
+                    if (rl.pending.items.len > 0) {
+                        is_loading = true;
+                        self.loading_animation_time += 0.04;
+                        if (self.loading_animation_time > std.math.pi * 2.0) {
+                            self.loading_animation_time -= std.math.pi * 2.0;
+                        }
+                    } else {
+                        self.loading_animation_time = 0.0;
+                    }
+                }
+                
+                if (is_loading) {
+                    objc.set_pipeline(fc, ps);
+                    const sine_wave = (std.math.sin(self.loading_animation_time) + 1.0) / 2.0; // 0 to 1
+                    const bar_width = width * 0.3;
+                    const bar_x = sine_wave * (width - bar_width);
+                    objc.draw_solid_rect(fc, bar_x, 38.0, bar_width, 2.0, 0.0, 0.6, 0.8, 1.0);
+                }
+
+                // Render Scrollbar
+                objc.set_pipeline(fc, ps);
+                if (self.scroll.content_height > self.scroll.viewport_height) {
+                    const track_height = height - 40.0;
+                    const thumb_height = @max(20.0, (self.scroll.viewport_height / self.scroll.content_height) * track_height);
+                    const max_scroll = self.scroll.content_height - self.scroll.viewport_height;
+                    const scroll_progress = if (max_scroll > 0) self.scroll.scroll_y / max_scroll else 0.0;
+                    const thumb_y = 40.0 + scroll_progress * (track_height - thumb_height);
+                    
+                    objc.draw_solid_rect(fc, width - 12.0, 40.0, 12.0, track_height, 0.95, 0.95, 0.95, 0.8);
+                    objc.draw_solid_rect(fc, width - 10.0, thumb_y, 8.0, thumb_height, 0.6, 0.6, 0.6, 0.9);
                 }
             }
 
@@ -384,9 +544,30 @@ pub const Renderer = struct {
         }
     }
 
-    fn navigateTo(self: *Renderer, url_str: []const u8) void {
+    fn navigateTo(self: *Renderer, url_str: []const u8, is_history: bool) void {
         const alloc = self.allocator orelse return;
         var nav = self.nav_ctx orelse return;
+
+        if (!is_history) {
+            if (self.history_pos < self.history_count) {
+                self.history_count = self.history_pos;
+            }
+            if (self.history_count < 64) {
+                const len = @min(url_str.len, 4096);
+                @memcpy(self.history[self.history_count][0..len], url_str[0..len]);
+                self.history_len[self.history_count] = len;
+                self.history_count += 1;
+                self.history_pos = self.history_count;
+            } else {
+                for (1..64) |i| {
+                    @memcpy(self.history[i - 1][0..self.history_len[i]], self.history[i][0..self.history_len[i]]);
+                    self.history_len[i - 1] = self.history_len[i];
+                }
+                const len = @min(url_str.len, 4096);
+                @memcpy(self.history[63][0..len], url_str[0..len]);
+                self.history_len[63] = len;
+            }
+        }
 
         // 1. Fetch the new page
         std.debug.print("Fetching: {s}\n", .{url_str});
@@ -413,12 +594,49 @@ pub const Renderer = struct {
         nav.base_url = net.url.Url.parse(url_str) catch nav.base_url;
         self.nav_ctx = nav;
 
+        const len = @min(url_str.len, self.url_bar_text.len);
+        @memcpy(self.url_bar_text[0..len], url_str[0..len]);
+        self.url_bar_len = len;
+
         // 3. Parse HTML
         const new_doc = dom.builder.parseHTML(alloc, resp.body) catch {
             alloc.free(resp.body);
             return;
         };
         alloc.free(resp.body);
+
+        var title_found = false;
+        if (self.findTitleNode(new_doc.root)) |title_node| {
+            if (title_node.children.items.len > 0) {
+                const text_child = title_node.children.items[0];
+                if (text_child.node_type == .text) {
+                    if (text_child.data) |title_text| {
+                        const title_len = @min(title_text.len, 1023);
+                        @memcpy(self.page_title[0..title_len], title_text[0..title_len]);
+                        self.page_title[title_len] = 0;
+                        self.page_title_len = title_len;
+                        title_found = true;
+                        
+                        const app_mod = @import("../platform/app.zig");
+                        if (self.window) |w| {
+                            app_mod.objc.set_window_title(w, @ptrCast(&self.page_title));
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (!title_found) {
+            const fallback = "Metal Browser Engine";
+            @memcpy(self.page_title[0..fallback.len], fallback);
+            self.page_title[fallback.len] = 0;
+            self.page_title_len = fallback.len;
+            
+            const app_mod = @import("../platform/app.zig");
+            if (self.window) |w| {
+                app_mod.objc.set_window_title(w, @ptrCast(&self.page_title));
+            }
+        }
 
         // 4. Discover and async load sub-resources
         if (self.resource_loader) |*rl| {

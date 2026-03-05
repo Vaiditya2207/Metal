@@ -15,6 +15,8 @@ pub fn layoutTree(root: *LayoutBox, ctx: LayoutContext) void {
     root.dimensions.content.width = ctx.viewport_width;
     if (root.box_type == .flexNode) {
         flex.layoutFlexBox(root, null, ctx);
+    } else if (root.box_type == .tableNode) {
+        @import("table.zig").layoutTable(root, null, ctx);
     } else {
         block.layoutBlock(root, null, ctx);
     }

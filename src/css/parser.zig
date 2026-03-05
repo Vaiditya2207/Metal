@@ -6,6 +6,7 @@ const config = @import("../config.zig");
 pub const Declaration = struct {
     property: []const u8,
     value: []const u8,
+    is_important: bool = false,
 };
 
 pub const Rule = struct {
@@ -47,12 +48,77 @@ pub const Parser = struct {
                 continue;
             }
             if (p.current.type == .at_keyword) {
-                // Skip at-rules for now
-                while (p.current.type != .semicolon and p.current.type != .right_brace and p.current.type != .eof) {
+                if (std.mem.eql(u8, p.current.value, "media")) {
                     p.current = try p.tokenizer.next();
+                    var match_media = true;
+                    // Check conditions until opening brace
+                    while (p.current.type != .left_brace and p.current.type != .eof) {
+                        if (p.current.type == .ident) {
+                            // If it's specifically for print, we ignore it. Screen & all are accepted.
+                            if (std.mem.eql(u8, p.current.value, "print")) {
+                                match_media = false;
+                            }
+                        }
+                        p.current = try p.tokenizer.next();
+                    }
+                    if (p.current.type == .left_brace) {
+                        p.current = try p.tokenizer.next();
+                    }
+                    
+                    if (match_media) {
+                        // Parse the nested rules and flatten them into the main rules list
+                        while (p.current.type != .right_brace and p.current.type != .eof) {
+                            if (p.current.type == .whitespace) {
+                                p.current = try p.tokenizer.next();
+                                continue;
+                            }
+                            const rule = p.parseRule() catch |err| {
+                                if (err == error.OutOfMemory) return err;
+                                // Skip to next '}' (which closes the failed nested rule)
+                                while (p.current.type != .right_brace and p.current.type != .eof) {
+                                    p.current = try p.tokenizer.next();
+                                }
+                                if (p.current.type == .right_brace) p.current = try p.tokenizer.next();
+                                continue;
+                            };
+                            try rules.append(allocator, rule);
+                        }
+                        if (p.current.type == .right_brace) {
+                            p.current = try p.tokenizer.next();
+                        }
+                        continue;
+                    } else {
+                        // Skip the entire block
+                        var nest_level: usize = 1;
+                        while (p.current.type != .eof and nest_level > 0) {
+                            if (p.current.type == .left_brace) nest_level += 1;
+                            if (p.current.type == .right_brace) nest_level -= 1;
+                            p.current = try p.tokenizer.next();
+                        }
+                        continue;
+                    }
+                } else {
+                    // Skip other at-rules
+                    var nest_level: usize = 0;
+                    if (p.current.type == .left_brace) nest_level += 1;
+                    
+                    while (p.current.type != .eof) {
+                        if (p.current.type == .left_brace) nest_level += 1;
+                        if (p.current.type == .right_brace) {
+                            if (nest_level > 0) nest_level -= 1;
+                            if (nest_level == 0) {
+                                p.current = try p.tokenizer.next();
+                                break;
+                            }
+                        }
+                        if (nest_level == 0 and p.current.type == .semicolon) {
+                            p.current = try p.tokenizer.next();
+                            break;
+                        }
+                        p.current = try p.tokenizer.next();
+                    }
+                    continue;
                 }
-                if (p.current.type != .eof) p.current = try p.tokenizer.next();
-                continue;
             }
 
             const rule = p.parseRule() catch |err| {
@@ -151,9 +217,21 @@ pub const Parser = struct {
             self.current = try self.tokenizer.next();
         }
 
+        const raw_value = std.mem.trim(u8, value.items, " \t\n\r");
+        var is_important = false;
+        var final_value = raw_value;
+        if (std.mem.endsWith(u8, raw_value, "important")) {
+            const without_important = std.mem.trimRight(u8, raw_value[0 .. raw_value.len - 9], " \t\n\r");
+            if (std.mem.endsWith(u8, without_important, "!")) {
+                is_important = true;
+                final_value = std.mem.trimRight(u8, without_important[0 .. without_important.len - 1], " \t\n\r");
+            }
+        }
+
         return Declaration{
             .property = try self.allocator.dupe(u8, std.mem.trim(u8, property.items, " \t\n\r")),
-            .value = try self.allocator.dupe(u8, std.mem.trim(u8, value.items, " \t\n\r")),
+            .value = try self.allocator.dupe(u8, final_value),
+            .is_important = is_important,
         };
     }
 
@@ -165,9 +243,19 @@ pub const Parser = struct {
             const k = std.mem.trim(u8, kv_iter.next() orelse continue, " \t\n\r");
             const v = std.mem.trim(u8, kv_iter.next() orelse continue, " \t\n\r");
             if (k.len > 0 and v.len > 0) {
+                var is_important = false;
+                var final_value = v;
+                if (std.mem.endsWith(u8, v, "important")) {
+                    const without_important = std.mem.trimRight(u8, v[0 .. v.len - 9], " \t\n\r");
+                    if (std.mem.endsWith(u8, without_important, "!")) {
+                        is_important = true;
+                        final_value = std.mem.trimRight(u8, without_important[0 .. without_important.len - 1], " \t\n\r");
+                    }
+                }
                 try declarations.append(allocator, .{
                     .property = try allocator.dupe(u8, k),
-                    .value = try allocator.dupe(u8, v),
+                    .value = try allocator.dupe(u8, final_value),
+                    .is_important = is_important,
                 });
             }
         }

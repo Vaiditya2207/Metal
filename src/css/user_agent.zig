@@ -35,10 +35,10 @@ const ua_css =
     \\input { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }
     \\button { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }
     \\form { display: block }
-    \\table { display: block }
-    \\tr { display: block }
-    \\td { display: block }
-    \\th { display: block }
+    \\table { display: table }
+    \\tr { display: table-row }
+    \\td { display: table-cell }
+    \\th { display: table-cell; font-weight: bold; text-align: center }
     \\footer { display: block }
     \\header { display: block }
     \\nav { display: block }
