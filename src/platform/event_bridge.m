@@ -38,7 +38,16 @@
   [self sendEvent:e];
 }
 
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+  return YES;
+}
+
 - (void)mouseDown:(NSEvent *)event {
+  // Ensure our window becomes key when clicked
+  if (!self.window.isKeyWindow) {
+    [self.window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+  }
   [self handleMouseEvent:event type:EVENT_MOUSE_DOWN];
 }
 - (void)mouseUp:(NSEvent *)event {

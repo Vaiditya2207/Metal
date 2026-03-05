@@ -22,6 +22,18 @@
 }
 @end
 
+@interface MetalWindow : NSWindow
+@end
+
+@implementation MetalWindow
+- (BOOL)canBecomeKeyWindow {
+  return YES;
+}
+- (BOOL)canBecomeMainWindow {
+  return YES;
+}
+@end
+
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @end
 
@@ -47,12 +59,13 @@ void *create_window(const char *title, float width, float height) {
                          NSWindowStyleMaskResizable |
                          NSWindowStyleMaskMiniaturizable;
 
-  NSWindow *window =
-      [[NSWindow alloc] initWithContentRect:frame
-                                  styleMask:styleMask
-                                    backing:NSBackingStoreBuffered
-                                      defer:NO];
+  MetalWindow *window =
+      [[MetalWindow alloc] initWithContentRect:frame
+                                     styleMask:styleMask
+                                       backing:NSBackingStoreBuffered
+                                         defer:NO];
   [window setTitle:[NSString stringWithUTF8String:title]];
+  [window setLevel:NSNormalWindowLevel];
   [window makeKeyAndOrderFront:nil];
   [window center];
 
@@ -78,10 +91,12 @@ void *create_command_queue(void *device_ptr) {
 static FrameContext g_frame_context;
 
 void *begin_frame(void *command_queue_ptr, void *view_ptr) {
-  id<MTLCommandQueue> commandQueue = (__bridge id<MTLCommandQueue>)command_queue_ptr;
+  id<MTLCommandQueue> commandQueue =
+      (__bridge id<MTLCommandQueue>)command_queue_ptr;
   MTKView *view = (__bridge MTKView *)view_ptr;
 
-  MTLRenderPassDescriptor *renderPassDescriptor = view.currentRenderPassDescriptor;
+  MTLRenderPassDescriptor *renderPassDescriptor =
+      view.currentRenderPassDescriptor;
   id<CAMetalDrawable> drawable = view.currentDrawable;
 
   if (renderPassDescriptor == nil || drawable == nil) {
@@ -104,9 +119,12 @@ void end_frame(void *frame_context_ptr) {
     return;
   FrameContext *context = (FrameContext *)frame_context_ptr;
 
-  id<MTLRenderCommandEncoder> renderEncoder = (__bridge_transfer id<MTLRenderCommandEncoder>)context->renderEncoder;
-  id<MTLCommandBuffer> commandBuffer = (__bridge_transfer id<MTLCommandBuffer>)context->commandBuffer;
-  id<MTLDrawable> drawable = (__bridge_transfer id<MTLDrawable>)context->drawable;
+  id<MTLRenderCommandEncoder> renderEncoder =
+      (__bridge_transfer id<MTLRenderCommandEncoder>)context->renderEncoder;
+  id<MTLCommandBuffer> commandBuffer =
+      (__bridge_transfer id<MTLCommandBuffer>)context->commandBuffer;
+  id<MTLDrawable> drawable =
+      (__bridge_transfer id<MTLDrawable>)context->drawable;
 
   [renderEncoder endEncoding];
   [commandBuffer presentDrawable:drawable];
