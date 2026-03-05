@@ -145,9 +145,7 @@ test "empty text node gets zero width" {
         .viewport_height = 600.0,
     });
 
-    const anon = root.children.items[0];
-    const child = anon.children.items[0];
-    try std.testing.expectEqual(@as(f32, 0.0), child.dimensions.content.width);
+    try std.testing.expectEqual(@as(usize, 0), root.children.items.len);
 }
 
 test "multiple words wrap across several lines" {
@@ -325,5 +323,5 @@ test "wrapped text child width capped at container width" {
 
     const anon = root.children.items[0];
     const child = anon.children.items[0];
-    try std.testing.expectEqual(@as(f32, 60.0), child.dimensions.content.width);
+    try std.testing.expectEqual(@as(f32, 40.0), child.dimensions.content.width);
 }

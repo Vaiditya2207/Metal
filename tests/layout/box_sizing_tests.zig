@@ -1,7 +1,19 @@
 const std = @import("std");
+const dom = @import("../../src/dom/mod.zig");
 const layout = @import("../../src/layout/mod.zig");
 const properties = @import("../../src/css/properties.zig");
 const resolver = @import("../../src/css/resolver.zig");
+
+var dummy_node = dom.Node{
+    .allocator = undefined,
+    .node_type = .element,
+    .tag = .div,
+    .tag_name_str = null,
+    .attributes = .{},
+    .children = .{},
+    .data = null,
+};
+
 
 test "layout: box-sizing border-box width" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
@@ -15,7 +27,7 @@ test "layout: box-sizing border-box width" {
     try style.applyProperty("border-width", "5px", allocator);
 
     const sn = try allocator.create(resolver.StyledNode);
-    sn.* = .{ .node = undefined, .style = style, .children = &[_]*resolver.StyledNode{} };
+    sn.* = .{ .node = &dummy_node, .style = style, .children = &[_]*resolver.StyledNode{} };
 
     var root = layout.LayoutBox.init(.blockNode, sn);
     layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800.0, .viewport_height = 600.0 });
@@ -37,7 +49,7 @@ test "layout: box-sizing content-box width" {
     try style.applyProperty("border-width", "5px", allocator);
 
     const sn = try allocator.create(resolver.StyledNode);
-    sn.* = .{ .node = undefined, .style = style, .children = &[_]*resolver.StyledNode{} };
+    sn.* = .{ .node = &dummy_node, .style = style, .children = &[_]*resolver.StyledNode{} };
 
     var root = layout.LayoutBox.init(.blockNode, sn);
     layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800.0, .viewport_height = 600.0 });

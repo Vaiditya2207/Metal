@@ -1,7 +1,19 @@
 const std = @import("std");
+const dom = @import("../../src/dom/mod.zig");
 const layout = @import("../../src/layout/mod.zig");
 const properties = @import("../../src/css/properties.zig");
 const resolver = @import("../../src/css/resolver.zig");
+
+var dummy_node = dom.Node{
+    .allocator = undefined,
+    .node_type = .element,
+    .tag = .div,
+    .tag_name_str = null,
+    .attributes = .{},
+    .children = .{},
+    .data = null,
+};
+
 
 test "layout: margin auto centering" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
@@ -14,7 +26,7 @@ test "layout: margin auto centering" {
     try style.applyProperty("margin-right", "auto", allocator);
 
     const sn = try allocator.create(resolver.StyledNode);
-    sn.* = .{ .node = undefined, .style = style, .children = &[_]*resolver.StyledNode{} };
+    sn.* = .{ .node = &dummy_node, .style = style, .children = &[_]*resolver.StyledNode{} };
 
     var root = layout.LayoutBox.init(.blockNode, sn);
     // Viewport width 500. Block width 100. Available 400. Margins should be 200 each.
@@ -38,7 +50,7 @@ test "layout: margin-left auto only" {
     try style.applyProperty("margin-right", "10px", allocator);
 
     const sn = try allocator.create(resolver.StyledNode);
-    sn.* = .{ .node = undefined, .style = style, .children = &[_]*resolver.StyledNode{} };
+    sn.* = .{ .node = &dummy_node, .style = style, .children = &[_]*resolver.StyledNode{} };
 
     var root = layout.LayoutBox.init(.blockNode, sn);
     // Viewport 500. Width 100. Right 10. Available 390. Left gets 390.

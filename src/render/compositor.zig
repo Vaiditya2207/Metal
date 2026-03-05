@@ -103,7 +103,21 @@ pub const Compositor = struct {
                     const gf = @as(f32, @floatFromInt(t.color.g)) / 255.0;
                     const bf = @as(f32, @floatFromInt(t.color.b)) / 255.0;
                     const af = @as(f32, @floatFromInt(t.color.a)) / 255.0;
-                    self.text_renderer.generateVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size, t.rect.width, scale);
+                    const is_bold = t.font_weight >= 700;
+                    if (is_bold and self.text_renderer.bold_atlas_texture != null) {
+                        // Flush any pending regular text first
+                        flushText(fc, self.device, self.text_renderer, &text_batch);
+                        // Generate vertices using bold metrics
+                        self.text_renderer.generateBoldVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size, t.rect.width, scale);
+                        // Flush bold text with bold atlas
+                        if (text_batch.vertexCount() > 0) {
+                            objc.set_pipeline(fc, self.text_renderer.text_pipeline);
+                            objc.batch_text_quads(fc, self.device, self.text_renderer.bold_atlas_texture.?, @ptrCast(&text_batch.vertices), @intCast(text_batch.vertexCount()));
+                            text_batch.clear();
+                        }
+                    } else {
+                        self.text_renderer.generateVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size, t.rect.width, scale);
+                    }
                 },
                 .push_clip => |rect| {
                     flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);

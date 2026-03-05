@@ -9,6 +9,14 @@ pub const Config = struct {
     renderer: RendererConfig = .{},
     css: CssConfig = .{},
     layout: LayoutConfig = .{},
+    network: NetworkConfig = .{},
+
+    pub const NetworkConfig = struct {
+        request_timeout_ms: u32 = 30000,
+        max_response_size_bytes: u32 = 52428800, // 50 MB
+        max_concurrent_fetches: u8 = 6,
+        max_redirects: u8 = 10,
+    };
 
     pub const LayoutConfig = struct {
         max_layout_depth: u16 = 512,
@@ -44,7 +52,7 @@ pub const Config = struct {
     };
 
     pub const RendererConfig = struct {
-        clear_color: [4]f32 = .{ 0.1, 0.1, 0.1, 1.0 },
+        clear_color: [4]f32 = .{ 1.0, 1.0, 1.0, 1.0 },
         target_fps: u16 = 120,
     };
 };

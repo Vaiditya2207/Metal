@@ -16,7 +16,7 @@
     "height": 800
   },
   "renderer": {
-    "clear_color": [0.1, 0.1, 0.1, 1.0],
+    "clear_color": [1.0, 1.0, 1.0, 1.0],
     "target_fps": 120
   }
 }

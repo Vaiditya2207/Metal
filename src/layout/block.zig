@@ -20,7 +20,7 @@ pub fn layoutBlock(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
             box.dimensions.content.y = cb.dimensions.content.y + cb.dimensions.content.height;
         }
         const parent_fs: f32 = if (containing_block) |cb| (if (cb.styled_node) |sn| sn.style.font_size.value else 16.0) else 16.0;
-        layoutInlineBlock(box, parent_fs);
+        layoutInlineBlock(box, parent_fs, ctx.allocator);
         return;
     }
     calculateWidth(box, containing_block, ctx);
@@ -161,10 +161,28 @@ fn calculatePosition(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     }
 }
 
+/// Recursively shift a box and ALL its descendants by `delta` in the Y direction.
+fn shiftBoxY(box: *LayoutBox, delta: f32) void {
+    box.dimensions.content.y += delta;
+    for (box.children.items) |child| {
+        shiftBoxY(child, delta);
+    }
+}
+
 fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
     box.dimensions.content.height = 0;
-    var prev_margin_bottom: f32 = 0;
-    var is_first_in_flow = true;
+    
+    var pending_margin: f32 = 0;
+    var is_at_parent_top = true;
+    
+    const is_root = box.styled_node != null and box.styled_node.?.node.parent == null;
+    const parent_can_collapse_top = (box.styled_node != null) and !is_root and
+                                    box.dimensions.padding.top == 0 and
+                                    box.dimensions.border.top == 0;
+                                    
+    const parent_can_collapse_bottom = (box.styled_node != null) and !is_root and
+                                       box.dimensions.padding.bottom == 0 and
+                                       box.dimensions.border.bottom == 0;
 
     for (box.children.items) |child| {
         const is_out_of_flow = if (child.styled_node) |sn|
@@ -175,19 +193,75 @@ fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
         if (is_out_of_flow) {
             layoutBlock(child, box, ctx);
             position.applyPositioning(child, ctx);
-        } else {
-            layoutBlock(child, box, ctx);
+            continue;
+        }
 
-            if (!is_first_in_flow) {
-                const collapsed = @max(prev_margin_bottom, child.dimensions.margin.top);
-                const overlap = prev_margin_bottom + child.dimensions.margin.top - collapsed;
-                child.dimensions.content.y -= overlap;
-                box.dimensions.content.height -= overlap;
+        // Save the child's style-declared margin BEFORE layoutBlock.
+        // layoutBlock calls calculatePosition (which uses this margin for positioning)
+        // then layoutChildren (which may INCREASE the margin via grandchild collapsing).
+        const original_child_mt = if (child.styled_node) |sn|
+            layout.resolveLength(sn.style.margin_top, box.dimensions.content.width, ctx, sn.style.font_size.value)
+        else
+            @as(f32, 0);
+
+        layoutBlock(child, box, ctx);
+
+        // After layoutBlock, the child's margin.top may have been inflated
+        // by its own children's margin collapsing. Use this updated value
+        // for collapsing with OUR margin, but use original_child_mt for
+        // position adjustments (since calculatePosition used that value).
+        const child_mt = child.dimensions.margin.top;
+        const child_mb = child.dimensions.margin.bottom;
+        const child_content_h = child.dimensions.content.height;
+        const child_bpt = child.dimensions.border.top + child.dimensions.padding.top;
+        const child_bpb = child.dimensions.border.bottom + child.dimensions.padding.bottom;
+        
+        const child_is_empty = (child_content_h == 0 and child_bpt == 0 and child_bpb == 0);
+
+        if (is_at_parent_top and parent_can_collapse_top) {
+            // Parent-first-child margin collapsing (CSS2 §8.3.1):
+            // The child's (possibly inflated) margin collapses with parent's margin.
+            box.dimensions.margin.top = @max(box.dimensions.margin.top, child_mt);
+            
+            // Remove the ORIGINAL margin that calculatePosition used for positioning.
+            // The collapsed margin is now handled by the parent's margin.top.
+            // Must shift ALL descendants since they were positioned relative to old Y.
+            shiftBoxY(child, -original_child_mt);
+            
+            if (child_is_empty) {
+                // Empty element: top and bottom margins collapse through it
+                box.dimensions.margin.top = @max(box.dimensions.margin.top, child_mb);
+                // is_at_parent_top stays true
+            } else {
+                is_at_parent_top = false;
+                box.dimensions.content.height += child_bpt + child_content_h + child_bpb;
+                pending_margin = child_mb;
             }
-            is_first_in_flow = false;
+        } else {
+            // Sibling margin collapsing
+            const collapsed = @max(pending_margin, child_mt);
+            
+            if (child_is_empty) {
+                // Empty sibling: merge its margins into the pending chain
+                pending_margin = @max(collapsed, child_mb);
+            } else {
+                // calculatePosition placed child using original_child_mt.
+                // We want the gap to be `collapsed` instead.
+                const adjustment = collapsed - original_child_mt;
+                shiftBoxY(child, adjustment);
+                
+                box.dimensions.content.height += collapsed + child_bpt + child_content_h + child_bpb;
+                pending_margin = child_mb;
+                is_at_parent_top = false;
+            }
+        }
+    }
 
-            box.dimensions.content.height += child.dimensions.marginBox().height;
-            prev_margin_bottom = child.dimensions.margin.bottom;
+    if (!is_at_parent_top) {
+        if (parent_can_collapse_bottom) {
+            box.dimensions.margin.bottom = @max(box.dimensions.margin.bottom, pending_margin);
+        } else {
+            box.dimensions.content.height += pending_margin;
         }
     }
 }

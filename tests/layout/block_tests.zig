@@ -1,6 +1,18 @@
 const std = @import("std");
+const dom = @import("../../src/dom/mod.zig");
 const layout = @import("../../src/layout/mod.zig");
 const resolver = @import("../../src/css/resolver.zig");
+
+var dummy_node = dom.Node{
+    .allocator = undefined,
+    .node_type = .element,
+    .tag = .div,
+    .tag_name_str = null,
+    .attributes = .{},
+    .children = .{},
+    .data = null,
+};
+
 const properties = @import("../../src/css/properties.zig");
 
 test "root takes specified containing block width" {
@@ -40,7 +52,7 @@ test "explicit width and height are respected" {
 
     const sn = try allocator.create(resolver.StyledNode);
     sn.* = .{
-        .node = undefined, // Not used in layout logic
+        .node = &dummy_node, // Not used in layout logic
         .style = style,
         .children = &[_]*resolver.StyledNode{},
     };
@@ -62,14 +74,14 @@ test "two sibling block boxes are placed vertically" {
     var s1 = properties.ComputedStyle{};
     try s1.applyProperty("height", "100px", allocator);
     const sn1 = try allocator.create(resolver.StyledNode);
-    sn1.* = .{ .node = undefined, .style = s1, .children = &[_]*resolver.StyledNode{} };
+    sn1.* = .{ .node = &dummy_node, .style = s1, .children = &[_]*resolver.StyledNode{} };
     const child1 = try allocator.create(layout.LayoutBox);
     child1.* = layout.LayoutBox.init(.blockNode, sn1);
 
     var s2 = properties.ComputedStyle{};
     try s2.applyProperty("height", "200px", allocator);
     const sn2 = try allocator.create(resolver.StyledNode);
-    sn2.* = .{ .node = undefined, .style = s2, .children = &[_]*resolver.StyledNode{} };
+    sn2.* = .{ .node = &dummy_node, .style = s2, .children = &[_]*resolver.StyledNode{} };
     const child2 = try allocator.create(layout.LayoutBox);
     child2.* = layout.LayoutBox.init(.blockNode, sn2);
 
@@ -96,7 +108,7 @@ test "margins, paddings, and borders affect placement" {
     try s1.applyProperty("padding", "5px", allocator);
     try s1.applyProperty("border-width", "2px", allocator);
     const sn1 = try allocator.create(resolver.StyledNode);
-    sn1.* = .{ .node = undefined, .style = s1, .children = &[_]*resolver.StyledNode{} };
+    sn1.* = .{ .node = &dummy_node, .style = s1, .children = &[_]*resolver.StyledNode{} };
     const child1 = try allocator.create(layout.LayoutBox);
     child1.* = layout.LayoutBox.init(.blockNode, sn1);
 
@@ -128,7 +140,7 @@ test "em unit resolves relative to font size" {
     try style.applyProperty("font-size", "20px", allocator);
 
     const sn = try allocator.create(resolver.StyledNode);
-    sn.* = .{ .node = undefined, .style = style, .children = &[_]*resolver.StyledNode{} };
+    sn.* = .{ .node = &dummy_node, .style = style, .children = &[_]*resolver.StyledNode{} };
 
     var root = layout.LayoutBox.init(.blockNode, sn);
     layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800, .viewport_height = 600, .root_font_size = 16.0 });
@@ -146,7 +158,7 @@ test "percent unit resolves relative to containing block" {
     try style.applyProperty("width", "50%", allocator);
 
     const sn = try allocator.create(resolver.StyledNode);
-    sn.* = .{ .node = undefined, .style = style, .children = &[_]*resolver.StyledNode{} };
+    sn.* = .{ .node = &dummy_node, .style = style, .children = &[_]*resolver.StyledNode{} };
 
     var root = layout.LayoutBox.init(.blockNode, sn);
     layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800, .viewport_height = 600 });

@@ -7,6 +7,9 @@ const properties = @import("../../src/css/properties.zig");
 fn createTestStyledNode(allocator: std.mem.Allocator, node_type: dom.NodeType, display: properties.Display) !*resolver.StyledNode {
     const node = try allocator.create(dom.Node);
     node.* = dom.Node.init(allocator, node_type);
+    if (node_type == .text) {
+        node.data = try allocator.dupe(u8, "test text");
+    }
 
     const sn = try allocator.create(resolver.StyledNode);
     sn.* = .{

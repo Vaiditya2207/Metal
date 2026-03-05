@@ -3,11 +3,13 @@ const resolver = @import("../../src/css/resolver.zig");
 const properties = @import("../../src/css/properties.zig");
 const layout = @import("../../src/layout/mod.zig");
 const values = @import("../../src/css/values.zig");
+const dom = @import("../../src/dom/mod.zig");
 
 test "flex row with flex-grow" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
 
     // Container: 500px wide, display: flex
     var container_style = properties.ComputedStyle{};
@@ -21,7 +23,7 @@ test "flex row with flex-grow" {
     child1_style.flex_grow = 1;
 
     var child1_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = child1_style,
         .children = &.{},
     };
@@ -32,13 +34,13 @@ test "flex row with flex-grow" {
     child2_style.flex_grow = 4;
 
     var child2_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = child2_style,
         .children = &.{},
     };
 
     var container_node = resolver.StyledNode{
-        .node = undefined, // not used by layout
+        .node = &dummy_node, // not used by layout
         .style = container_style,
         .children = &.{},
     };
@@ -61,6 +63,7 @@ test "flex row justify-content space-between" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
 
     var container_style = properties.ComputedStyle{};
     container_style.display = .flex;
@@ -73,19 +76,19 @@ test "flex row justify-content space-between" {
     child1_style.width = .{ .value = 100, .unit = .px };
 
     var child1_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = child1_style,
         .children = &.{},
     };
 
     var child2_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = child1_style,
         .children = &.{},
     };
 
     var container_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = container_style,
         .children = &.{},
     };
@@ -106,6 +109,7 @@ test "flex column" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
 
     var container_style = properties.ComputedStyle{};
     container_style.display = .flex;
@@ -116,11 +120,11 @@ test "flex column" {
     child_style.display = .block;
     child_style.height = .{ .value = 50, .unit = .px };
 
-    var child1_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{} };
-    var child2_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{} };
+    var child1_node = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
+    var child2_node = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
 
     var container_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = container_style,
         .children = &.{},
     };
@@ -143,6 +147,7 @@ test "flex align-items center" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
 
     var container_style = properties.ComputedStyle{};
     container_style.display = .flex;
@@ -155,10 +160,10 @@ test "flex align-items center" {
     child_style.height = .{ .value = 100, .unit = .px };
     child_style.width = .{ .value = 100, .unit = .px };
 
-    var child_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{} };
+    var child_node = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
 
     var container_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = container_style,
         .children = &.{},
     };
@@ -177,6 +182,7 @@ test "flex row respects child margins" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
 
     var container_style = properties.ComputedStyle{};
     container_style.display = .flex;
@@ -188,11 +194,11 @@ test "flex row respects child margins" {
     child_style.margin_left = .{ .value = 10, .unit = .px };
     child_style.margin_right = .{ .value = 10, .unit = .px };
 
-    var child1_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{} };
-    var child2_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{} };
+    var child1_node = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
+    var child2_node = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
 
     var container_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = container_style,
         .children = &.{},
     };
@@ -214,6 +220,7 @@ test "flex row container with padding positions children correctly" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
 
     // Container: 500px wide, padding: 20px, display: flex
     var container_style = properties.ComputedStyle{};
@@ -230,11 +237,11 @@ test "flex row container with padding positions children correctly" {
     child_style.width = .{ .value = 100, .unit = .px };
     child_style.height = .{ .value = 50, .unit = .px };
 
-    var grandchild_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{} };
-    var child_node = resolver.StyledNode{ .node = undefined, .style = child_style, .children = &.{&grandchild_node} };
+    var grandchild_node = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
+    var child_node = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{&grandchild_node} };
 
     var container_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = container_style,
         .children = &.{&child_node},
     };

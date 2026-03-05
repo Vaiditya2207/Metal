@@ -12,10 +12,21 @@ const hit_test = @import("hit_test.zig");
 const layout_mod = @import("../layout/layout.zig");
 const display_list_mod = @import("display_list.zig");
 const interaction_mod = @import("interaction.zig");
+const text_measure = @import("../layout/text_measure.zig");
 
 const js = @import("../js/mod.zig");
 const dom = @import("../dom/mod.zig");
 const css = @import("../css/mod.zig");
+const net = @import("../net/mod.zig");
+
+pub const NavigationContext = struct {
+    fetch_client: *net.fetch.FetchClient,
+    base_url: net.url.Url,
+    js_bridge: *const js.context.JsBridge,
+    console_log: ?*const anyopaque = null,
+    console_warn: ?*const anyopaque = null,
+    console_error: ?*const anyopaque = null,
+};
 
 pub const FrameContext = struct {
     timer_queue: *js.timers.TimerQueue,
@@ -34,7 +45,7 @@ pub const Renderer = struct {
     pipeline_state: ?*anyopaque = null,
     text_renderer: ?text.TextRenderer = null,
     view: ?*anyopaque = null,
-    clear_color: [4]f32 = .{ 0.1, 0.1, 0.1, 1.0 },
+    clear_color: [4]f32 = .{ 1.0, 1.0, 1.0, 1.0 },
     owned_display_list: ?DisplayList = null,
     layout_root: ?*layout_box.LayoutBox = null,
     allocator: ?std.mem.Allocator = null,
@@ -44,6 +55,9 @@ pub const Renderer = struct {
     document: ?*dom.Document = null,
     stylesheets: []const css.Stylesheet = &.{},
     styled_root: ?*css.StyledNode = null,
+    nav_ctx: ?NavigationContext = null,
+    pending_url: [4096]u8 = undefined,
+    pending_url_len: usize = 0,
 
     pub fn init() !Renderer {
         // MTLCreateSystemDefaultDevice
@@ -112,6 +126,9 @@ pub const Renderer = struct {
                 .mouse_down => {
                     if (self.layout_root) |root| {
                         const click = self.interaction.handleClick(root, event.x, event.y, self.scroll.scroll_y);
+                        if (click.href) |href| {
+                            self.queueNavigation(href);
+                        }
                         if (click.target_node) |target| {
                             if (self.frame_ctx) |*fc| {
                                 _ = fc.event_dispatcher.dispatchEvent(@constCast(target), "click");
@@ -162,6 +179,14 @@ pub const Renderer = struct {
 
         self.scroll.tick();
         self.processEvents();
+
+        // Process pending navigation
+        if (self.pending_url_len > 0) {
+            const url_copy = self.pending_url[0..self.pending_url_len];
+            std.debug.print("Navigating to: {s}\n", .{url_copy});
+            self.navigateTo(url_copy);
+            self.pending_url_len = 0;
+        }
 
         if (self.frame_ctx) |*fc| {
             const now_ms = std.time.milliTimestamp();
@@ -261,5 +286,111 @@ pub const Renderer = struct {
         self.layout_root = new_layout;
         self.owned_display_list = new_dl;
         self.scroll.setContentHeight(new_layout.dimensions.marginBox().height);
+    }
+
+    fn queueNavigation(self: *Renderer, href: []const u8) void {
+        const nav = self.nav_ctx orelse return;
+        const alloc = self.allocator orelse return;
+
+        // Resolve relative URLs
+        if (std.mem.startsWith(u8, href, "http://") or std.mem.startsWith(u8, href, "https://")) {
+            const len = @min(href.len, self.pending_url.len);
+            @memcpy(self.pending_url[0..len], href[0..len]);
+            self.pending_url_len = len;
+        } else if (std.mem.startsWith(u8, href, "#")) {
+            return; // Fragment-only, skip for now
+        } else {
+            const resolved = net.url.Url.resolve(alloc, nav.base_url, href) catch return;
+            defer alloc.free(resolved);
+            const len = @min(resolved.len, self.pending_url.len);
+            @memcpy(self.pending_url[0..len], resolved[0..len]);
+            self.pending_url_len = len;
+        }
+    }
+
+    fn navigateTo(self: *Renderer, url_str: []const u8) void {
+        const alloc = self.allocator orelse return;
+        var nav = self.nav_ctx orelse return;
+
+        // 1. Fetch the new page
+        std.debug.print("Fetching: {s}\n", .{url_str});
+        var resp = nav.fetch_client.fetch(.{ .url = url_str }) catch |err| {
+            std.debug.print("Navigation failed: {}\n", .{err});
+            return;
+        };
+
+        // Free response headers (not needed for page load)
+        for (resp.headers) |hdr| {
+            alloc.free(hdr.name);
+            alloc.free(hdr.value);
+        }
+        if (resp.headers.len > 0) alloc.free(resp.headers);
+        resp.headers = &[_]net.types.HttpHeader{};
+
+        if (resp.status_code != 200) {
+            std.debug.print("Navigation HTTP error: {d}\n", .{resp.status_code});
+            resp.deinit(alloc);
+            return;
+        }
+
+        // 2. Update base URL
+        nav.base_url = net.url.Url.parse(url_str) catch nav.base_url;
+        self.nav_ctx = nav;
+
+        // 3. Parse HTML
+        const new_doc = dom.builder.parseHTML(alloc, resp.body) catch {
+            alloc.free(resp.body);
+            return;
+        };
+        alloc.free(resp.body);
+
+        // 4. Discover and load sub-resources
+        var resource_loader = net.loader.ResourceLoader.init(alloc, nav.fetch_client, nav.base_url);
+        const refs = resource_loader.discoverResources(new_doc.root) catch &[_]net.loader.ResourceRef{};
+        const loaded = resource_loader.loadResources(refs) catch &[_]net.loader.LoadedResource{};
+
+        if (refs.len > 0) {
+            std.debug.print("[nav] Discovered {d} sub-resources\n", .{refs.len});
+        }
+
+        // 5. Build stylesheets (UA + inline + external CSS)
+        const ua_sheet = css.user_agent.getStylesheet(alloc) catch return;
+        const page_sheets = css.style_extract.extractStylesheets(alloc, new_doc.root) catch &[_]css.Stylesheet{};
+        var all_sheets = std.ArrayListUnmanaged(css.Stylesheet){};
+        all_sheets.append(alloc, ua_sheet) catch return;
+        for (page_sheets) |s| all_sheets.append(alloc, s) catch {};
+
+        // Parse external CSS
+        for (loaded) |res| {
+            switch (res.type) {
+                .CSS => {
+                    std.debug.print("[nav] Applying CSS: {s}\n", .{res.url});
+                    const sheet = css.parser.Parser.parse(alloc, res.body) catch continue;
+                    all_sheets.append(alloc, sheet) catch {};
+                },
+                else => {},
+            }
+        }
+
+        // 6. Free old state
+        if (self.document) |old_doc| {
+            old_doc.deinit();
+        }
+
+        // 7. Update renderer state
+        self.document = new_doc;
+        self.stylesheets = all_sheets.items;
+
+        // 8. Rebuild render tree (style resolve + layout + display list)
+        self.rebuildRenderTree();
+        self.scroll.setScrollY(0);
+
+        // Cleanup sub-resource refs
+        for (refs) |ref| alloc.free(ref.url);
+        alloc.free(refs);
+        for (loaded) |*res| @constCast(res).deinit(alloc);
+        alloc.free(loaded);
+
+        std.debug.print("Navigation complete\n", .{});
     }
 };

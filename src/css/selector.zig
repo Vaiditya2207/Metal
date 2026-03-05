@@ -85,6 +85,12 @@ pub const Selector = struct {
                     }
                 } else if (t.type == .delim and std.mem.eql(u8, t.value, "*")) {
                     part.universal = true;
+                } else if (t.type == .colon) {
+                    // Pseudo-class (e.g. :link, :visited, :hover)
+                    // Skip the pseudo-class name token
+                    const pseudo_t = try tokenizer.next();
+                    _ = pseudo_t; // ignore the pseudo-class name
+                    // Don't break — continue parsing additional parts
                 }
 
                 const next_t = try tokenizer.next();

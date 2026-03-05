@@ -9,6 +9,10 @@ pub const TextRenderer = struct {
     glyph_metrics: [95]objc.GlyphMetrics,
     font_size: f32,
     font_ascent: f32,
+    // Bold variant
+    bold_atlas_texture: ?*anyopaque = null,
+    bold_glyph_metrics: [95]objc.GlyphMetrics = undefined,
+    bold_font_ascent: f32 = 0,
 
     pub fn init(device: *anyopaque, queue: *anyopaque, font_size: f32, scale_factor: f32) !TextRenderer {
         var metrics: [95]objc.GlyphMetrics = undefined;
@@ -16,12 +20,20 @@ pub const TextRenderer = struct {
         const texture = objc.create_font_atlas(device, queue, font_size, scale_factor, @ptrCast(&metrics), &ascent) orelse return error.AtlasCreationFailed;
         const pipeline = objc.create_text_pipeline(device) orelse return error.PipelineCreationFailed;
 
+        // Create bold atlas
+        var bold_metrics: [95]objc.GlyphMetrics = undefined;
+        var bold_ascent: f32 = 0;
+        const bold_texture = objc.create_bold_font_atlas(device, queue, font_size, scale_factor, @ptrCast(&bold_metrics), &bold_ascent);
+
         return TextRenderer{
             .atlas_texture = texture,
             .text_pipeline = pipeline,
             .glyph_metrics = metrics,
             .font_size = font_size,
             .font_ascent = ascent,
+            .bold_atlas_texture = bold_texture,
+            .bold_glyph_metrics = bold_metrics,
+            .bold_font_ascent = bold_ascent,
         };
     }
 
@@ -73,6 +85,66 @@ pub const TextRenderer = struct {
                 const sw = m.width * scale;
                 const sh = m.height * scale;
                 const scaled_ascent = self.font_ascent * scale;
+                const gx = cur_x + m.bearing_x * scale;
+                const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
+
+                const snapped_x = @round(gx * device_scale) / device_scale;
+                const snapped_y = @round(gy * device_scale) / device_scale;
+
+                batch.appendQuad(snapped_x, snapped_y, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
+                cur_x += m.advance * scale;
+            }
+            first_word = false;
+        }
+    }
+
+    /// Generate vertices using the bold font atlas metrics.
+    pub fn generateBoldVertices(
+        self: *const TextRenderer,
+        batch: *batch_mod.TextBatch,
+        text_str: []const u8,
+        x: f32,
+        y: f32,
+        r: f32,
+        g: f32,
+        b: f32,
+        a: f32,
+        target_font_size: f32,
+        max_width: f32,
+        device_scale: f32,
+    ) void {
+        const scale = target_font_size / self.font_size;
+        const line_height = target_font_size * 1.2;
+        const space_advance = self.bold_glyph_metrics[0].advance * scale;
+
+        var cur_x = x;
+        var cur_y = y;
+
+        var it = std.mem.tokenizeAny(u8, text_str, " ");
+        var first_word = true;
+
+        while (it.next()) |word| {
+            var word_width: f32 = 0;
+            for (word) |c| {
+                if (c < 32 or c > 126) continue;
+                const idx = c - 32;
+                word_width += self.bold_glyph_metrics[idx].advance * scale;
+            }
+
+            if (!first_word and cur_x + space_advance + word_width > x + max_width) {
+                cur_x = x;
+                cur_y += line_height;
+            } else if (!first_word) {
+                cur_x += space_advance;
+            }
+
+            for (word) |c| {
+                if (c < 32 or c > 126) continue;
+                const idx = c - 32;
+                const m = self.bold_glyph_metrics[idx];
+                const sw = m.width * scale;
+                const sh = m.height * scale;
+                const scaled_ascent = self.bold_font_ascent * scale;
                 const gx = cur_x + m.bearing_x * scale;
                 const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
 

@@ -1,5 +1,17 @@
 const std = @import("std");
+const dom = @import("../../src/dom/mod.zig");
 const resolver = @import("../../src/css/resolver.zig");
+
+var dummy_node = dom.Node{
+    .allocator = undefined,
+    .node_type = .element,
+    .tag = .div,
+    .tag_name_str = null,
+    .attributes = .{},
+    .children = .{},
+    .data = null,
+};
+
 const properties = @import("../../src/css/properties.zig");
 const layout = @import("../../src/layout/mod.zig");
 const values = @import("../../src/css/values.zig");
@@ -23,11 +35,11 @@ test "flex shrink basic" {
     child2_style.width = .{ .value = 200, .unit = .px };
     child2_style.flex_shrink = 1;
 
-    var child1_node = resolver.StyledNode{ .node = undefined, .style = child1_style, .children = &.{} };
-    var child2_node = resolver.StyledNode{ .node = undefined, .style = child2_style, .children = &.{} };
+    var child1_node = resolver.StyledNode{ .node = &dummy_node, .style = child1_style, .children = &.{} };
+    var child2_node = resolver.StyledNode{ .node = &dummy_node, .style = child2_style, .children = &.{} };
 
     var container_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = container_style,
         .children = &.{},
     };
@@ -64,11 +76,11 @@ test "flex shrink proportional" {
     child2_style.width = .{ .value = 200, .unit = .px };
     child2_style.flex_shrink = 3;
 
-    var child1_node = resolver.StyledNode{ .node = undefined, .style = child1_style, .children = &.{} };
-    var child2_node = resolver.StyledNode{ .node = undefined, .style = child2_style, .children = &.{} };
+    var child1_node = resolver.StyledNode{ .node = &dummy_node, .style = child1_style, .children = &.{} };
+    var child2_node = resolver.StyledNode{ .node = &dummy_node, .style = child2_style, .children = &.{} };
 
     var container_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = container_style,
         .children = &.{},
     };
@@ -105,11 +117,11 @@ test "flex shrink zero prevents shrink" {
     child2_style.width = .{ .value = 150, .unit = .px };
     child2_style.flex_shrink = 1;
 
-    var child1_node = resolver.StyledNode{ .node = undefined, .style = child1_style, .children = &.{} };
-    var child2_node = resolver.StyledNode{ .node = undefined, .style = child2_style, .children = &.{} };
+    var child1_node = resolver.StyledNode{ .node = &dummy_node, .style = child1_style, .children = &.{} };
+    var child2_node = resolver.StyledNode{ .node = &dummy_node, .style = child2_style, .children = &.{} };
 
     var container_node = resolver.StyledNode{
-        .node = undefined,
+        .node = &dummy_node,
         .style = container_style,
         .children = &.{},
     };

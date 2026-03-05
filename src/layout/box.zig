@@ -59,10 +59,19 @@ pub const BoxType = enum {
     anonymousBlock,
 };
 
+pub const TextRun = struct {
+    text: []const u8,
+    styled_node: *const resolver.StyledNode,
+    x: f32,
+    y: f32,
+    width: f32,
+};
+
 pub const LayoutBox = struct {
     box_type: BoxType,
     dimensions: Dimensions = .{},
     children: std.ArrayListUnmanaged(*LayoutBox) = .{},
+    text_runs: std.ArrayListUnmanaged(TextRun) = .{},
     styled_node: ?*const resolver.StyledNode = null,
     parent: ?*LayoutBox = null,
 
@@ -79,6 +88,7 @@ pub const LayoutBox = struct {
             allocator.destroy(child);
         }
         self.children.deinit(allocator);
+        self.text_runs.deinit(allocator);
     }
 };
 
@@ -94,6 +104,18 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             if (self.node_count >= self.max_nodes) return error.LayoutMaxNodesExceeded;
             self.node_count += 1;
             if (sn.style.display == .none) return error.SkipNode;
+
+            // Skip whitespace-only text nodes — they should not create layout boxes.
+            // Without this, newlines between HTML tags create anonymous blocks
+            // that each take up one line-height (19.2px) of vertical space.
+            if (sn.node.node_type == .text) {
+                if (sn.node.data) |data| {
+                    const trimmed = std.mem.trim(u8, data, " \t\n\r");
+                    if (trimmed.len == 0) return error.SkipNode;
+                } else {
+                    return error.SkipNode;
+                }
+            }
 
             const box_type: BoxType = switch (sn.style.display) {
                 .block => .blockNode,

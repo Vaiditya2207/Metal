@@ -1,7 +1,19 @@
 const std = @import("std");
+const dom = @import("../../src/dom/mod.zig");
 const layout = @import("../../src/layout/mod.zig");
 const properties = @import("../../src/css/properties.zig");
 const resolver = @import("../../src/css/resolver.zig");
+
+var dummy_node = dom.Node{
+    .allocator = undefined,
+    .node_type = .element,
+    .tag = .div,
+    .tag_name_str = null,
+    .attributes = .{},
+    .children = .{},
+    .data = null,
+};
+
 const values = @import("../../src/css/values.zig");
 
 test "layout: units resolution (px, em, rem, vw, vh, %)" {
@@ -25,7 +37,7 @@ test "layout: units resolution (px, em, rem, vw, vh, %)" {
 
     const sn = try allocator.create(resolver.StyledNode);
     sn.* = .{
-        .node = undefined,
+        .node = &dummy_node,
         .style = style,
         .children = &[_]*resolver.StyledNode{},
     };

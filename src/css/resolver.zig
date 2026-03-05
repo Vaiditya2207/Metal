@@ -63,6 +63,23 @@ pub const StyleResolver = struct {
             }
         }
 
+        // Resolve font-size to absolute px values.
+        // em/rem/% font-sizes are relative to the parent's computed font-size.
+        const parent_fs: f32 = if (parent_style) |ps| ps.font_size.value else 16.0;
+        switch (style.font_size.unit) {
+            .em => {
+                style.font_size = .{ .value = style.font_size.value * parent_fs, .unit = .px };
+            },
+            .rem => {
+                // rem is relative to root font size (default 16px)
+                style.font_size = .{ .value = style.font_size.value * 16.0, .unit = .px };
+            },
+            .percent => {
+                style.font_size = .{ .value = (style.font_size.value / 100.0) * parent_fs, .unit = .px };
+            },
+            else => {},
+        }
+
         var children_list = std.ArrayListUnmanaged(*StyledNode).empty;
         errdefer {
             for (children_list.items) |child| self.freeStyledNode(@constCast(child));

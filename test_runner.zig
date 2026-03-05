@@ -43,6 +43,12 @@ comptime {
     _ = @import("src/js/raf.zig");
     _ = @import("src/js/pipeline.zig");
     _ = @import("src/js/wiring.zig");
+    _ = @import("src/net/mod.zig");
+    _ = @import("src/net/types.zig");
+    _ = @import("src/net/url.zig");
+    _ = @import("src/net/fetch.zig");
+    _ = @import("src/net/loader.zig");
+    _ = @import("src/net/cookies.zig");
 
     // External test files
     _ = @import("tests/dom/tokenizer_tests.zig");
@@ -102,6 +108,11 @@ comptime {
     _ = @import("tests/js/timer_tests.zig");
     _ = @import("tests/js/raf_tests.zig");
     _ = @import("tests/js/pipeline_tests.zig");
+    _ = @import("tests/net/types_tests.zig");
+    _ = @import("tests/net/url_tests.zig");
+    _ = @import("tests/net/fetch_tests.zig");
+    _ = @import("tests/net/loader_tests.zig");
+    _ = @import("tests/net/cookies_tests.zig");
 }
 
 test "test runner loaded" {}

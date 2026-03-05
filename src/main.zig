@@ -9,8 +9,10 @@ const css = @import("css/mod.zig");
 const layout = @import("layout/mod.zig");
 const display_list = @import("render/display_list.zig");
 const js = @import("js/mod.zig");
+const net = @import("net/mod.zig");
 const jsc = @cImport({
     @cInclude("jsc_bridge.h");
+    @cInclude("net_bridge.h");
 });
 
 const default_html =
@@ -159,9 +161,35 @@ fn jsConsoleError(
     return jsConsolePrint(ctx_handle, arg_count, args, "[JS ERROR] ");
 }
 
-fn coreMeasure(text_str: []const u8, font_size: f32) f32 {
-    return app.objc.measure_text_width(text_str.ptr, @intCast(text_str.len), font_size);
+var global_renderer: ?*renderer.Renderer = null;
+
+fn atlasMeasure(text_str: []const u8, font_size: f32, font_weight: f32) f32 {
+    if (global_renderer) |r| {
+        if (r.text_renderer) |text_r| {
+            const scale = font_size / text_r.font_size;
+            var width: f32 = 0;
+            const metrics = if (font_weight >= 700 and text_r.bold_atlas_texture != null) text_r.bold_glyph_metrics else text_r.glyph_metrics;
+            for (text_str) |c| {
+                if (c < 32 or c > 126) continue;
+                const idx = c - 32;
+                width += metrics[idx].advance * scale;
+            }
+            return width;
+        }
+    }
+    return @as(f32, @floatFromInt(text_str.len)) * 8.0;
 }
+
+const net_bridge = net.fetch.NetBridge{
+    .net_fetch_start = @ptrCast(&struct { fn start(url_arg: [*:0]const u8, method: [*:0]const u8, h1: ?[*]const ?[*:0]const u8, c1: c_int, body: ?[*]const u8, l: c_int) callconv(.c) net.fetch.FetchHandle { return jsc.net_fetch_start(url_arg, method, @ptrCast(@constCast(h1)), c1, body, l); } }.start),
+    .net_fetch_poll = @ptrCast(&jsc.net_fetch_poll),
+    .net_fetch_get_status_code = @ptrCast(&jsc.net_fetch_get_status_code),
+    .net_fetch_get_body = @ptrCast(&struct { fn body(h: net.fetch.FetchHandle, len: *c_int) callconv(.c) ?[*]const u8 { return jsc.net_fetch_get_body(h, len); } }.body),
+    .net_fetch_free = @ptrCast(&jsc.net_fetch_free),
+    .net_fetch_get_header = @ptrCast(&struct { fn f(h: net.fetch.FetchHandle, n: [*:0]const u8, o: [*]u8, m: c_int) callconv(.c) c_int { return jsc.net_fetch_get_header(h, n, o, m); } }.f),
+    .net_fetch_get_header_count = @ptrCast(&jsc.net_fetch_get_header_count),
+    .net_fetch_get_header_at = @ptrCast(&struct { fn f(h: net.fetch.FetchHandle, i: c_int, on: [*]u8, nm: c_int, ov: [*]u8, vm: c_int) callconv(.c) c_int { return jsc.net_fetch_get_header_at(h, i, on, nm, ov, vm); } }.f),
+};
 
 pub fn main() !void {
     const cfg = config.getConfig();
@@ -179,19 +207,49 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    
+    var fetch_client = net.fetch.FetchClient.init(allocator, &net_bridge);
+    var base_url = net.url.Url.parse("http://localhost/") catch unreachable;
+
     const html_source = blk: {
         var args = std.process.args();
         _ = args.next();
-        if (args.next()) |file_path| {
-            const file = std.fs.cwd().openFile(file_path, .{}) catch |err| {
-                std.debug.print("Failed to open {s}: {}\n", .{ file_path, err });
-                break :blk @as([]const u8, default_html);
-            };
-            defer file.close();
-            break :blk file.readToEndAlloc(allocator, cfg.parser.max_document_size_bytes) catch |err| {
-                std.debug.print("Failed to read file: {}\n", .{err});
-                break :blk @as([]const u8, default_html);
-            };
+        if (args.next()) |arg_path| {
+            if (std.mem.startsWith(u8, arg_path, "http://") or std.mem.startsWith(u8, arg_path, "https://")) {
+                std.debug.print("Fetching URL: {s}\n", .{arg_path});
+                base_url = net.url.Url.parse(arg_path) catch base_url;
+                
+                var resp = fetch_client.fetch(.{ .url = arg_path }) catch |err| {
+                    std.debug.print("Failed to fetch page: {}\n", .{err});
+                    break :blk @as([]const u8, default_html);
+                };
+
+                // Free response headers (we don't need them for the main page)
+                for (resp.headers) |hdr| {
+                    allocator.free(hdr.name);
+                    allocator.free(hdr.value);
+                }
+                if (resp.headers.len > 0) allocator.free(resp.headers);
+                resp.headers = &[_]net.types.HttpHeader{};
+                
+                if (resp.status_code == 200) {
+                    break :blk resp.body;
+                } else {
+                    resp.deinit(allocator);
+                    std.debug.print("HTTP Error: {d}\n", .{resp.status_code});
+                    break :blk @as([]const u8, default_html);
+                }
+            } else {
+                const file = std.fs.cwd().openFile(arg_path, .{}) catch |err| {
+                    std.debug.print("Failed to open {s}: {}\n", .{ arg_path, err });
+                    break :blk @as([]const u8, default_html);
+                };
+                defer file.close();
+                break :blk file.readToEndAlloc(allocator, cfg.parser.max_document_size_bytes) catch |err| {
+                    std.debug.print("Failed to read file: {}\n", .{err});
+                    break :blk @as([]const u8, default_html);
+                };
+            }
         }
         break :blk @as([]const u8, default_html);
     };
@@ -206,6 +264,27 @@ pub fn main() !void {
     const document = try dom.builder.parseHTML(allocator, html_source);
     defer document.deinit();
 
+    // --- Resource Loading Pipeline ---
+    var resource_loader = net.loader.ResourceLoader.init(allocator, &fetch_client, base_url);
+    const refs = resource_loader.discoverResources(document.root) catch &[_]net.loader.ResourceRef{};
+    defer {
+        for (refs) |ref| allocator.free(ref.url);
+        allocator.free(refs);
+    }
+
+    if (refs.len > 0) {
+        std.debug.print("Discovered {d} sub-resources\n", .{refs.len});
+    }
+
+    const loaded_resources = resource_loader.loadResources(refs) catch &[_]net.loader.LoadedResource{};
+    defer {
+        for (loaded_resources) |*res| {
+            @constCast(res).deinit(allocator);
+        }
+        allocator.free(loaded_resources);
+    }
+
+    // --- JS Context ---
     var js_ctx = try js.context.JsContext.init(allocator, &jsc_bridge);
     defer js_ctx.deinit();
     js.console.bindConsole(&js_ctx, @ptrCast(&jsConsoleLog), @ptrCast(&jsConsoleWarn), @ptrCast(&jsConsoleError));
@@ -214,10 +293,59 @@ pub fn main() !void {
     defer js_runtime.deinit(allocator, &js_ctx);
     try js_runtime.wire(allocator, &js_ctx, document);
 
+    // Execute inline scripts
     const scripts = try js.script_runner.extractScripts(allocator, document.root);
     defer js.script_runner.freeScripts(allocator, scripts);
     js.script_runner.executeScripts(&js_ctx, scripts);
 
+    // --- Apply external resources ---
+    // External CSS
+    var ext_sheets = std.ArrayListUnmanaged(css.Stylesheet){};
+    defer {
+        for (ext_sheets.items) |sheet| {
+            for (sheet.rules) |rule| {
+                for (rule.selectors) |sel| {
+                    for (sel.components) |comp| {
+                        if (comp.part.tag) |t| allocator.free(t);
+                        if (comp.part.id) |id| allocator.free(id);
+                        for (comp.part.classes) |c| allocator.free(c);
+                        if (comp.part.classes.len > 0) allocator.free(comp.part.classes);
+                    }
+                    allocator.free(sel.components);
+                }
+                for (rule.declarations) |decl| {
+                    allocator.free(decl.property);
+                    allocator.free(decl.value);
+                }
+                allocator.free(rule.selectors);
+                allocator.free(rule.declarations);
+            }
+            allocator.free(sheet.rules);
+        }
+        ext_sheets.deinit(allocator);
+    }
+
+    for (loaded_resources) |res| {
+        switch (res.type) {
+            .CSS => {
+                std.debug.print("Applying external CSS: {s}\n", .{res.url});
+                const sheet = css.parser.Parser.parse(allocator, res.body) catch |err| {
+                    std.debug.print("Failed to parse CSS from {s}: {}\n", .{ res.url, err });
+                    continue;
+                };
+                ext_sheets.append(allocator, sheet) catch continue;
+            },
+            .JS => {
+                std.debug.print("Executing external JS: {s}\n", .{res.url});
+                _ = js_ctx.evaluateScript(res.body);
+            },
+            .Image => {
+                std.debug.print("Skipping image (not yet supported): {s}\n", .{res.url});
+            },
+        }
+    }
+
+    // --- Style resolution ---
     const ua_sheet = try css.user_agent.getStylesheet(allocator);
     const page_sheets = try css.style_extract.extractStylesheets(allocator, document.root);
     defer css.style_extract.freeStylesheets(allocator, page_sheets);
@@ -225,11 +353,13 @@ pub fn main() !void {
     defer all_sheets.deinit(allocator);
     try all_sheets.append(allocator, ua_sheet);
     for (page_sheets) |s| try all_sheets.append(allocator, s);
+    for (ext_sheets.items) |s| try all_sheets.append(allocator, s);
 
     var resolver = css.resolver.StyleResolver.init(allocator);
     const styled_root = try resolver.resolve(document.root, all_sheets.items);
 
-    layout.text_measure.setMeasureFn(&coreMeasure);
+    global_renderer = &my_renderer;
+    layout.text_measure.setMeasureFn(&atlasMeasure);
     const layout_root = try layout.buildLayoutTree(allocator, styled_root);
     const lctx = layout.LayoutContext{
         .allocator = allocator,
@@ -249,7 +379,13 @@ pub fn main() !void {
     });
     my_renderer.setRenderContext(document, all_sheets.items);
     my_renderer.styled_root = styled_root;
+    my_renderer.nav_ctx = .{
+        .fetch_client = &fetch_client,
+        .base_url = base_url,
+        .js_bridge = &jsc_bridge,
+    };
 
     std.debug.print("Metal Browser Engine -- Version 0.1.0-draft\n", .{});
     app.objc.run_application();
 }
+

@@ -13,6 +13,7 @@ pub const DisplayCommand = union(enum) {
         rect: layout_box.Rect,
         color: values.CssColor,
         font_size: f32,
+        font_weight: f32 = 400,
     },
     push_clip: layout_box.Rect,
     pop_clip: void,
@@ -63,30 +64,89 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox) !void {
 
         // 2. Draw border (simplified)
         if (sn.style.border_width.value > 0 and sn.style.border_color.a > 0) {
-            // For now just draw the border box with border color
-            // In a real renderer we'd draw 4 lines or a hollow rect
+            const bw = sn.style.border_width.value;
+            const b_box = box.dimensions.borderBox();
+            const bc = sn.style.border_color;
+            if (bw > 0) {
+                // Top
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = b_box.width, .height = bw }, .color = bc }});
+                // Bottom
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y + b_box.height - bw, .width = b_box.width, .height = bw }, .color = bc }});
+                // Left
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc }});
+                // Right
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x + b_box.width - bw, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc }});
+            }
+        }
+
+        // 3. Draw list bullets
+        if (sn.style.list_style_type == .disc and std.mem.eql(u8, sn.node.tag_name_str orelse "", "li")) {
+            const p_box = box.dimensions.paddingBox();
+            const bullet_size = sn.style.font_size.value * 0.4;
+            const bullet_y = p_box.y + (sn.style.font_size.value * 1.2 - bullet_size) / 2.0;
+            const bullet_x = p_box.x - bullet_size - 10.0;
+            var c = sn.style.color;
+            if (opacity < 1.0) c.a = @intFromFloat(@as(f32, @floatFromInt(c.a)) * opacity);
+            try dl.commands.append(dl.allocator, .{
+                 .draw_rect = .{
+                     .rect = .{ .x = bullet_x, .y = bullet_y, .width = bullet_size, .height = bullet_size },
+                     .color = c,
+                 }
+            });
         }
     }
 
-    // 3. Draw text (if any)
-    if (box.styled_node) |sn| {
-        const opacity = sn.style.opacity;
-        if (sn.node.node_type == .text) {
-            if (sn.node.data) |text| {
-                var color = sn.style.color;
-                if (opacity < 1.0) {
-                    color.a = @intFromFloat(@as(f32, @floatFromInt(color.a)) * opacity);
-                }
-                try dl.commands.append(dl.allocator, .{
-                    .draw_text = .{
-                        .text = text,
-                        .rect = box.dimensions.content,
-                        .color = color,
-                        .font_size = sn.style.font_size.value,
-                    },
-                });
+    for (box.text_runs.items) |run| {
+        var color = values.CssColor{ .r = 0, .g = 0, .b = 0, .a = 255 };
+        var opacity: f32 = 1.0;
+        var font_size: f32 = 16.0;
+        var font_weight: f32 = 400.0;
+        
+        {
+            const sn = run.styled_node;
+            color = sn.style.color;
+            opacity = sn.style.opacity;
+            font_size = sn.style.font_size.value;
+            font_weight = sn.style.font_weight;
+            
+            if (sn.style.text_decoration == .underline) {
+                 var ul_color = color;
+                 if (opacity < 1.0) {
+                     ul_color.a = @intFromFloat(@as(f32, @floatFromInt(ul_color.a)) * opacity);
+                 }
+                 try dl.commands.append(dl.allocator, .{
+                     .draw_rect = .{
+                         .rect = .{
+                             .x = run.x,
+                             .y = run.y + (sn.style.line_height * font_size) - 2.0,
+                             .width = run.width,
+                             .height = 1.0,
+                         },
+                         .color = ul_color,
+                     },
+                 });
             }
         }
+        
+        if (opacity < 1.0) {
+            color.a = @intFromFloat(@as(f32, @floatFromInt(color.a)) * opacity);
+        }
+        
+        try dl.commands.append(dl.allocator, .{
+            .draw_text = .{
+                .text = run.text,
+                .rect = .{
+                    .x = run.x,
+                    .y = run.y,
+                    .width = run.width,
+                    .height = font_size * 1.2,
+                },
+                .color = color,
+                .font_size = font_size,
+                .font_weight = font_weight,
+            },
+        });
+
     }
 
     // Clip around children if overflow is hidden/scroll

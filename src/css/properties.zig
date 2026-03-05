@@ -12,6 +12,11 @@ pub const FlexDirection = enum { row, column };
 pub const JustifyContent = enum { flex_start, flex_end, center, space_between };
 pub const AlignItems = enum { stretch, flex_start, flex_end, center };
 
+pub const TextAlign = enum { left, center, right };
+pub const TextDecoration = enum { none, underline };
+pub const ListStyleType = enum { disc, circle, square, decimal, none };
+pub const WhiteSpace = enum { normal, nowrap, pre };
+
 pub const ComputedStyle = struct {
     display: Display = .inline_val,
     position: Position = .static_val,
@@ -45,6 +50,11 @@ pub const ComputedStyle = struct {
     font_size: Length = .{ .value = 16, .unit = .px },
     font_family: []const u8 = "sans-serif",
     font_weight: f32 = 400,
+    text_align: TextAlign = .left,
+    line_height: f32 = 1.2,
+    text_decoration: TextDecoration = .none,
+    list_style_type: ListStyleType = .disc,
+    white_space: WhiteSpace = .normal,
     top: ?Length = null,
     right_pos: ?Length = null,
     bottom: ?Length = null,
@@ -117,6 +127,16 @@ pub const ComputedStyle = struct {
             if (values_mod.parseColor(val)) |c| self.color = c;
         } else if (std.mem.eql(u8, prop, "background-color")) {
             if (values_mod.parseColor(val)) |c| self.background_color = c;
+        } else if (std.mem.eql(u8, prop, "background")) {
+            // background shorthand — extract color if present
+            // Try parsing each token as a color
+            var iter = std.mem.tokenizeAny(u8, val, " \t");
+            while (iter.next()) |token| {
+                if (values_mod.parseColor(token)) |c| {
+                    self.background_color = c;
+                    break;
+                }
+            }
         } else if (std.mem.eql(u8, prop, "margin")) {
             self.applyShorthand(val, true);
         } else if (std.mem.eql(u8, prop, "padding")) {
@@ -140,6 +160,25 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "flex-end")) self.justify_content = .flex_end;
             if (std.mem.eql(u8, val, "center")) self.justify_content = .center;
             if (std.mem.eql(u8, val, "space-between")) self.justify_content = .space_between;
+        } else if (std.mem.eql(u8, prop, "text-align")) {
+            if (std.mem.eql(u8, val, "left")) self.text_align = .left;
+            if (std.mem.eql(u8, val, "center")) self.text_align = .center;
+            if (std.mem.eql(u8, val, "right")) self.text_align = .right;
+        } else if (std.mem.eql(u8, prop, "line-height")) {
+            self.line_height = std.fmt.parseFloat(f32, val) catch 1.2;
+        } else if (std.mem.eql(u8, prop, "text-decoration")) {
+            if (std.mem.eql(u8, val, "none")) self.text_decoration = .none;
+            if (std.mem.eql(u8, val, "underline")) self.text_decoration = .underline;
+        } else if (std.mem.eql(u8, prop, "list-style-type")) {
+            if (std.mem.eql(u8, val, "disc")) self.list_style_type = .disc;
+            if (std.mem.eql(u8, val, "circle")) self.list_style_type = .circle;
+            if (std.mem.eql(u8, val, "square")) self.list_style_type = .square;
+            if (std.mem.eql(u8, val, "decimal")) self.list_style_type = .decimal;
+            if (std.mem.eql(u8, val, "none")) self.list_style_type = .none;
+        } else if (std.mem.eql(u8, prop, "white-space")) {
+            if (std.mem.eql(u8, val, "normal")) self.white_space = .normal;
+            if (std.mem.eql(u8, val, "nowrap")) self.white_space = .nowrap;
+            if (std.mem.eql(u8, val, "pre")) self.white_space = .pre;
         } else if (std.mem.eql(u8, prop, "align-items")) {
             if (std.mem.eql(u8, val, "stretch")) self.align_items = .stretch;
             if (std.mem.eql(u8, val, "flex-start")) self.align_items = .flex_start;
@@ -190,7 +229,10 @@ pub const ComputedStyle = struct {
     }
 
     pub fn isInherited(p: []const u8) bool {
-        const inherited = [_][]const u8{ "color", "font-size", "font-family", "font-weight" };
+        const inherited = [_][]const u8{
+            "color", "font-size", "font-family", "font-weight",
+            "text-align", "line-height", "list-style-type", "white-space", "text-decoration"
+        };
         for (inherited) |i| if (std.mem.eql(u8, i, p)) return true;
         return false;
     }

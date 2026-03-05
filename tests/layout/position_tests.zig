@@ -1,6 +1,18 @@
 const std = @import("std");
+const dom = @import("../../src/dom/mod.zig");
 const layout = @import("../../src/layout/mod.zig");
 const resolver = @import("../../src/css/resolver.zig");
+
+var dummy_node = dom.Node{
+    .allocator = undefined,
+    .node_type = .element,
+    .tag = .div,
+    .tag_name_str = null,
+    .attributes = .{},
+    .children = .{},
+    .data = null,
+};
+
 const properties = @import("../../src/css/properties.zig");
 
 test "relative positioning offsets element without affecting siblings" {
@@ -17,7 +29,7 @@ test "relative positioning offsets element without affecting siblings" {
     try s1.applyProperty("top", "10px", allocator);
     try s1.applyProperty("left", "20px", allocator);
     const sn1 = try allocator.create(resolver.StyledNode);
-    sn1.* = .{ .node = undefined, .style = s1, .children = &[_]*resolver.StyledNode{} };
+    sn1.* = .{ .node = &dummy_node, .style = s1, .children = &[_]*resolver.StyledNode{} };
     const child1 = try allocator.create(layout.LayoutBox);
     child1.* = layout.LayoutBox.init(.blockNode, sn1);
     child1.parent = &root;
@@ -26,7 +38,7 @@ test "relative positioning offsets element without affecting siblings" {
     var s2 = properties.ComputedStyle{};
     try s2.applyProperty("height", "50px", allocator);
     const sn2 = try allocator.create(resolver.StyledNode);
-    sn2.* = .{ .node = undefined, .style = s2, .children = &[_]*resolver.StyledNode{} };
+    sn2.* = .{ .node = &dummy_node, .style = s2, .children = &[_]*resolver.StyledNode{} };
     const child2 = try allocator.create(layout.LayoutBox);
     child2.* = layout.LayoutBox.init(.blockNode, sn2);
     child2.parent = &root;
@@ -59,7 +71,7 @@ test "absolute positioning relative to positioned parent" {
     try s_parent.applyProperty("width", "200px", allocator);
     try s_parent.applyProperty("height", "200px", allocator);
     const sn_parent = try allocator.create(resolver.StyledNode);
-    sn_parent.* = .{ .node = undefined, .style = s_parent, .children = &[_]*resolver.StyledNode{} };
+    sn_parent.* = .{ .node = &dummy_node, .style = s_parent, .children = &[_]*resolver.StyledNode{} };
     var parent_box = layout.LayoutBox.init(.blockNode, sn_parent);
 
     // Child: absolute, top: 10, left: 10
@@ -70,7 +82,7 @@ test "absolute positioning relative to positioned parent" {
     try s_child.applyProperty("top", "10px", allocator);
     try s_child.applyProperty("left", "10px", allocator);
     const sn_child = try allocator.create(resolver.StyledNode);
-    sn_child.* = .{ .node = undefined, .style = s_child, .children = &[_]*resolver.StyledNode{} };
+    sn_child.* = .{ .node = &dummy_node, .style = s_child, .children = &[_]*resolver.StyledNode{} };
     const child_box = try allocator.create(layout.LayoutBox);
     child_box.* = layout.LayoutBox.init(.blockNode, sn_child);
     child_box.parent = &parent_box;
@@ -103,7 +115,7 @@ test "fixed positioning relative to viewport" {
     try s_fixed.applyProperty("top", "50px", allocator);
     try s_fixed.applyProperty("left", "50px", allocator);
     const sn_fixed = try allocator.create(resolver.StyledNode);
-    sn_fixed.* = .{ .node = undefined, .style = s_fixed, .children = &[_]*resolver.StyledNode{} };
+    sn_fixed.* = .{ .node = &dummy_node, .style = s_fixed, .children = &[_]*resolver.StyledNode{} };
     const child_fixed = try allocator.create(layout.LayoutBox);
     child_fixed.* = layout.LayoutBox.init(.blockNode, sn_fixed);
     child_fixed.parent = &root;

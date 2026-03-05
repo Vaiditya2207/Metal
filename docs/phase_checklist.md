@@ -344,26 +344,34 @@
 
 ---
 
-## Phase 7 — Networking & Resource Loader *(~2–3 weeks)*
+## Phase 7 — Networking & Resource Loader *(~2–3 weeks)* [/]
 
-### Network Layer (`src/net/session.zig`)
-- [ ] ObjC bridge for `NSURLSession` (shared session)
-- [ ] `fetch(url) -> Response` — async callback-based
-- [ ] HTTP/1.1 and HTTP/2 (automatic via NSURLSession)
-- [ ] HTTPS with system certificate store
+### Network Layer (`src/net/fetch.zig`, `src/platform/net_bridge.m`)
+- [x] ObjC bridge for `NSURLSession` (shared session)
+- [x] `fetch(url) -> Response` — synchronous poll-based
+- [x] HTTP/1.1 and HTTP/2 (automatic via NSURLSession)
+- [x] HTTPS with system certificate store
+- [x] Response headers extraction (Content-Type, Set-Cookie, etc.)
+- [x] User-Agent and Accept-Encoding default headers
 - [ ] Response streaming (chunked data to parser)
 
 ### Resource Loader (`src/net/loader.zig`)
-- [ ] Pipeline: URL → fetch → parse → discover sub-resources → fetch children
-- [ ] Priority: HTML > CSS > fonts > JS > images
-- [ ] Sub-resource discovery from DOM: `<link>`, `<script src>`, `<img src>`, `@import`
+- [x] Pipeline: URL → fetch → parse → discover sub-resources → fetch children
+- [x] Priority: HTML > CSS > JS > images
+- [x] Sub-resource discovery from DOM: `<link>`, `<script src>`, `<img src>`
+- [x] Wired into main.zig (external CSS parsed, external JS executed)
+- [ ] `@import` CSS discovery
 - [ ] Parallel fetching with concurrency limit
 
 ### Cookie Jar (`src/net/cookies.zig`)
-- [ ] Parse `Set-Cookie` headers
-- [ ] Send matching cookies on requests
+- [x] Parse `Set-Cookie` headers
+- [x] Domain matching (exact + subdomain)
+- [x] `HttpOnly`, `Secure` flag parsing
+- [x] Cookie replacement (same name+domain)
+- [x] Format Cookie header for outgoing requests
+- [ ] Send matching cookies on requests (auto-attach)
 - [ ] Persistent storage (per-profile)
-- [ ] `HttpOnly`, `Secure`, `SameSite` enforcement
+- [ ] `SameSite` enforcement
 
 ### Cache (`src/net/cache.zig`)
 - [ ] Volatile arena cache (first-visit assets)
@@ -371,11 +379,13 @@
 - [ ] `Cache-Control`, `ETag`, `Last-Modified` support
 - [ ] Cache size limit with LRU eviction
 
-### Tests
-- [ ] Fetch `http://example.com` → receive HTML
-- [ ] Sub-resource loading: page with CSS + image renders fully
+### Tests (531+ total, 0 failures, 0 memory leaks)
+- [x] Fetch pipeline: mock bridge → poll → response with headers
+- [x] Response header extraction (Content-Type, X-Custom)
+- [x] Cookie jar: 9 tests (add, domain match, path, replace, flags, dot-prefix)
+- [x] Resource discovery: DOM traversal finds link/script/img
+- [x] Resource loading priority: CSS → JS → Image
 - [ ] Close tab → arena freed, RSS drops
-- [ ] Cookie round-trip: set on response → sent on next request
 
 ---
 
@@ -397,7 +407,8 @@
 - [ ] Scroll bar rendering (native-style overlay)
 
 ### Navigation
-- [ ] Click `<a href="...">` → trigger page load (href returned, navigation not wired)
+- [x] Click `<a href="...">` → trigger page load with full re-render
+- [x] Relative URL resolution via `url.Url.resolve()`
 - [ ] Form submission (GET)
 - [ ] `history.pushState` / `popState` (basic)
 

@@ -1,7 +1,19 @@
 const std = @import("std");
+const dom = @import("../../src/dom/mod.zig");
 const layout = @import("../../src/layout/mod.zig");
 const properties = @import("../../src/css/properties.zig");
 const resolver = @import("../../src/css/resolver.zig");
+
+var dummy_node = dom.Node{
+    .allocator = undefined,
+    .node_type = .element,
+    .tag = .div,
+    .tag_name_str = null,
+    .attributes = .{},
+    .children = .{},
+    .data = null,
+};
+
 
 fn makeChild(allocator: std.mem.Allocator, height: []const u8, mb: []const u8, mt: []const u8) !*layout.LayoutBox {
     var style = properties.ComputedStyle{};
@@ -10,7 +22,7 @@ fn makeChild(allocator: std.mem.Allocator, height: []const u8, mb: []const u8, m
     if (mt.len > 0) try style.applyProperty("margin-top", mt, allocator);
 
     const sn = try allocator.create(resolver.StyledNode);
-    sn.* = .{ .node = undefined, .style = style, .children = &[_]*resolver.StyledNode{} };
+    sn.* = .{ .node = &dummy_node, .style = style, .children = &[_]*resolver.StyledNode{} };
     const child = try allocator.create(layout.LayoutBox);
     child.* = layout.LayoutBox.init(.blockNode, sn);
     return child;
@@ -100,7 +112,7 @@ test "margin collapsing: three siblings" {
     try s2.applyProperty("margin-top", "10px", alloc);
     try s2.applyProperty("margin-bottom", "30px", alloc);
     const sn2 = try alloc.create(resolver.StyledNode);
-    sn2.* = .{ .node = undefined, .style = s2, .children = &[_]*resolver.StyledNode{} };
+    sn2.* = .{ .node = &dummy_node, .style = s2, .children = &[_]*resolver.StyledNode{} };
     const c2 = try alloc.create(layout.LayoutBox);
     c2.* = layout.LayoutBox.init(.blockNode, sn2);
     // c3: height=50, mt=15, mb=0
