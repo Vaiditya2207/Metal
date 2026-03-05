@@ -18,7 +18,7 @@ test "layout tree and display list rebuild on resize" {
     layout_mod.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800, .viewport_height = 600 });
 
     // 3. Initial display list build
-    var dl = try display_list_mod.buildDisplayList(allocator, &root);
+    var dl = try display_list_mod.buildDisplayList(allocator, &root, null);
     defer dl.deinit();
 
     // 4. Simulate resize to 400
@@ -31,7 +31,7 @@ test "layout tree and display list rebuild on resize" {
 
     // 5. Rebuild display list
     dl.deinit();
-    dl = try display_list_mod.buildDisplayList(allocator, &root);
+    dl = try display_list_mod.buildDisplayList(allocator, &root, null);
 
     // 6. Verify scroll controller updates
     var scroll = scroll_mod.ScrollController{};

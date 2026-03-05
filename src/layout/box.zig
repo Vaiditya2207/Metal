@@ -55,6 +55,7 @@ pub const Dimensions = struct {
 pub const BoxType = enum {
     blockNode,
     inlineNode,
+    inlineBlockNode,
     flexNode,
     anonymousBlock,
 };
@@ -124,10 +125,18 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
                 .block => .blockNode,
                 .flex => .flexNode,
                 .inline_val => .inlineNode,
+                .inline_block => .inlineBlockNode,
                 .none => unreachable,
             };
             const root = try self.allocator.create(LayoutBox);
             root.* = LayoutBox.init(box_type, sn);
+            
+            // Set intrinsic size for replaced elements like <input> and <textarea>
+            if (sn.node.node_type == .element and (sn.node.tag == .input or sn.node.tag == .textarea)) {
+                root.intrinsic_width = 140.0;
+                root.intrinsic_height = sn.style.font_size.value * 1.2;
+            }
+            
             errdefer {
                 root.deinit(self.allocator);
                 self.allocator.destroy(root);
@@ -155,7 +164,7 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             var has_inline = false;
             for (parent.children.items) |child| {
                 if (child.box_type == .blockNode or child.box_type == .flexNode) has_block = true;
-                if (child.box_type == .inlineNode or child.box_type == .anonymousBlock) has_inline = true;
+                if (child.box_type == .inlineNode or child.box_type == .inlineBlockNode or child.box_type == .anonymousBlock) has_inline = true;
             }
 
             if (!has_inline) return;

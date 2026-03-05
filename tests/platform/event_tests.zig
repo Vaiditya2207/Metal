@@ -28,6 +28,9 @@ test "EventQueue wrap-around" {
 test "Renderer processEvents clamping" {
     const renderer_mod = @import("../../src/render/renderer.zig");
     var r = renderer_mod.Renderer{
+        .scroll = .{},
+        .interaction = .{},
+        .input_manager = @import("../../src/ui/mod.zig").input.InputManager.init(),
         .device = undefined,
         .command_queue = undefined,
     };

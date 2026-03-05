@@ -6,10 +6,10 @@ const compositor = @import("compositor.zig");
 const scroll_mod = @import("scroll.zig");
 const DisplayList = @import("display_list.zig").DisplayList;
 const events = @import("../platform/events.zig");
-const layout_box = @import("../layout/box.zig");
+const layout_mod = @import("../layout/mod.zig");
+const ui = @import("../ui/mod.zig");
 const hit_test = @import("hit_test.zig");
 
-const layout_mod = @import("../layout/layout.zig");
 const display_list_mod = @import("display_list.zig");
 const interaction_mod = @import("interaction.zig");
 const text_measure = @import("../layout/text_measure.zig");
@@ -46,11 +46,12 @@ pub const Renderer = struct {
     text_renderer: ?text.TextRenderer = null,
     view: ?*anyopaque = null,
     clear_color: [4]f32 = .{ 1.0, 1.0, 1.0, 1.0 },
-    owned_display_list: ?DisplayList = null,
-    layout_root: ?*layout_box.LayoutBox = null,
+    owned_display_list: ?display_list_mod.DisplayList = null,
+    layout_root: ?*layout_mod.LayoutBox = null,
     allocator: ?std.mem.Allocator = null,
     scroll: scroll_mod.ScrollController = .{},
     interaction: interaction_mod.InteractionHandler = .{},
+    input_manager: ui.input.InputManager,
     frame_ctx: ?FrameContext = null,
     document: ?*dom.Document = null,
     stylesheets: []const css.Stylesheet = &.{},
@@ -75,6 +76,8 @@ pub const Renderer = struct {
             .command_queue = queue,
             .pipeline_state = pipeline,
             .text_renderer = text_renderer,
+            .interaction = .{},
+            .input_manager = ui.input.InputManager.init(),
         };
     }
 
@@ -85,7 +88,7 @@ pub const Renderer = struct {
         }
     }
 
-    pub fn setDocument(self: *Renderer, alloc: std.mem.Allocator, root: *layout_box.LayoutBox, dl: DisplayList) void {
+    pub fn setDocument(self: *Renderer, alloc: std.mem.Allocator, root: *layout_mod.LayoutBox, dl: DisplayList) void {
         self.allocator = alloc;
         self.layout_root = root;
         if (self.owned_display_list) |*old_dl| {
@@ -126,24 +129,70 @@ pub const Renderer = struct {
                 .mouse_down => {
                     if (self.layout_root) |root| {
                         const click = self.interaction.handleClick(root, event.x, event.y, self.scroll.scroll_y);
-                        if (click.href) |href| {
-                            self.queueNavigation(href);
-                        }
                         if (click.target_node) |target| {
+                            if (target.node_type == .element and (target.tag == .input or target.tag == .textarea)) {
+                                // Focus input — do NOT navigate
+                                self.input_manager.focus(@constCast(target));
+                            } else {
+                                self.input_manager.blur();
+                                // Only navigate links when the target is not an input
+                                if (click.href) |href| {
+                                    self.queueNavigation(href);
+                                }
+                            }
                             if (self.frame_ctx) |*fc| {
                                 _ = fc.event_dispatcher.dispatchEvent(@constCast(target), "click");
+                            }
+                            // Rebuild display list so cursor appears/disappears
+                            if (self.allocator) |alloc| {
+                                if (self.owned_display_list) |*old_dl| {
+                                    old_dl.deinit();
+                                }
+                                self.owned_display_list = display_list_mod.buildDisplayList(alloc, root, self.input_manager.focused_node) catch null;
                             }
                         }
                     }
                 },
                 .key_down => {
-                    if (interaction_mod.InteractionHandler.handleKeyDown(event.keycode, event.modifiers)) |action| {
-                        switch (action) {
-                            .quit => terminate_application(),
-                            .scroll_up => self.scroll.scrollBy(-self.scroll.viewport_height),
-                            .scroll_down => self.scroll.scrollBy(self.scroll.viewport_height),
-                            .scroll_to_top => self.scroll.setScrollY(0),
-                            .scroll_to_bottom => self.scroll.setScrollY(self.scroll.content_height - self.scroll.viewport_height),
+                    var handled = false;
+                    if (self.allocator) |alloc| {
+                        const input_res = self.input_manager.handleEvent(alloc, event) catch .ignored;
+                        if (input_res == .submit) {
+                            if (self.input_manager.focused_node) |node| {
+                                self.handleFormSubmission(node);
+                            }
+                            handled = true;
+                        } else if (input_res == .handled) {
+                            handled = true;
+                            // Trigger layout update
+                            if (self.layout_root) |root| {
+                                var window_width: f32 = 1280.0;
+                                var window_height: f32 = 800.0;
+                                if (self.view) |v| {
+                                    objc.get_drawable_size(v, &window_width, &window_height);
+                                }
+                                const ctx = layout_mod.LayoutContext{
+                                    .allocator = alloc,
+                                    .viewport_width = window_width, // Could also get actual viewport
+                                    .viewport_height = window_height,
+                                };
+                                layout_mod.layoutTree(root, ctx);
+                                if (self.owned_display_list) |*old_dl| {
+                                    old_dl.deinit();
+                                }
+                                self.owned_display_list = display_list_mod.buildDisplayList(alloc, root, self.input_manager.focused_node) catch null;
+                            }
+                        }
+                    }
+                    if (!handled) {
+                        if (interaction_mod.InteractionHandler.handleKeyDown(event.keycode, event.modifiers)) |action| {
+                            switch (action) {
+                                .quit => terminate_application(),
+                                .scroll_up => self.scroll.scrollBy(-self.scroll.viewport_height),
+                                .scroll_down => self.scroll.scrollBy(self.scroll.viewport_height),
+                                .scroll_to_top => self.scroll.setScrollY(0),
+                                .scroll_to_bottom => self.scroll.setScrollY(self.scroll.content_height - self.scroll.viewport_height),
+                            }
                         }
                     }
                 },
@@ -159,7 +208,7 @@ pub const Renderer = struct {
                             if (self.owned_display_list) |*old_dl| {
                                 old_dl.deinit();
                             }
-                            self.owned_display_list = display_list_mod.buildDisplayList(alloc, root) catch null;
+                            self.owned_display_list = display_list_mod.buildDisplayList(alloc, root, self.input_manager.focused_node) catch null;
                             self.scroll.setViewportHeight(event.height);
                             // Update content height from layout root
                             if (self.owned_display_list != null) {
@@ -251,7 +300,7 @@ pub const Renderer = struct {
         const new_styled = resolver.resolve(doc.root, self.stylesheets) catch return;
         self.styled_root = new_styled;
 
-        const new_layout = layout_box.buildLayoutTree(alloc, new_styled) catch return;
+        const new_layout = layout_mod.buildLayoutTree(alloc, new_styled) catch return;
 
         var vw: f32 = 1280;
         var vh: f32 = 800;
@@ -270,7 +319,7 @@ pub const Renderer = struct {
         };
         layout_mod.layoutTree(new_layout, lctx);
 
-        const new_dl = display_list_mod.buildDisplayList(alloc, new_layout) catch {
+        const new_dl = display_list_mod.buildDisplayList(alloc, new_layout, self.input_manager.focused_node) catch {
             new_layout.deinit(alloc);
             alloc.destroy(new_layout);
             return;
@@ -393,5 +442,75 @@ pub const Renderer = struct {
         alloc.free(loaded);
 
         std.debug.print("Navigation complete\n", .{});
+    }
+
+    fn handleFormSubmission(self: *Renderer, input_node: *@import("../dom/node.zig").Node) void {
+        var current: ?*@import("../dom/node.zig").Node = input_node;
+        var form_node: ?*@import("../dom/node.zig").Node = null;
+        while (current) |node| {
+            if (node.node_type == .element and node.tag == .form) {
+                form_node = node;
+                break;
+            }
+            current = node.parent;
+        }
+        
+        if (form_node == null) return;
+        
+        const action = form_node.?.getAttribute("action") orelse "";
+        const method = form_node.?.getAttribute("method") orelse "GET";
+        
+        if (!std.mem.eql(u8, method, "GET") and !std.mem.eql(u8, method, "get")) {
+            std.debug.print("Form method {s} not supported yet\n", .{method});
+        }
+
+        if (self.allocator) |alloc| {
+            var query = std.ArrayListUnmanaged(u8){};
+            defer query.deinit(alloc);
+            
+            const Collect = struct {
+                fn collectInputs(alloc2: std.mem.Allocator, n: *@import("../dom/node.zig").Node, q: *std.ArrayListUnmanaged(u8)) !void {
+                    if (n.node_type == .element and (n.tag == .input or n.tag == .textarea)) {
+                        if (n.getAttribute("name")) |name| {
+                            const val = n.getAttribute("value") orelse "";
+                            if (q.items.len > 0) try q.append(alloc2, '&');
+                            
+                            try q.appendSlice(alloc2, name);
+                            try q.append(alloc2, '=');
+                            for (val) |c| {
+                                if (c == ' ') {
+                                    try q.append(alloc2, '+');
+                                } else {
+                                    try q.append(alloc2, c);
+                                }
+                            }
+                        }
+                    }
+                    for (n.children.items) |child| {
+                        try collectInputs(alloc2, child, q);
+                    }
+                }
+            };
+            
+            Collect.collectInputs(alloc, form_node.?, &query) catch return;
+            
+            var url_str = std.ArrayListUnmanaged(u8){};
+            defer url_str.deinit(alloc);
+            
+            // Re-resolve action URL relative to current base URL if needed.
+            // queueNavigation uses url.Url.resolve implicitly.
+            url_str.appendSlice(alloc, action) catch return;
+            if (query.items.len > 0) {
+                if (std.mem.indexOfScalar(u8, action, '?') == null) {
+                    url_str.append(alloc, '?') catch return;
+                } else {
+                    url_str.append(alloc, '&') catch return;
+                }
+                url_str.appendSlice(alloc, query.items) catch return;
+            }
+            
+            std.debug.print("Submitting form to: {s}\n", .{url_str.items});
+            self.queueNavigation(url_str.items);
+        }
     }
 };

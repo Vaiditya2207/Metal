@@ -32,8 +32,8 @@ const ua_css =
     \\span { display: inline }
     \\img { display: inline }
     \\br { display: block }
-    \\input { display: inline }
-    \\button { display: inline }
+    \\input { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }
+    \\button { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }
     \\form { display: block }
     \\table { display: block }
     \\tr { display: block }
@@ -47,7 +47,7 @@ const ua_css =
     \\article { display: block }
     \\aside { display: block }
     \\center { display: block; text-align: center }
-    \\textarea { display: inline }
+    \\textarea { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }
     \\hr { display: block; margin-top: 0.5em; margin-bottom: 0.5em }
     \\dd { display: block; margin-left: 40px }
     \\dl { display: block; margin-top: 1em; margin-bottom: 1em }

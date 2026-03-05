@@ -20,6 +20,7 @@ pub const Event = struct {
     button: i32 = 0,
     keycode: u32 = 0,
     modifiers: u32 = 0,
+    text: [8]u8 = [_]u8{0} ** 8,
 };
 
 // Modifier flag constants (macOS NSEventModifierFlags)
@@ -76,5 +77,6 @@ pub fn eventCallback(_: ?*anyopaque, bridge_event: objc.BridgeEvent) callconv(.c
         .button = bridge_event.button,
         .keycode = bridge_event.keycode,
         .modifiers = bridge_event.modifiers,
+        .text = bridge_event.characters,
     });
 }

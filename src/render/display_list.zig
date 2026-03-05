@@ -39,16 +39,16 @@ pub const DisplayList = struct {
     }
 };
 
-pub fn buildDisplayList(allocator: std.mem.Allocator, root_box: *const layout_box.LayoutBox) !DisplayList {
-    var dl = DisplayList.init(allocator);
-    errdefer dl.deinit();
-
-    try walkLayoutTree(&dl, root_box);
-
+pub fn buildDisplayList(allocator: std.mem.Allocator, root: *layout_box.LayoutBox, focused_node: ?*const @import("../dom/node.zig").Node) !DisplayList {
+    var dl = DisplayList{
+        .commands = .empty,
+        .allocator = allocator,
+    };
+    try walkLayoutTree(&dl, root, focused_node);
     return dl;
 }
 
-fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox) !void {
+fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_node: ?*const @import("../dom/node.zig").Node) !void {
     // 1. Draw background
     if (box.styled_node) |sn| {
         const opacity = sn.style.opacity;
@@ -108,6 +108,52 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox) !void {
                 .texture = tex,
             },
         });
+    }
+
+    // 5. Draw input text and cursor
+    if (box.styled_node) |sn| {
+        if (sn.node.node_type == .element and (sn.node.tag == .input or sn.node.tag == .textarea)) {
+            const val = sn.node.getAttribute("value") orelse sn.node.getAttribute("placeholder") orelse "";
+            
+            var c = sn.style.color;
+            if (sn.style.opacity < 1.0) c.a = @intFromFloat(@as(f32, @floatFromInt(c.a)) * sn.style.opacity);
+            const rect = layout_box.Rect{
+                .x = box.dimensions.content.x + 4.0, // minor padding adjustment
+                .y = box.dimensions.content.y + 2.0,
+                .width = box.dimensions.content.width - 8.0,
+                .height = box.dimensions.content.height - 4.0,
+            };
+
+            if (val.len > 0) {
+                try dl.commands.append(dl.allocator, .{
+                    .draw_text = .{
+                        .text = try dl.allocator.dupe(u8, val),
+                        .rect = rect,
+                        .color = c,
+                        .font_size = sn.style.font_size.value,
+                        .font_weight = sn.style.font_weight,
+                    },
+                });
+            }
+
+            if (focused_node) |f_node| {
+                if (f_node == sn.node) {
+                    const char_width = sn.style.font_size.value * 0.6; // approx advance
+                    const cursor_x = rect.x + @as(f32, @floatFromInt(val.len)) * char_width;
+                    try dl.commands.append(dl.allocator, .{
+                        .draw_rect = .{
+                            .rect = .{
+                                .x = cursor_x,
+                                .y = rect.y,
+                                .width = 2.0,
+                                .height = sn.style.font_size.value,
+                            },
+                            .color = c,
+                        },
+                    });
+                }
+            }
+        }
     }
 
     for (box.text_runs.items) |run| {
@@ -176,7 +222,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox) !void {
 
     // 4. Children (Painter's algorithm: draw children on top)
     for (box.children.items) |child| {
-        try walkLayoutTree(dl, child);
+        try walkLayoutTree(dl, child, focused_node);
     }
 
     if (clip_emitted) {

@@ -3,7 +3,7 @@ const values_mod = @import("values.zig");
 const Length = values_mod.Length;
 const CssColor = values_mod.CssColor;
 
-pub const Display = enum { block, inline_val, none, flex };
+pub const Display = enum { block, inline_val, inline_block, none, flex };
 pub const Position = enum { static_val, relative, absolute, fixed };
 pub const Overflow = enum { visible, hidden, scroll, auto_val };
 pub const BoxSizing = enum { content_box, border_box };
@@ -66,6 +66,7 @@ pub const ComputedStyle = struct {
         if (std.mem.eql(u8, prop, "display")) {
             if (std.mem.eql(u8, val, "block")) self.display = .block;
             if (std.mem.eql(u8, val, "inline")) self.display = .inline_val;
+            if (std.mem.eql(u8, val, "inline-block")) self.display = .inline_block;
             if (std.mem.eql(u8, val, "none")) self.display = .none;
             if (std.mem.eql(u8, val, "flex")) self.display = .flex;
         } else if (std.mem.eql(u8, prop, "position")) {

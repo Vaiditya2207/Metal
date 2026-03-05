@@ -370,14 +370,14 @@ pub fn main() !void {
     };
     layout.layoutTree(layout_root, lctx);
 
-    const dl = try display_list.buildDisplayList(allocator, layout_root);
+    const dl = try display_list.buildDisplayList(allocator, layout_root, null);
 
     my_renderer.setDocument(allocator, layout_root, dl);
 
     // --- Image texture attachment ---
     // Walk loaded resources and decode images, attaching textures to matching layout boxes
     for (loaded_resources) |res| {
-        if (res.kind != .Image) continue;
+        if (res.type != .Image) continue;
         var tex_w: c_int = 0;
         var tex_h: c_int = 0;
         const texture = jsc.decode_image_to_texture(

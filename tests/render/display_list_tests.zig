@@ -11,7 +11,7 @@ test "build empty display list" {
     var root = layout_box.LayoutBox.init(.blockNode, null);
     defer root.deinit(allocator);
 
-    var dl = try display_list.buildDisplayList(allocator, &root);
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
     defer dl.deinit();
 
     try std.testing.expectEqual(@as(usize, 0), dl.commands.items.len);
@@ -37,7 +37,7 @@ test "build display list with background color" {
     root.dimensions.content = .{ .x = 0, .y = 0, .width = 100, .height = 100 };
     defer root.deinit(allocator);
 
-    var dl = try display_list.buildDisplayList(allocator, &root);
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
     defer dl.deinit();
 
     try std.testing.expect(dl.commands.items.len > 0);
@@ -85,7 +85,7 @@ test "overflow clip emission" {
     child.dimensions.content = .{ .x = 10, .y = 10, .width = 200, .height = 200 };
     try root.children.append(allocator, child);
 
-    var dl = try display_list.buildDisplayList(allocator, &root);
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
     defer dl.deinit();
 
     // Expect: push_clip, background (for root), draw_rect (for child), pop_clip
@@ -112,7 +112,7 @@ test "no clip for overflow visible" {
     var root = layout_box.LayoutBox.init(.blockNode, &sn);
     defer root.deinit(allocator);
 
-    var dl = try display_list.buildDisplayList(allocator, &root);
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
     defer dl.deinit();
 
     for (dl.commands.items) |cmd| {
@@ -131,7 +131,7 @@ test "opacity multiplication" {
     var root = layout_box.LayoutBox.init(.blockNode, &sn);
     defer root.deinit(allocator);
 
-    var dl = try display_list.buildDisplayList(allocator, &root);
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
     defer dl.deinit();
 
     const cmd = dl.commands.items[0];
@@ -156,7 +156,7 @@ test "opacity 0.0 results in alpha 0" {
     var root = layout_box.LayoutBox.init(.blockNode, &sn);
     defer root.deinit(allocator);
 
-    var dl = try display_list.buildDisplayList(allocator, &root);
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
     defer dl.deinit();
 
     try std.testing.expect(dl.commands.items.len > 0);

@@ -3,6 +3,15 @@ const box_mod = @import("box.zig");
 const text_measure = @import("text_measure.zig");
 const resolver = @import("../css/resolver.zig");
 const properties = @import("../css/properties.zig");
+const block = @import("block.zig");
+
+fn shiftBox(box: *box_mod.LayoutBox, dx: f32, dy: f32) void {
+    box.dimensions.content.x += dx;
+    box.dimensions.content.y += dy;
+    for (box.children.items) |child| {
+        shiftBox(child, dx, dy);
+    }
+}
 
 const TextSegment = struct {
     text: []const u8,
@@ -12,6 +21,7 @@ const TextSegment = struct {
     font_weight: f32,
     line_height: f32,
     white_space: properties.WhiteSpace,
+    is_inline_block: bool = false,
 };
 
 fn collectTextSegments(
@@ -19,6 +29,22 @@ fn collectTextSegments(
     segments: *std.ArrayListUnmanaged(TextSegment),
     allocator: std.mem.Allocator,
 ) void {
+    if (box.box_type == .inlineBlockNode) {
+        if (box.styled_node) |sn| {
+            segments.append(allocator, .{
+                .text = "",
+                .styled_node = sn,
+                .layout_box = box,
+                .font_size = sn.style.font_size.value,
+                .font_weight = sn.style.font_weight,
+                .line_height = @max(box.intrinsic_height, sn.style.line_height * sn.style.font_size.value),
+                .white_space = sn.style.white_space,
+                .is_inline_block = true,
+            }) catch return;
+        }
+        return; // do not dig into inlineBlockNode's children for text extraction
+    }
+
     if (box.styled_node) |sn| {
         if (sn.node.node_type == .text) {
             if (sn.node.data) |data| {
@@ -32,6 +58,7 @@ fn collectTextSegments(
                         .font_weight = sn.style.font_weight,
                         .line_height = sn.style.line_height * sn.style.font_size.value,
                         .white_space = sn.style.white_space,
+                        .is_inline_block = false,
                     }) catch return;
                 }
             }
@@ -48,6 +75,7 @@ fn collectTextSegments(
                     .font_weight = sn.style.font_weight,
                     .line_height = sn.style.line_height * sn.style.font_size.value,
                     .white_space = .pre,
+                    .is_inline_block = false,
                 }) catch return;
                 return;
             }
@@ -92,7 +120,8 @@ fn resetChildDimensions(box: *box_mod.LayoutBox) void {
     }
 }
 
-pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, allocator: std.mem.Allocator) void {
+pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, ctx: @import("layout.zig").LayoutContext) void {
+    const allocator = ctx.allocator;
     const available_width = layout_box.dimensions.content.width;
     const anon_abs_x = layout_box.dimensions.content.x;
     const anon_abs_y = layout_box.dimensions.content.y;
@@ -116,6 +145,36 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
 
     for (segments.items) |seg| {
         const space_width = text_measure.measureTextWidth(" ", seg.font_size, seg.font_weight);
+
+        if (seg.is_inline_block) {
+            block.layoutBlock(seg.layout_box, layout_box, ctx);
+
+            var block_w = seg.layout_box.dimensions.marginBox().width;
+            if (block_w == 0) block_w = seg.layout_box.intrinsic_width;
+            
+            var block_h = seg.layout_box.dimensions.marginBox().height;
+            if (block_h == 0) block_h = seg.line_height;
+
+            if (cursor_x + block_w > available_width and cursor_x > 0) {
+                alignLine(layout_box, line_start_idx, current_run_idx, available_width, cursor_x);
+                line_start_idx = current_run_idx;
+                
+                cursor_x = 0;
+                cursor_y += current_line_height;
+                current_line_height = block_h;
+            }
+
+            const target_x = anon_abs_x + cursor_x + seg.layout_box.dimensions.margin.left + seg.layout_box.dimensions.border.left + seg.layout_box.dimensions.padding.left;
+            const target_y = anon_abs_y + cursor_y + seg.layout_box.dimensions.margin.top + seg.layout_box.dimensions.border.top + seg.layout_box.dimensions.padding.top;
+            
+            const dx = target_x - seg.layout_box.dimensions.content.x;
+            const dy = target_y - seg.layout_box.dimensions.content.y;
+            shiftBox(seg.layout_box, dx, dy);
+
+            cursor_x += block_w;
+            current_line_height = @max(current_line_height, block_h);
+            continue;
+        }
 
         if (std.mem.eql(u8, seg.text, "\n")) {
             alignLine(layout_box, line_start_idx, current_run_idx, available_width, cursor_x);

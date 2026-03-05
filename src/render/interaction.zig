@@ -41,6 +41,10 @@ pub const InteractionHandler = struct {
         if (maybe_result) |result| {
             var current_node = result.node;
             while (current_node) |node| {
+                if (node.tag == .input or node.tag == .textarea) {
+                    self.cursor_state = .text_cursor;
+                    return .text_cursor;
+                }
                 if (node.tag == .a) {
                     self.cursor_state = .pointer;
                     return .pointer;
@@ -66,11 +70,15 @@ pub const InteractionHandler = struct {
         if (maybe_result) |result| {
             var href: ?[]const u8 = null;
             var current_node = result.node;
-            while (current_node) |node| {
-                if (node.tag == .a and href == null) {
-                    href = node.getAttribute("href");
+            // Only search for hrefs if the direct target is NOT an input/textarea
+            const is_input = if (result.node) |n| (n.tag == .input or n.tag == .textarea) else false;
+            if (!is_input) {
+                while (current_node) |node| {
+                    if (node.tag == .a and href == null) {
+                        href = node.getAttribute("href");
+                    }
+                    current_node = node.parent;
                 }
-                current_node = node.parent;
             }
             return .{ .href = href, .target_node = result.node };
         }

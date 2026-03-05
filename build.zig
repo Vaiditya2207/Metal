@@ -84,6 +84,10 @@ pub fn build(b: *std.Build) void {
     });
     all_tests.addIncludePath(b.path("src/platform"));
     all_tests.addCSourceFile(.{
+        .file = b.path("src/platform/objc_bridge.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
+    all_tests.addCSourceFile(.{
         .file = b.path("src/platform/event_bridge.m"),
         .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
     });

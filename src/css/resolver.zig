@@ -61,6 +61,15 @@ pub const StyleResolver = struct {
                     }
                 }
             }
+
+            // Force hidden inputs to not display
+            if (node.tag == .input) {
+                if (node.getAttribute("type")) |t| {
+                    if (std.mem.eql(u8, t, "hidden")) {
+                        style.display = .none;
+                    }
+                }
+            }
         }
 
         // Resolve font-size to absolute px values.
