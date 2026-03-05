@@ -5,7 +5,7 @@ const DisplayList = @import("display_list.zig").DisplayList;
 const TextRenderer = @import("text.zig").TextRenderer;
 const batch_mod = @import("batch.zig");
 
-pub const PipelineKind = enum { none, rect, text };
+pub const PipelineKind = enum { none, rect, text, image };
 
 pub fn isVisible(rect_y: f32, rect_height: f32, scroll_y: f32, viewport_height: f32) bool {
     const relative_y = rect_y - scroll_y;
@@ -51,6 +51,7 @@ fn flushAll(
 pub const Compositor = struct {
     rect_pipeline: *anyopaque,
     text_renderer: *const TextRenderer,
+    image_pipeline: ?*anyopaque = null,
     device: *anyopaque,
 
     pub fn render(
@@ -123,6 +124,30 @@ pub const Compositor = struct {
                     flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
                     current = .none;
                     objc.set_scissor_rect(fc, rect.x * scale, (rect.y - scroll_y) * scale, rect.width * scale, rect.height * scale, height * scale);
+                },
+                .draw_image => |img| {
+                    if (!isVisible(img.rect.y, img.rect.height, scroll_y, height)) continue;
+                    // Flush everything before switching to image pipeline
+                    flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
+                    current = .image;
+
+                    if (self.image_pipeline) |img_pipeline| {
+                        // Build 6 vertices for a textured quad with full UV
+                        const x = img.rect.x;
+                        const y = img.rect.y - scroll_y;
+                        const w = img.rect.width;
+                        const h = img.rect.height;
+                        const vertices = [6][8]f32{
+                            .{ x, y, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0 },     // top-left
+                            .{ x + w, y, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0 }, // top-right
+                            .{ x, y + h, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0 }, // bottom-left
+                            .{ x + w, y, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0 }, // top-right
+                            .{ x, y + h, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0 }, // bottom-left
+                            .{ x + w, y + h, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 }, // bottom-right
+                        };
+                        objc.set_pipeline(fc, img_pipeline);
+                        objc.batch_image_quads(fc, self.device, img.texture, @ptrCast(&vertices), 6);
+                    }
                 },
                 .pop_clip => {
                     flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);

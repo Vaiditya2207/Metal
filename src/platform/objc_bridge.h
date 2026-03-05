@@ -3,8 +3,9 @@
 
 // Pure C header for Zig interop. No Objective-C allowed here.
 
-#include "text_atlas.h"
 #include "event_bridge.h"
+#include "image_bridge.h"
+#include "text_atlas.h"
 
 typedef void *MetalDelegateHandle;
 
@@ -13,9 +14,9 @@ extern "C" {
 #endif
 
 typedef struct {
-    void *commandBuffer;
-    void *renderEncoder;
-    void *drawable;
+  void *commandBuffer;
+  void *renderEncoder;
+  void *drawable;
 } FrameContext;
 
 void *create_application_delegate(void);
@@ -43,8 +44,10 @@ void draw_solid_rect(void *frame_context, float x, float y, float w, float h,
                      float r, float g, float b, float a);
 
 // Scissor rect operations
-void set_scissor_rect(void *frame_context, float x, float y, float w, float h, float drawable_h);
-void reset_scissor_rect(void *frame_context, float drawable_w, float drawable_h);
+void set_scissor_rect(void *frame_context, float x, float y, float w, float h,
+                      float drawable_h);
+void reset_scissor_rect(void *frame_context, float drawable_w,
+                        float drawable_h);
 
 // Get the current drawable size
 void get_drawable_size(void *view, float *width, float *height);
@@ -56,7 +59,8 @@ float get_content_scale(void *view);
 float get_screen_scale_factor(void);
 
 // Batched draw: submit all rect vertices in a single draw call
-void batch_solid_rects(void *frame_context, void *device, const void *vertex_data, int vertex_count);
+void batch_solid_rects(void *frame_context, void *device,
+                       const void *vertex_data, int vertex_count);
 
 #ifdef __cplusplus
 }

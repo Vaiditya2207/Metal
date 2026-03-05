@@ -13,6 +13,7 @@ const net = @import("net/mod.zig");
 const jsc = @cImport({
     @cInclude("jsc_bridge.h");
     @cInclude("net_bridge.h");
+    @cInclude("image_bridge.h");
 });
 
 const default_html =
@@ -340,7 +341,8 @@ pub fn main() !void {
                 _ = js_ctx.evaluateScript(res.body);
             },
             .Image => {
-                std.debug.print("Skipping image (not yet supported): {s}\n", .{res.url});
+                std.debug.print("Loading image: {s}\n", .{res.url});
+                // Store image data for later attachment to layout boxes
             },
         }
     }
@@ -371,6 +373,28 @@ pub fn main() !void {
     const dl = try display_list.buildDisplayList(allocator, layout_root);
 
     my_renderer.setDocument(allocator, layout_root, dl);
+
+    // --- Image texture attachment ---
+    // Walk loaded resources and decode images, attaching textures to matching layout boxes
+    for (loaded_resources) |res| {
+        if (res.kind != .Image) continue;
+        var tex_w: c_int = 0;
+        var tex_h: c_int = 0;
+        const texture = jsc.decode_image_to_texture(
+            my_renderer.device,
+            my_renderer.command_queue,
+            @ptrCast(res.body.ptr),
+            @intCast(@as(i64, @intCast(res.body.len))),
+            &tex_w,
+            &tex_h,
+        );
+        if (texture) |tex| {
+            std.debug.print("Decoded image {s}: {d}x{d}\n", .{ res.url, tex_w, tex_h });
+            attachImageToLayoutTree(layout_root, res.url, tex, @floatFromInt(tex_w), @floatFromInt(tex_h));
+        } else {
+            std.debug.print("Failed to decode image: {s}\n", .{res.url});
+        }
+    }
     my_renderer.setFrameContext(.{
         .timer_queue = &js_runtime.timer_queue,
         .raf_queue = &js_runtime.raf_queue,
@@ -389,3 +413,30 @@ pub fn main() !void {
     app.objc.run_application();
 }
 
+fn attachImageToLayoutTree(box: *layout.LayoutBox, url: []const u8, texture: *anyopaque, w: f32, h: f32) void {
+    if (box.styled_node) |sn| {
+        if (sn.node.node_type == .element) {
+            if (sn.node.tag == .img) {
+                if (sn.node.getAttribute("src")) |src| {
+                    // Check if the src matches (could be relative or absolute)
+                    if (std.mem.eql(u8, src, url) or std.mem.endsWith(u8, url, src)) {
+                        box.image_texture = texture;
+                        box.intrinsic_width = w;
+                        box.intrinsic_height = h;
+                        // Set box dimensions if not already set by CSS
+                        if (box.dimensions.content.width == 0) {
+                            box.dimensions.content.width = w;
+                        }
+                        if (box.dimensions.content.height == 0) {
+                            box.dimensions.content.height = h;
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    for (box.children.items) |child| {
+        attachImageToLayoutTree(child, url, texture, w, h);
+    }
+}

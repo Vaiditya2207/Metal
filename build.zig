@@ -43,6 +43,10 @@ pub fn build(b: *std.Build) void {
         .file = b.path("src/platform/net_bridge.m"),
         .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
     });
+    exe.addCSourceFile(.{
+        .file = b.path("src/platform/image_bridge.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
     exe.addIncludePath(b.path("src/platform"));
 
     // Link macOS frameworks
@@ -54,6 +58,7 @@ pub fn build(b: *std.Build) void {
     exe.linkFramework("CoreText");
     exe.linkFramework("CoreGraphics");
     exe.linkFramework("JavaScriptCore");
+    exe.linkFramework("ImageIO");
     exe.linkLibC();
 
     b.installArtifact(exe);

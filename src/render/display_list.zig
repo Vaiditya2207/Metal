@@ -15,6 +15,10 @@ pub const DisplayCommand = union(enum) {
         font_size: f32,
         font_weight: f32 = 400,
     },
+    draw_image: struct {
+        rect: layout_box.Rect,
+        texture: *anyopaque,
+    },
     push_clip: layout_box.Rect,
     pop_clip: void,
 };
@@ -94,6 +98,16 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox) !void {
                  }
             });
         }
+    }
+
+    // 4. Draw image if this box has a loaded texture
+    if (box.image_texture) |tex| {
+        try dl.commands.append(dl.allocator, .{
+            .draw_image = .{
+                .rect = box.dimensions.content,
+                .texture = tex,
+            },
+        });
     }
 
     for (box.text_runs.items) |run| {

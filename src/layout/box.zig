@@ -74,6 +74,9 @@ pub const LayoutBox = struct {
     text_runs: std.ArrayListUnmanaged(TextRun) = .{},
     styled_node: ?*const resolver.StyledNode = null,
     parent: ?*LayoutBox = null,
+    image_texture: ?*anyopaque = null,
+    intrinsic_width: f32 = 0,
+    intrinsic_height: f32 = 0,
 
     pub fn init(box_type: BoxType, styled_node: ?*const resolver.StyledNode) LayoutBox {
         return .{

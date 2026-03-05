@@ -211,6 +211,7 @@ pub const Renderer = struct {
                         const comp = compositor.Compositor{
                             .rect_pipeline = ps,
                             .text_renderer = tr,
+                            .image_pipeline = objc.create_image_pipeline(self.device),
                             .device = self.device,
                         };
                         comp.render(fc, view, dl, self.scroll.scroll_y);
