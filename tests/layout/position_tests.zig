@@ -130,3 +130,30 @@ test "fixed positioning relative to viewport" {
     // Root height should be 0 (only has fixed child)
     try std.testing.expectEqual(@as(f32, 0), root.dimensions.content.height);
 }
+
+test "fixed positioning supports bottom and right anchors" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var root = layout.LayoutBox.init(.blockNode, null);
+
+    var s_fixed = properties.ComputedStyle{};
+    s_fixed.position = .fixed;
+    try s_fixed.applyProperty("width", "120px", allocator);
+    try s_fixed.applyProperty("height", "40px", allocator);
+    try s_fixed.applyProperty("right", "20px", allocator);
+    try s_fixed.applyProperty("bottom", "30px", allocator);
+    const sn_fixed = try allocator.create(resolver.StyledNode);
+    sn_fixed.* = .{ .node = &dummy_node, .style = s_fixed, .children = &[_]*resolver.StyledNode{} };
+    const child_fixed = try allocator.create(layout.LayoutBox);
+    child_fixed.* = layout.LayoutBox.init(.blockNode, sn_fixed);
+    child_fixed.parent = &root;
+
+    try root.children.append(allocator, child_fixed);
+
+    layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 800, .viewport_height = 600 });
+
+    try std.testing.expectEqual(@as(f32, 660), child_fixed.dimensions.content.x);
+    try std.testing.expectEqual(@as(f32, 530), child_fixed.dimensions.content.y);
+}

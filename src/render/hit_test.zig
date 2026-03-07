@@ -11,7 +11,7 @@ pub fn hitTest(root: *const layout_box.LayoutBox, x: f32, y: f32, scroll_y: f32)
     const py = y + scroll_y;
     const px = x;
 
-    // Traverse children in reverse paint order (last to first)
+    // Always traverse children first (reverse paint order)
     var i: usize = root.children.items.len;
     while (i > 0) {
         i -= 1;
@@ -21,11 +21,8 @@ pub fn hitTest(root: *const layout_box.LayoutBox, x: f32, y: f32, scroll_y: f32)
         }
     }
 
-    // Check self
+    // Check self after children
     if (containsPoint(root.dimensions.borderBox(), px, py)) {
-        // If this box has a styled_node, use its DOM node directly.
-        // Anonymous blocks (from wrapAnonymousBlocks) have no styled_node,
-        // so walk up the layout parent chain to find the nearest real DOM node.
         var node: ?*const dom.Node = null;
         if (root.styled_node) |sn| {
             node = sn.node;
@@ -39,6 +36,9 @@ pub fn hitTest(root: *const layout_box.LayoutBox, x: f32, y: f32, scroll_y: f32)
                 ancestor = a.parent;
             }
         }
+        
+        // Prefer more interactive tags if we have multiple boxes hitting the same area
+        // (common in anonymous blocks where multiple inputs/buttons are siblings)
         return HitTestResult{
             .box = root,
             .node = node,

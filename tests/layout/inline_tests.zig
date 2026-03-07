@@ -61,7 +61,7 @@ test "inline layout side-by-side" {
     try std.testing.expectEqual(@as(f32, 0.0), box1.dimensions.content.y);
 
     try std.testing.expectEqual(@as(f32, 32.0), box2.dimensions.content.width);
-    try std.testing.expectEqual(@as(f32, 24.0), box2.dimensions.content.x);
+    try std.testing.expectEqual(@as(f32, 32.0), box2.dimensions.content.x);
     try std.testing.expectEqual(@as(f32, 0.0), box2.dimensions.content.y);
 
     try std.testing.expectEqual(@as(f32, 19.2), anon.dimensions.content.height);

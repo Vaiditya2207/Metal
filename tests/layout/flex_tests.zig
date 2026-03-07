@@ -256,8 +256,79 @@ test "flex row container with padding positions children correctly" {
     try std.testing.expectEqual(@as(f32, 20), root.children.items[0].dimensions.content.x);
     // Child 0 y should be 20 (inside padding)
     try std.testing.expectEqual(@as(f32, 20), root.children.items[0].dimensions.content.y);
+    // Grandchild should shift with its flex item parent.
+    try std.testing.expectEqual(@as(f32, 20), root.children.items[0].children.items[0].dimensions.content.x);
+    try std.testing.expectEqual(@as(f32, 20), root.children.items[0].children.items[0].dimensions.content.y);
 
     // Container height should match tallest child (50)
     // BUG-E: Currently fails (returns 0)
     try std.testing.expectEqual(@as(f32, 50), root.dimensions.content.height);
+}
+
+test "flex row gap spacing" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
+
+    var container_style = properties.ComputedStyle{};
+    container_style.display = .flex;
+    container_style.width = .{ .value = 400, .unit = .px };
+    container_style.column_gap = .{ .value = 20, .unit = .px };
+
+    var child_style = properties.ComputedStyle{};
+    child_style.display = .block;
+    child_style.width = .{ .value = 100, .unit = .px };
+    child_style.height = .{ .value = 30, .unit = .px };
+
+    var child1 = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
+    var child2 = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
+    var container_node = resolver.StyledNode{ .node = &dummy_node, .style = container_style, .children = &.{} };
+    const c_children = try allocator.alloc(*resolver.StyledNode, 2);
+    c_children[0] = &child1;
+    c_children[1] = &child2;
+    container_node.children = c_children;
+
+    const root = try layout.buildLayoutTree(allocator, &container_node);
+    layout.layoutTree(root, .{ .allocator = allocator, .viewport_width = 400, .viewport_height = 300 });
+
+    try std.testing.expectEqual(@as(f32, 0), root.children.items[0].dimensions.content.x);
+    try std.testing.expectEqual(@as(f32, 120), root.children.items[1].dimensions.content.x);
+}
+
+test "flex row wrap creates new line" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
+
+    var container_style = properties.ComputedStyle{};
+    container_style.display = .flex;
+    container_style.width = .{ .value = 210, .unit = .px };
+    container_style.flex_wrap = .wrap;
+    container_style.column_gap = .{ .value = 10, .unit = .px };
+    container_style.row_gap = .{ .value = 10, .unit = .px };
+
+    var child_style = properties.ComputedStyle{};
+    child_style.display = .block;
+    child_style.width = .{ .value = 100, .unit = .px };
+    child_style.height = .{ .value = 40, .unit = .px };
+
+    var child1 = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
+    var child2 = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
+    var child3 = resolver.StyledNode{ .node = &dummy_node, .style = child_style, .children = &.{} };
+    var container_node = resolver.StyledNode{ .node = &dummy_node, .style = container_style, .children = &.{} };
+    const c_children = try allocator.alloc(*resolver.StyledNode, 3);
+    c_children[0] = &child1;
+    c_children[1] = &child2;
+    c_children[2] = &child3;
+    container_node.children = c_children;
+
+    const root = try layout.buildLayoutTree(allocator, &container_node);
+    layout.layoutTree(root, .{ .allocator = allocator, .viewport_width = 210, .viewport_height = 300 });
+
+    try std.testing.expectEqual(@as(f32, 0), root.children.items[0].dimensions.content.x);
+    try std.testing.expectEqual(@as(f32, 110), root.children.items[1].dimensions.content.x);
+    try std.testing.expectEqual(@as(f32, 0), root.children.items[2].dimensions.content.x);
+    try std.testing.expectEqual(@as(f32, 50), root.children.items[2].dimensions.content.y);
 }

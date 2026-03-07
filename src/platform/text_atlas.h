@@ -1,6 +1,8 @@
 #ifndef TEXT_ATLAS_H
 #define TEXT_ATLAS_H
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,6 +24,10 @@ void *create_font_atlas(void *device, void *queue, float font_size,
 void *create_bold_font_atlas(void *device, void *queue, float font_size,
                              float scale_factor, GlyphMetrics *metrics_out,
                              float *ascent_out);
+void *create_font_atlas_ext(void *device, void *queue, const char *family_name,
+                            float font_size, float weight, bool is_italic,
+                            float scale_factor, GlyphMetrics *metrics_out,
+                            float *ascent_out);
 
 // Create a text-specific render pipeline (with texture sampling)
 void *create_text_pipeline(void *device);

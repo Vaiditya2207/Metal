@@ -62,9 +62,13 @@ pub fn applyPositioning(box: *LayoutBox, ctx: layout.LayoutContext) void {
         .fixed => {
             if (style.top) |t| {
                 box.dimensions.content.y = layout.resolveLength(t, ctx.viewport_height, ctx, style.font_size.value) + box.dimensions.margin.top + box.dimensions.border.top + box.dimensions.padding.top;
+            } else if (style.bottom) |b| {
+                box.dimensions.content.y = ctx.viewport_height - layout.resolveLength(b, ctx.viewport_height, ctx, style.font_size.value) - box.dimensions.content.height - box.dimensions.margin.bottom - box.dimensions.border.bottom - box.dimensions.padding.bottom;
             }
             if (style.left_pos) |l| {
                 box.dimensions.content.x = layout.resolveLength(l, ctx.viewport_width, ctx, style.font_size.value) + box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left;
+            } else if (style.right_pos) |r| {
+                box.dimensions.content.x = ctx.viewport_width - layout.resolveLength(r, ctx.viewport_width, ctx, style.font_size.value) - box.dimensions.content.width - box.dimensions.margin.right - box.dimensions.border.right - box.dimensions.padding.right;
             }
         },
     }

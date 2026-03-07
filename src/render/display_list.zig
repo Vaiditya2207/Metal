@@ -14,10 +14,15 @@ pub const DisplayCommand = union(enum) {
         color: values.CssColor,
         font_size: f32,
         font_weight: f32 = 400,
+        font_style: properties.FontStyle = .normal,
     },
     draw_image: struct {
         rect: layout_box.Rect,
         texture: *anyopaque,
+    },
+    draw_svg: struct {
+        rect: layout_box.Rect,
+        xml: []const u8,
     },
     push_clip: layout_box.Rect,
     pop_clip: void,
@@ -49,28 +54,151 @@ pub fn buildDisplayList(allocator: std.mem.Allocator, root: *layout_box.LayoutBo
 }
 
 fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_node: ?*const @import("../dom/node.zig").Node) !void {
+    const box_visible = if (box.styled_node) |sn| sn.style.visibility != .hidden else true;
+
     // 1. Draw background
     if (box.styled_node) |sn| {
-        const opacity = sn.style.opacity;
-        const bg_color = sn.style.background_color;
-        if (bg_color.a > 0) {
-            var color = bg_color;
-            if (opacity < 1.0) {
-                color.a = @intFromFloat(@as(f32, @floatFromInt(color.a)) * opacity);
+        if (box_visible) {
+            const opacity = sn.style.opacity;
+            const bg_color = sn.style.background_color;
+            if (bg_color.a > 0 and box.dimensions.borderBox().width > 0 and box.dimensions.borderBox().height > 0) {
+                var color = bg_color;
+                if (opacity < 1.0) {
+                    color.a = @intFromFloat(@as(f32, @floatFromInt(color.a)) * opacity);
+                }
+                try dl.commands.append(dl.allocator, .{
+                    .draw_rect = .{
+                        .rect = box.dimensions.borderBox(),
+                        .color = color,
+                    },
+                });
             }
-            try dl.commands.append(dl.allocator, .{
-                .draw_rect = .{
-                    .rect = box.dimensions.borderBox(),
-                    .color = color,
-                },
-            });
+
+            if (box.background_texture) |tex| {
+                const bg_rect = box.dimensions.borderBox();
+                if (bg_rect.width > 0 and bg_rect.height > 0) {
+                    var tile_w = bg_rect.width;
+                    var tile_h = bg_rect.height;
+                    const intrinsic_w = box.background_intrinsic_width;
+                    const intrinsic_h = box.background_intrinsic_height;
+
+                    if (intrinsic_w > 0 and intrinsic_h > 0) {
+                        switch (sn.style.background_size) {
+                            .auto => {
+                                tile_w = intrinsic_w;
+                                tile_h = intrinsic_h;
+                            },
+                            .contain => {
+                                const sx = bg_rect.width / intrinsic_w;
+                                const sy = bg_rect.height / intrinsic_h;
+                                const s = @min(sx, sy);
+                                tile_w = intrinsic_w * s;
+                                tile_h = intrinsic_h * s;
+                            },
+                            .cover => {
+                                const sx = bg_rect.width / intrinsic_w;
+                                const sy = bg_rect.height / intrinsic_h;
+                                const s = @max(sx, sy);
+                                tile_w = intrinsic_w * s;
+                                tile_h = intrinsic_h * s;
+                            },
+                        }
+                    }
+
+                    tile_w = @max(1.0, tile_w);
+                    tile_h = @max(1.0, tile_h);
+                    const right = bg_rect.x + bg_rect.width;
+                    const bottom = bg_rect.y + bg_rect.height;
+                    const max_tiles: usize = 512;
+
+                    switch (sn.style.background_repeat) {
+                        .no_repeat => {
+                            try dl.commands.append(dl.allocator, .{
+                                .draw_image = .{
+                                    .rect = .{
+                                        .x = bg_rect.x,
+                                        .y = bg_rect.y,
+                                        .width = @min(tile_w, bg_rect.width),
+                                        .height = @min(tile_h, bg_rect.height),
+                                    },
+                                    .texture = tex,
+                                },
+                            });
+                        },
+                        .repeat_x => {
+                            var x = bg_rect.x;
+                            var count: usize = 0;
+                            while (x < right and count < max_tiles) : (count += 1) {
+                                const w = @min(tile_w, right - x);
+                                try dl.commands.append(dl.allocator, .{
+                                    .draw_image = .{
+                                        .rect = .{
+                                            .x = x,
+                                            .y = bg_rect.y,
+                                            .width = w,
+                                            .height = @min(tile_h, bg_rect.height),
+                                        },
+                                        .texture = tex,
+                                    },
+                                });
+                                x += tile_w;
+                            }
+                        },
+                        .repeat_y => {
+                            var y = bg_rect.y;
+                            var count: usize = 0;
+                            while (y < bottom and count < max_tiles) : (count += 1) {
+                                const h = @min(tile_h, bottom - y);
+                                try dl.commands.append(dl.allocator, .{
+                                    .draw_image = .{
+                                        .rect = .{
+                                            .x = bg_rect.x,
+                                            .y = y,
+                                            .width = @min(tile_w, bg_rect.width),
+                                            .height = h,
+                                        },
+                                        .texture = tex,
+                                    },
+                                });
+                                y += tile_h;
+                            }
+                        },
+                        .repeat => {
+                            var y = bg_rect.y;
+                            var rows: usize = 0;
+                            while (y < bottom and rows < max_tiles) : (rows += 1) {
+                                const h = @min(tile_h, bottom - y);
+                                var x = bg_rect.x;
+                                var cols: usize = 0;
+                                while (x < right and cols < max_tiles) : (cols += 1) {
+                                    const w = @min(tile_w, right - x);
+                                    try dl.commands.append(dl.allocator, .{
+                                        .draw_image = .{
+                                            .rect = .{
+                                                .x = x,
+                                                .y = y,
+                                                .width = w,
+                                                .height = h,
+                                            },
+                                            .texture = tex,
+                                        },
+                                    });
+                                    x += tile_w;
+                                }
+                                y += tile_h;
+                            }
+                        },
+                    }
+                }
+            }
         }
 
         // 2. Draw border (simplified)
-        if (sn.style.border_width.value > 0 and sn.style.border_color.a > 0) {
+        if (box_visible and sn.style.border_width.value > 0 and sn.style.border_color.a > 0) {
             const bw = sn.style.border_width.value;
             const b_box = box.dimensions.borderBox();
             var bc = sn.style.border_color;
+            const opacity = sn.style.opacity;
             if (opacity < 1.0) {
                 bc.a = @intFromFloat(@as(f32, @floatFromInt(bc.a)) * opacity);
             }
@@ -87,12 +215,13 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
         }
 
         // 3. Draw list bullets
-        if (sn.style.list_style_type == .disc and std.mem.eql(u8, sn.node.tag_name_str orelse "", "li")) {
+        if (box_visible and sn.style.list_style_type == .disc and std.mem.eql(u8, sn.node.tag_name_str orelse "", "li")) {
             const p_box = box.dimensions.paddingBox();
             const bullet_size = sn.style.font_size.value * 0.4;
             const bullet_y = p_box.y + (sn.style.font_size.value * 1.2 - bullet_size) / 2.0;
             const bullet_x = p_box.x - bullet_size - 10.0;
             var c = sn.style.color;
+            const opacity = sn.style.opacity;
             if (opacity < 1.0) c.a = @intFromFloat(@as(f32, @floatFromInt(c.a)) * opacity);
             try dl.commands.append(dl.allocator, .{
                  .draw_rect = .{
@@ -104,18 +233,28 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
     }
 
     // 4. Draw image if this box has a loaded texture
-    if (box.image_texture) |tex| {
-        try dl.commands.append(dl.allocator, .{
-            .draw_image = .{
-                .rect = box.dimensions.content,
-                .texture = tex,
-            },
-        });
+    if (box_visible) {
+        if (box.image_texture) |tex| {
+            try dl.commands.append(dl.allocator, .{
+                .draw_image = .{
+                    .rect = box.dimensions.content,
+                    .texture = tex,
+                },
+            });
+        }
+        if (box.svg_xml) |xml| {
+            try dl.commands.append(dl.allocator, .{
+                .draw_svg = .{
+                    .rect = box.dimensions.content,
+                    .xml = xml,
+                },
+            });
+        }
     }
 
     // 5. Draw input text and cursor
     if (box.styled_node) |sn| {
-        if (sn.node.node_type == .element and (sn.node.tag == .input or sn.node.tag == .textarea)) {
+        if (box_visible and sn.node.node_type == .element and (sn.node.tag == .input or sn.node.tag == .textarea)) {
             const val = sn.node.getAttribute("value") orelse sn.node.getAttribute("placeholder") orelse "";
             
             var c = sn.style.color;
@@ -160,6 +299,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
     }
 
     for (box.text_runs.items) |run| {
+        if (run.styled_node.style.visibility == .hidden) continue;
         var color = values.CssColor{ .r = 0, .g = 0, .b = 0, .a = 255 };
         var opacity: f32 = 1.0;
         var font_size: f32 = 16.0;
@@ -195,20 +335,23 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
             color.a = @intFromFloat(@as(f32, @floatFromInt(color.a)) * opacity);
         }
         
-        try dl.commands.append(dl.allocator, .{
-            .draw_text = .{
-                .text = run.text,
-                .rect = .{
-                    .x = run.x,
-                    .y = run.y,
-                    .width = run.width,
-                    .height = font_size * 1.2,
+        if (run.width > 0) {
+            try dl.commands.append(dl.allocator, .{
+                .draw_text = .{
+                    .text = run.text,
+                    .rect = .{
+                        .x = run.x,
+                        .y = run.y,
+                        .width = run.width,
+                        .height = font_size * 1.2,
+                    },
+                    .color = color,
+                    .font_size = font_size,
+                    .font_weight = font_weight,
+                    .font_style = run.styled_node.style.font_style,
                 },
-                .color = color,
-                .font_size = font_size,
-                .font_weight = font_weight,
-            },
-        });
+            });
+        }
 
     }
 

@@ -129,6 +129,7 @@ test "opacity multiplication" {
     };
     const sn = resolver.StyledNode{ .node = &node, .style = style, .children = &.{} };
     var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 100, .height = 100 };
     defer root.deinit(allocator);
 
     var dl = try display_list.buildDisplayList(allocator, &root, null);
@@ -154,6 +155,7 @@ test "opacity 0.0 results in alpha 0" {
     };
     const sn = resolver.StyledNode{ .node = &node, .style = style, .children = &.{} };
     var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 100, .height = 100 };
     defer root.deinit(allocator);
 
     var dl = try display_list.buildDisplayList(allocator, &root, null);
@@ -166,5 +168,61 @@ test "opacity 0.0 results in alpha 0" {
             try std.testing.expectEqual(@as(u8, 0), rect.color.a);
         },
         else => return error.UnexpectedCommand,
+    }
+}
+
+test "background texture emits draw_image command" {
+    const allocator = std.testing.allocator;
+    var node = dom.Node.init(allocator, .element);
+    const style = properties.ComputedStyle{};
+    const sn = resolver.StyledNode{ .node = &node, .style = style, .children = &.{} };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 5, .y = 7, .width = 120, .height = 40 };
+    root.background_texture = @ptrFromInt(1);
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    try std.testing.expect(dl.commands.items.len > 0);
+    const cmd = dl.commands.items[0];
+    switch (cmd) {
+        .draw_image => |img| {
+            try std.testing.expectEqual(@as(f32, 5), img.rect.x);
+            try std.testing.expectEqual(@as(f32, 7), img.rect.y);
+            try std.testing.expectEqual(@as(f32, 120), img.rect.width);
+            try std.testing.expectEqual(@as(f32, 40), img.rect.height);
+        },
+        else => return error.UnexpectedCommand,
+    }
+}
+
+test "background repeat-x tiles across box width" {
+    const allocator = std.testing.allocator;
+    var node = dom.Node.init(allocator, .element);
+    const style = properties.ComputedStyle{
+        .background_repeat = .repeat_x,
+        .background_size = .auto,
+    };
+    const sn = resolver.StyledNode{ .node = &node, .style = style, .children = &.{} };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 25, .height = 10 };
+    root.background_texture = @ptrFromInt(1);
+    root.background_intrinsic_width = 10;
+    root.background_intrinsic_height = 10;
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    // 25px wide area tiled with 10px image => 3 tiles (10 + 10 + 5)
+    try std.testing.expectEqual(@as(usize, 3), dl.commands.items.len);
+    for (dl.commands.items) |cmd| {
+        switch (cmd) {
+            .draw_image => {},
+            else => return error.UnexpectedCommand,
+        }
     }
 }

@@ -39,7 +39,18 @@ pub fn layoutTable(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: LayoutCo
     box.dimensions.border = style_border;
     
     // Content width
-    box.dimensions.content.width = cb_width - style_margin.left - style_margin.right - style_border.left - style_border.right - style_padding.left - style_padding.right;
+    const h_extras = style_padding.left + style_padding.right + style_border.left + style_border.right;
+    const specified_w = if (box.styled_node) |sn| (if (sn.style.width) |w| @import("layout.zig").resolveLength(w, cb_width, ctx, sn.style.font_size.value) else cb_width) else cb_width;
+
+    if (box.styled_node) |sn| {
+        if (sn.style.box_sizing == .border_box) {
+            box.dimensions.content.width = @max(0, specified_w - h_extras);
+        } else {
+            box.dimensions.content.width = specified_w;
+        }
+    } else {
+        box.dimensions.content.width = specified_w - h_extras;
+    }
 
     // Position
     if (containing_block) |cb| {
@@ -47,54 +58,73 @@ pub fn layoutTable(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: LayoutCo
         box.dimensions.content.y = cb.dimensions.content.y + cb.dimensions.content.height + style_margin.top + style_border.top + style_padding.top;
     }
 
-    // 2. Count columns
+    // 2. Count columns by looking into rows (including those inside tbody/thead/tfoot)
     var num_cols: usize = 0;
-    for (box.children.items) |row| {
-        if (row.box_type == .tableRowNode) {
-            var cell_count: usize = 0;
-            for (row.children.items) |cell| {
-                if (cell.box_type == .tableCellNode) cell_count += 1;
+    const Helper = struct {
+        fn countCols(b: *LayoutBox, max_cols: *usize) void {
+            for (b.children.items) |child| {
+                if (child.box_type == .tableRowNode) {
+                    var cell_count: usize = 0;
+                    for (child.children.items) |cell| {
+                        if (cell.box_type == .tableCellNode) cell_count += 1;
+                    }
+                    if (cell_count > max_cols.*) max_cols.* = cell_count;
+                } else if (child.box_type == .blockNode) {
+                    // Recurse into blocks (like tbody)
+                    countCols(child, max_cols);
+                }
             }
-            if (cell_count > num_cols) num_cols = cell_count;
         }
-    }
+    };
+    Helper.countCols(box, &num_cols);
 
     const col_w = if (num_cols > 0) box.dimensions.content.width / @as(f32, @floatFromInt(num_cols)) else box.dimensions.content.width;
 
-    var current_y: f32 = 0;
+    const LayoutHelper = struct {
+        fn layoutRows(self_box: *LayoutBox, b: *LayoutBox, y_offset: *f32, c_w: f32, c_ctx: LayoutContext) void {
+            for (b.children.items) |child| {
+                if (child.box_type == .tableRowNode) {
+                    child.dimensions.content.width = self_box.dimensions.content.width;
+                    child.dimensions.content.x = self_box.dimensions.content.x;
+                    child.dimensions.content.y = self_box.dimensions.content.y + y_offset.*;
 
-    for (box.children.items) |row| {
-        if (row.box_type != .tableRowNode) continue;
-        
-        row.dimensions.content.width = box.dimensions.content.width;
-        row.dimensions.content.x = box.dimensions.content.x;
-        row.dimensions.content.y = box.dimensions.content.y + current_y;
+                    var current_x: f32 = 0;
+                    var row_height: f32 = 0;
 
-        var current_x: f32 = 0;
-        var row_height: f32 = 0;
+                    for (child.children.items) |cell| {
+                        if (cell.box_type != .tableCellNode) continue;
 
-        for (row.children.items) |cell| {
-            if (cell.box_type != .tableCellNode) continue;
+                        var fake_cb = box_mod.LayoutBox.init(.blockNode, null);
+                        fake_cb.dimensions.content.width = c_w;
+                        fake_cb.dimensions.content.x = child.dimensions.content.x + current_x;
+                        fake_cb.dimensions.content.y = child.dimensions.content.y;
+                        
+                        block.layoutBlock(cell, &fake_cb, c_ctx);
 
-            // Fake containing block to force column width on the cell block layout
-            var fake_cb = box_mod.LayoutBox.init(.blockNode, null);
-            fake_cb.dimensions.content.width = col_w;
-            fake_cb.dimensions.content.x = row.dimensions.content.x + current_x;
-            fake_cb.dimensions.content.y = row.dimensions.content.y;
-            
-            block.layoutBlock(cell, &fake_cb, ctx);
+                        const cell_h = cell.dimensions.marginBox().height;
+                        if (cell_h > row_height) {
+                            row_height = cell_h;
+                        }
 
-            const cell_h = cell.dimensions.marginBox().height;
-            if (cell_h > row_height) {
-                row_height = cell_h;
+                        current_x += c_w;
+                    }
+
+                    child.dimensions.content.height = row_height;
+                    y_offset.* += row_height;
+                } else if (child.box_type == .blockNode) {
+                    // Recurse into tbody/thead
+                    layoutRows(self_box, child, y_offset, c_w, c_ctx);
+                    // Also propagate the TBODY's own dimensions if it affects layout
+                    child.dimensions.content.width = self_box.dimensions.content.width;
+                    child.dimensions.content.x = self_box.dimensions.content.x;
+                    // Note: This is simplified.
+                }
             }
-
-            current_x += col_w;
         }
+    };
 
-        row.dimensions.content.height = row_height;
-        current_y += row_height;
-    }
+    var current_y: f32 = 0;
+    LayoutHelper.layoutRows(box, box, &current_y, col_w, ctx);
 
     box.dimensions.content.height = current_y;
     

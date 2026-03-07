@@ -78,9 +78,15 @@ pub const LayoutBox = struct {
     text_runs: std.ArrayListUnmanaged(TextRun) = .{},
     styled_node: ?*const resolver.StyledNode = null,
     parent: ?*LayoutBox = null,
+    background_texture: ?*anyopaque = null,
+    background_intrinsic_width: f32 = 0,
+    background_intrinsic_height: f32 = 0,
     image_texture: ?*anyopaque = null,
+    svg_xml: ?[]const u8 = null,
     intrinsic_width: f32 = 0,
     intrinsic_height: f32 = 0,
+    lock_content_width: bool = false,
+    lock_content_height: bool = false,
 
     pub fn init(box_type: BoxType, styled_node: ?*const resolver.StyledNode) LayoutBox {
         return .{
@@ -96,6 +102,7 @@ pub const LayoutBox = struct {
         }
         self.children.deinit(allocator);
         self.text_runs.deinit(allocator);
+        if (self.svg_xml) |xml| allocator.free(xml);
     }
 };
 
@@ -138,9 +145,21 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             root.* = LayoutBox.init(box_type, sn);
             
             // Set intrinsic size for replaced elements like <input> and <textarea>
-            if (sn.node.node_type == .element and (sn.node.tag == .input or sn.node.tag == .textarea)) {
-                root.intrinsic_width = 140.0;
-                root.intrinsic_height = sn.style.font_size.value * 1.2;
+            if (sn.node.node_type == .element) {
+                if (sn.node.tag == .input or sn.node.tag == .textarea) {
+                    root.intrinsic_width = 140.0;
+                    root.intrinsic_height = sn.style.font_size.value * 1.2;
+                } else if (sn.node.tag == .svg) {
+                    root.intrinsic_width = 300.0;
+                    root.intrinsic_height = 150.0;
+                    if (sn.node.getAttribute("width")) |w| {
+                        root.intrinsic_width = std.fmt.parseFloat(f32, w) catch 300.0;
+                    }
+                    if (sn.node.getAttribute("height")) |h| {
+                        root.intrinsic_height = std.fmt.parseFloat(f32, h) catch 150.0;
+                    }
+                    root.svg_xml = sn.node.serialize(self.allocator) catch null;
+                }
             }
             
             errdefer {

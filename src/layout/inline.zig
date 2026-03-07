@@ -122,7 +122,7 @@ fn resetChildDimensions(box: *box_mod.LayoutBox) void {
 
 pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, ctx: @import("layout.zig").LayoutContext) void {
     const allocator = ctx.allocator;
-    const available_width = layout_box.dimensions.content.width;
+    const container_width = layout_box.dimensions.content.width;
     const anon_abs_x = layout_box.dimensions.content.x;
     const anon_abs_y = layout_box.dimensions.content.y;
 
@@ -133,6 +133,8 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
     for (layout_box.children.items) |child| {
         resetChildDimensions(child);
     }
+    
+    layout_box.text_runs.clearRetainingCapacity();
 
     var segments = std.ArrayListUnmanaged(TextSegment){};
     var buf: [16384]u8 = undefined;
@@ -142,9 +144,21 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
 
     var line_start_idx: usize = 0;
     var current_run_idx: usize = 0;
+    var last_styled_node: ?*const resolver.StyledNode = null;
 
     for (segments.items) |seg| {
         const space_width = text_measure.measureTextWidth(" ", seg.font_size, seg.font_weight);
+
+        // Get available width for the current line
+        var available = if (ctx.float_ctx) |fc| 
+            fc.getAvailableWidth(anon_abs_y + cursor_y, current_line_height, container_width, anon_abs_x)
+        else 
+            @import("layout.zig").AvailableSpace{ .x_offset = 0, .width = container_width };
+
+        if (last_styled_node != null and last_styled_node != seg.styled_node and cursor_x > 0) {
+            cursor_x += space_width;
+        }
+        last_styled_node = seg.styled_node;
 
         if (seg.is_inline_block) {
             block.layoutBlock(seg.layout_box, layout_box, ctx);
@@ -155,16 +169,32 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
             var block_h = seg.layout_box.dimensions.marginBox().height;
             if (block_h == 0) block_h = seg.line_height;
 
-            if (cursor_x + block_w > available_width and cursor_x > 0) {
-                alignLine(layout_box, line_start_idx, current_run_idx, available_width, cursor_x);
+            // If it doesn't fit in the current shortened line box, shift down
+            if (cursor_x + block_w > available.width and cursor_x > 0) {
+                alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
                 line_start_idx = current_run_idx;
                 
                 cursor_x = 0;
                 cursor_y += current_line_height;
                 current_line_height = block_h;
+                
+                // Re-query available width for the new line
+                available = if (ctx.float_ctx) |fc| 
+                    fc.getAvailableWidth(anon_abs_y + cursor_y, current_line_height, container_width, anon_abs_x)
+                else 
+                    @import("layout.zig").AvailableSpace{ .x_offset = 0, .width = container_width };
             }
 
-            const target_x = anon_abs_x + cursor_x + seg.layout_box.dimensions.margin.left + seg.layout_box.dimensions.border.left + seg.layout_box.dimensions.padding.left;
+            // If it STILL doesn't fit (even at cursor_x = 0), and there are floats, shift down past floats
+            while (cursor_x + block_w > available.width and ctx.float_ctx != null) {
+                if (available.width >= container_width) break;
+                const prev_y = cursor_y;
+                cursor_y += 1.0; // Simple downward search (optimization: jump to next float bottom in future)
+                available = ctx.float_ctx.?.getAvailableWidth(anon_abs_y + cursor_y, current_line_height, container_width, anon_abs_x);
+                if (cursor_y - prev_y > 1000) break; // Safety break
+            }
+
+            const target_x = anon_abs_x + available.x_offset + cursor_x + seg.layout_box.dimensions.margin.left + seg.layout_box.dimensions.border.left + seg.layout_box.dimensions.padding.left;
             const target_y = anon_abs_y + cursor_y + seg.layout_box.dimensions.margin.top + seg.layout_box.dimensions.border.top + seg.layout_box.dimensions.padding.top;
             
             const dx = target_x - seg.layout_box.dimensions.content.x;
@@ -177,7 +207,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
         }
 
         if (std.mem.eql(u8, seg.text, "\n")) {
-            alignLine(layout_box, line_start_idx, current_run_idx, available_width, cursor_x);
+            alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
             line_start_idx = current_run_idx;
             
             cursor_x = 0;
@@ -200,24 +230,39 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
                 cursor_x += space_width;
             }
 
-            if (cursor_x + word_width > available_width and cursor_x > 0 and seg.white_space != .nowrap and seg.white_space != .pre) {
-                alignLine(layout_box, line_start_idx, current_run_idx, available_width, cursor_x);
+            // If it doesn't fit, shift down
+            if (cursor_x + word_width > available.width and cursor_x > 0 and seg.white_space != .nowrap and seg.white_space != .pre) {
+                alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
                 line_start_idx = current_run_idx;
                 
                 cursor_x = 0;
                 cursor_y += current_line_height;
                 current_line_height = seg.line_height;
+                
+                available = if (ctx.float_ctx) |fc| 
+                    fc.getAvailableWidth(anon_abs_y + cursor_y, current_line_height, container_width, anon_abs_x)
+                else 
+                    @import("layout.zig").AvailableSpace{ .x_offset = 0, .width = container_width };
+            }
+
+            // If it STILL doesn't fit, shift down past floats
+            while (cursor_x + word_width > available.width and ctx.float_ctx != null and seg.white_space != .nowrap and seg.white_space != .pre) {
+                if (available.width >= container_width) break;
+                const prev_y = cursor_y;
+                cursor_y += 1.0;
+                available = ctx.float_ctx.?.getAvailableWidth(anon_abs_y + cursor_y, current_line_height, container_width, anon_abs_x);
+                if (cursor_y - prev_y > 1000) break;
             }
 
             layout_box.text_runs.append(allocator, .{
                 .text = word,
                 .styled_node = seg.styled_node,
-                .x = anon_abs_x + cursor_x,
+                .x = anon_abs_x + available.x_offset + cursor_x,
                 .y = anon_abs_y + cursor_y,
                 .width = word_width,
             }) catch continue;
             
-            expandBoxRect(seg.layout_box, anon_abs_x + cursor_x, anon_abs_y + cursor_y, word_width, seg.line_height);
+            expandBoxRect(seg.layout_box, anon_abs_x + available.x_offset + cursor_x, anon_abs_y + cursor_y, word_width, seg.line_height);
 
             current_run_idx += 1;
             cursor_x += word_width;
@@ -226,11 +271,17 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
         }
     }
     
-    alignLine(layout_box, line_start_idx, current_run_idx, available_width, cursor_x);
+    // Final line alignment
+    const final_available = if (ctx.float_ctx) |fc| 
+        fc.getAvailableWidth(anon_abs_y + cursor_y, current_line_height, container_width, anon_abs_x)
+    else 
+        @import("layout.zig").AvailableSpace{ .x_offset = 0, .width = container_width };
+    alignLine(layout_box, line_start_idx, current_run_idx, final_available.width, cursor_x, final_available.x_offset);
+    
     layout_box.dimensions.content.height = cursor_y + current_line_height;
 }
 
-fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, available_width: f32, line_width: f32) void {
+fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, available_width: f32, line_width: f32, x_offset: f32) void {
     if (start_idx >= end_idx) return;
     
     var text_align: properties.TextAlign = .left;
@@ -240,19 +291,27 @@ fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, availabl
          }
      }
     
-    if (text_align == .left) return;
-    
-    var offset: f32 = 0;
+    var align_offset: f32 = 0;
     if (text_align == .center) {
-        offset = @max(0, (available_width - line_width) / 2.0);
+        align_offset = @max(0, (available_width - line_width) / 2.0);
     } else if (text_align == .right) {
-        offset = @max(0, available_width - line_width);
+        align_offset = @max(0, available_width - line_width);
     }
     
-    if (offset > 0) {
+    const total_offset = x_offset + align_offset;
+    if (total_offset > 0) {
+        // We already added x_offset in layout_box.text_runs.append in some cases? 
+        // Actually I added available.x_offset in the append calls. 
+        // Wait, if I added it in append, I should ONLY add align_offset here.
+        // Let's re-examine.
+    }
+    
+    // I added x_offset in text_runs.append: `.x = anon_abs_x + available.x_offset + cursor_x`
+    // So here I only need to apply the alignment offset.
+    if (align_offset > 0) {
         var i: usize = start_idx;
         while (i < end_idx) : (i += 1) {
-            box.text_runs.items[i].x += offset;
+            box.text_runs.items[i].x += align_offset;
         }
     }
 }

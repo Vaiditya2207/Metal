@@ -51,13 +51,23 @@ static const char *text_shader_source =
     "    return float4(in.color.rgb, in.color.a * alpha);\n"
     "}\n";
 
-void *create_font_atlas(void *device_ptr, void *queue_ptr, float font_size,
-                        float scale_factor, GlyphMetrics *metrics_out,
-                        float *ascent_out) {
+void *create_font_atlas_ext(void *device_ptr, void *queue_ptr, const char *family_name,
+                            float font_size, float weight, bool is_italic,
+                            float scale_factor, GlyphMetrics *metrics_out,
+                            float *ascent_out) {
   id<MTLDevice> device = (__bridge id<MTLDevice>)device_ptr;
   id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)queue_ptr;
-  NSFont *font = [NSFont systemFontOfSize:font_size];
-  CTFontRef ct_font = (__bridge CTFontRef)font;
+
+  NSString *family = family_name ? [NSString stringWithUTF8String:family_name] : @"Helvetica";
+  CTFontRef base_font = CTFontCreateWithName((__bridge CFStringRef)family, font_size, NULL);
+  
+  CTFontSymbolicTraits traits = 0;
+  if (weight >= 700) traits |= kCTFontBoldTrait;
+  if (is_italic) traits |= kCTFontItalicTrait;
+  
+  CTFontRef ct_font = CTFontCreateCopyWithSymbolicTraits(base_font, font_size, NULL, traits, traits);
+  if (!ct_font) ct_font = base_font;
+  else CFRelease(base_font);
 
   if (ascent_out)
     *ascent_out = (float)CTFontGetAscent(ct_font);
@@ -67,7 +77,12 @@ void *create_font_atlas(void *device_ptr, void *queue_ptr, float font_size,
   CGColorSpaceRef color_space = CGColorSpaceCreateDeviceGray();
   CGContextRef context =
       CGBitmapContextCreate(bitmap_data, atlas_size, atlas_size, 8, atlas_size,
-                            color_space, kCGImageAlphaNone);
+                            color_space, (CGBitmapInfo)kCGImageAlphaNone);
+  
+  CGContextSetInterpolationQuality(context, kCGInterpolationHigh);
+  CGContextSetShouldAntialias(context, true);
+  CGContextSetShouldSmoothFonts(context, true);
+
   CGContextTranslateCTM(context, 0, atlas_size);
   CGContextScaleCTM(context, scale_factor, -scale_factor);
   CGContextSetTextMatrix(context, CGAffineTransformIdentity);
@@ -75,7 +90,7 @@ void *create_font_atlas(void *device_ptr, void *queue_ptr, float font_size,
 
   float cur_x = 0;
   float cur_y = 0;
-  float line_height = font_size * 1.2;
+  float line_height = font_size * 1.4; // Slightly more room for synthetic strokes
 
   for (int i = 0; i < 95; i++) {
     char c = (char)(32 + i);
@@ -83,24 +98,29 @@ void *create_font_atlas(void *device_ptr, void *queue_ptr, float font_size,
     CGGlyph glyph;
     CTFontGetGlyphsForCharacters(ct_font, &unichar, &glyph, 1);
 
+    // Use GetBoundingRects to get the precise glyph bounds
     CGRect rect = CTFontGetBoundingRectsForGlyphs(
         ct_font, kCTFontOrientationHorizontal, &glyph, NULL, 1);
-    double advance = CTFontGetAdvancesForGlyphs(
-        ct_font, kCTFontOrientationHorizontal, &glyph, NULL, 1);
+    
+    // Use GetAdvances to get the spacing, which is affected by synthetic bolding
+    CGSize advance_size;
+    CTFontGetAdvancesForGlyphs(ct_font, kCTFontOrientationHorizontal, &glyph, &advance_size, 1);
+    double advance = advance_size.width;
 
-    if ((cur_x + rect.size.width + 2) * scale_factor > atlas_size) {
+    if ((cur_x + rect.size.width + 4) * scale_factor > atlas_size) {
       cur_x = 0;
       cur_y += line_height;
     }
 
-    float draw_x = cur_x - rect.origin.x + 1;
-    float draw_y = cur_y - rect.origin.y + 1;
+    // Add 2px padding to avoid bleeding
+    float draw_x = cur_x - rect.origin.x + 2;
+    float draw_y = cur_y - rect.origin.y + 2;
 
     CGPoint position = CGPointMake(draw_x, draw_y);
     CTFontDrawGlyphs(ct_font, &glyph, &position, 1, context);
 
-    metrics_out[i].uv_x = (cur_x + 1) * scale_factor / (float)atlas_size;
-    metrics_out[i].uv_y = (cur_y + 1) * scale_factor / (float)atlas_size;
+    metrics_out[i].uv_x = (cur_x + 2) * scale_factor / (float)atlas_size;
+    metrics_out[i].uv_y = (cur_y + 2) * scale_factor / (float)atlas_size;
     metrics_out[i].uv_w = rect.size.width * scale_factor / (float)atlas_size;
     metrics_out[i].uv_h = rect.size.height * scale_factor / (float)atlas_size;
     metrics_out[i].width = rect.size.width;
@@ -109,7 +129,7 @@ void *create_font_atlas(void *device_ptr, void *queue_ptr, float font_size,
     metrics_out[i].bearing_y = rect.origin.y;
     metrics_out[i].advance = (float)advance;
 
-    cur_x += rect.size.width + 2;
+    cur_x += rect.size.width + 4;
   }
 
   MTLTextureDescriptor *desc = [MTLTextureDescriptor
@@ -134,95 +154,21 @@ void *create_font_atlas(void *device_ptr, void *queue_ptr, float font_size,
   CGContextRelease(context);
   CGColorSpaceRelease(color_space);
   free(bitmap_data);
+  CFRelease(ct_font);
 
   return (__bridge_retained void *)texture;
+}
+
+void *create_font_atlas(void *device_ptr, void *queue_ptr, float font_size,
+                        float scale_factor, GlyphMetrics *metrics_out,
+                        float *ascent_out) {
+  return create_font_atlas_ext(device_ptr, queue_ptr, "Helvetica", font_size, 400, false, scale_factor, metrics_out, ascent_out);
 }
 
 void *create_bold_font_atlas(void *device_ptr, void *queue_ptr, float font_size,
                              float scale_factor, GlyphMetrics *metrics_out,
                              float *ascent_out) {
-  id<MTLDevice> device = (__bridge id<MTLDevice>)device_ptr;
-  id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)queue_ptr;
-  NSFont *font = [NSFont boldSystemFontOfSize:font_size];
-  CTFontRef ct_font = (__bridge CTFontRef)font;
-
-  if (ascent_out)
-    *ascent_out = (float)CTFontGetAscent(ct_font);
-
-  int atlas_size = (int)(2048 * scale_factor);
-  uint8_t *bitmap_data = calloc(atlas_size * atlas_size, 1);
-  CGColorSpaceRef color_space = CGColorSpaceCreateDeviceGray();
-  CGContextRef context =
-      CGBitmapContextCreate(bitmap_data, atlas_size, atlas_size, 8, atlas_size,
-                            color_space, kCGImageAlphaNone);
-  CGContextTranslateCTM(context, 0, atlas_size);
-  CGContextScaleCTM(context, scale_factor, -scale_factor);
-  CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-  CGContextSetGrayFillColor(context, 1.0, 1.0);
-
-  float cur_x = 0;
-  float cur_y = 0;
-  float line_height = font_size * 1.2;
-
-  for (int i = 0; i < 95; i++) {
-    char c = (char)(32 + i);
-    UniChar unichar = (UniChar)c;
-    CGGlyph glyph;
-    CTFontGetGlyphsForCharacters(ct_font, &unichar, &glyph, 1);
-
-    CGRect rect = CTFontGetBoundingRectsForGlyphs(
-        ct_font, kCTFontOrientationHorizontal, &glyph, NULL, 1);
-    double advance = CTFontGetAdvancesForGlyphs(
-        ct_font, kCTFontOrientationHorizontal, &glyph, NULL, 1);
-
-    if ((cur_x + rect.size.width + 2) * scale_factor > atlas_size) {
-      cur_x = 0;
-      cur_y += line_height;
-    }
-
-    float draw_x = cur_x - rect.origin.x + 1;
-    float draw_y = cur_y - rect.origin.y + 1;
-
-    CGPoint position = CGPointMake(draw_x, draw_y);
-    CTFontDrawGlyphs(ct_font, &glyph, &position, 1, context);
-
-    metrics_out[i].uv_x = (cur_x + 1) * scale_factor / (float)atlas_size;
-    metrics_out[i].uv_y = (cur_y + 1) * scale_factor / (float)atlas_size;
-    metrics_out[i].uv_w = rect.size.width * scale_factor / (float)atlas_size;
-    metrics_out[i].uv_h = rect.size.height * scale_factor / (float)atlas_size;
-    metrics_out[i].width = rect.size.width;
-    metrics_out[i].height = rect.size.height;
-    metrics_out[i].bearing_x = rect.origin.x;
-    metrics_out[i].bearing_y = rect.origin.y;
-    metrics_out[i].advance = (float)advance;
-
-    cur_x += rect.size.width + 2;
-  }
-
-  MTLTextureDescriptor *desc = [MTLTextureDescriptor
-      texture2DDescriptorWithPixelFormat:MTLPixelFormatR8Unorm
-                                   width:atlas_size
-                                  height:atlas_size
-                               mipmapped:YES];
-  id<MTLTexture> texture = [device newTextureWithDescriptor:desc];
-  [texture replaceRegion:MTLRegionMake2D(0, 0, atlas_size, atlas_size)
-             mipmapLevel:0
-               withBytes:bitmap_data
-             bytesPerRow:atlas_size];
-
-  if (queue) {
-    id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-    id<MTLBlitCommandEncoder> blitEncoder = [commandBuffer blitCommandEncoder];
-    [blitEncoder generateMipmapsForTexture:texture];
-    [blitEncoder endEncoding];
-    [commandBuffer commit];
-  }
-
-  CGContextRelease(context);
-  CGColorSpaceRelease(color_space);
-  free(bitmap_data);
-
-  return (__bridge_retained void *)texture;
+  return create_font_atlas_ext(device_ptr, queue_ptr, "Helvetica", font_size, 700, false, scale_factor, metrics_out, ascent_out);
 }
 
 void *create_text_pipeline(void *device_ptr) {

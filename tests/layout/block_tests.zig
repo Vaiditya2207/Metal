@@ -125,7 +125,8 @@ test "margins, paddings, and borders affect placement" {
     // auto width = 800 - (10+10+5+5+2+2) = 800 - 34 = 766
     try std.testing.expectEqual(@as(f32, 766), child1.dimensions.content.width);
 
-    // Root height should be child1's margin box height = 10 + 2 + 5 + 100 + 5 + 2 + 10 = 134
+    // Root height should include child content + child padding/border + margins.
+    // 10 + (100 + 5 + 5 + 2 + 2) + 10 = 134
     try std.testing.expectEqual(@as(f32, 134), root.dimensions.content.height);
 }
 
