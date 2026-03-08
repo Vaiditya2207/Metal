@@ -18,6 +18,112 @@ const dom = @import("../dom/mod.zig");
 const node_methods = @import("node_methods.zig");
 const node_event_methods = @import("node_event_methods.zig");
 
+var g_bridge: ?*const context.JsBridge = null;
+
+fn jsNoop(
+    ctx: ?*anyopaque,
+    _: ?*anyopaque,
+    _: ?*anyopaque,
+    _: c_int,
+    _: ?[*]const ?*anyopaque,
+) callconv(.c) ?*anyopaque {
+    const bridge = g_bridge orelse return null;
+    return bridge.make_undefined(ctx);
+}
+
+fn jsPerformanceNow(
+    ctx: ?*anyopaque,
+    _: ?*anyopaque,
+    _: ?*anyopaque,
+    _: c_int,
+    _: ?[*]const ?*anyopaque,
+) callconv(.c) ?*anyopaque {
+    const bridge = g_bridge orelse return null;
+    const ms: f64 = @floatFromInt(std.time.milliTimestamp());
+    return bridge.make_number_value(ctx, ms);
+}
+
+fn jsGoogleX(
+    ctx: ?*anyopaque,
+    _: ?*anyopaque,
+    _: ?*anyopaque,
+    arg_count: c_int,
+    args: ?[*]const ?*anyopaque,
+) callconv(.c) ?*anyopaque {
+    const bridge = g_bridge orelse return null;
+    if (arg_count >= 2) {
+        if (args) |arg_slice| {
+            const this_obj = arg_slice[0];
+            const callback = arg_slice[1];
+            if (callback != null) {
+                _ = bridge.call_function(ctx, callback, this_obj, 0, null);
+                if (bridge.has_exception(ctx) != 0) {
+                    if (bridge.clear_exception) |clear_ex| {
+                        clear_ex(ctx);
+                    } else {
+                        _ = bridge.evaluate_script(ctx, "".ptr, 0);
+                    }
+                }
+            }
+        }
+    }
+    return bridge.make_undefined(ctx);
+}
+
+fn registerBrowserGlobals(js_ctx: *JsContext) void {
+    const bridge = js_ctx.bridge;
+    const ctx = js_ctx.ctx;
+    const global = bridge.global_object(ctx);
+    g_bridge = bridge;
+
+    // window/self/globalThis aliases
+    bridge.object_set_property(ctx, global, "window", global);
+    bridge.object_set_property(ctx, global, "self", global);
+    bridge.object_set_property(ctx, global, "globalThis", global);
+
+    // Minimal browser APIs expected by bootstrap scripts
+    bridge.object_set_property(ctx, global, "addEventListener", bridge.make_function(ctx, "addEventListener", @ptrCast(&jsNoop)));
+    bridge.object_set_property(ctx, global, "removeEventListener", bridge.make_function(ctx, "removeEventListener", @ptrCast(&jsNoop)));
+
+    const navigator = bridge.make_object(ctx);
+    bridge.object_set_property(ctx, navigator, "userAgent", bridge.make_string_value(ctx, "Mozilla/5.0 (Macintosh; Intel Mac OS X) MetalBrowser/0.1"));
+    bridge.object_set_property(ctx, navigator, "platform", bridge.make_string_value(ctx, "MacIntel"));
+    bridge.object_set_property(ctx, navigator, "language", bridge.make_string_value(ctx, "en-US"));
+    bridge.object_set_property(ctx, global, "navigator", navigator);
+
+    const performance = bridge.make_object(ctx);
+    bridge.object_set_property(ctx, performance, "now", bridge.make_function(ctx, "now", @ptrCast(&jsPerformanceNow)));
+    bridge.object_set_property(ctx, global, "performance", performance);
+
+    // Common Google bootstrap globals
+    const dump_exception_fn = bridge.make_function(ctx, "_DumpException", @ptrCast(&jsNoop));
+    bridge.object_set_property(ctx, global, "_DumpException", dump_exception_fn);
+
+    const underscore = bridge.make_object(ctx);
+    bridge.object_set_property(ctx, underscore, "_DumpException", dump_exception_fn);
+    bridge.object_set_property(ctx, global, "_", underscore);
+
+    const object_ctor = bridge.object_get_property(ctx, global, "Object");
+    if (object_ctor != null) {
+        const object_proto = bridge.object_get_property(ctx, object_ctor, "prototype");
+        if (object_proto != null) {
+            bridge.object_set_property(ctx, object_proto, "_DumpException", dump_exception_fn);
+        }
+    }
+
+    const google = bridge.make_object(ctx);
+    const google_c = bridge.make_object(ctx);
+    bridge.object_set_property(ctx, google_c, "e", bridge.make_function(ctx, "e", @ptrCast(&jsNoop)));
+    bridge.object_set_property(ctx, google, "c", google_c);
+    bridge.object_set_property(ctx, google, "x", bridge.make_function(ctx, "x", @ptrCast(&jsGoogleX)));
+    bridge.object_set_property(ctx, google, "sx", bridge.make_function(ctx, "sx", @ptrCast(&jsGoogleX)));
+    bridge.object_set_property(ctx, global, "google", google);
+
+    const gbar = bridge.make_object(ctx);
+    bridge.object_set_property(ctx, gbar, "_DumpException", dump_exception_fn);
+    bridge.object_set_property(ctx, global, "gbar_", gbar);
+}
+
 /// All JS runtime state bundled together for lifecycle management.
 /// Use initRuntime() followed by wire() to avoid self-referential pointer issues.
 pub const JsRuntime = struct {
@@ -54,6 +160,8 @@ pub const JsRuntime = struct {
         js_ctx: *JsContext,
         document: *dom.Document,
     ) !void {
+        registerBrowserGlobals(js_ctx);
+
         self.event_dispatcher = EventDispatcher.init(
             js_ctx,
             &self.callback_registry,

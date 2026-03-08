@@ -9,6 +9,7 @@ const node_mod = @import("../dom/node.zig");
 const Node = node_mod.Node;
 const config = @import("../config.zig");
 const node_method_dispatch = @import("node_method_dispatch.zig");
+const node_methods = @import("node_methods.zig");
 const pipeline = @import("pipeline.zig");
 
 /// Read a JS string value into a provided buffer. Returns the slice or null on failure.
@@ -41,6 +42,19 @@ fn nodeTypeNumber(node: *const Node) f64 {
     };
 }
 
+fn isMirroredAttributeProperty(prop: []const u8) bool {
+    return std.mem.eql(u8, prop, "src") or
+        std.mem.eql(u8, prop, "href") or
+        std.mem.eql(u8, prop, "value") or
+        std.mem.eql(u8, prop, "name") or
+        std.mem.eql(u8, prop, "type") or
+        std.mem.eql(u8, prop, "placeholder") or
+        std.mem.eql(u8, prop, "rel") or
+        std.mem.eql(u8, prop, "role") or
+        std.mem.eql(u8, prop, "title") or
+        std.mem.eql(u8, prop, "alt");
+}
+
 /// C-callable property getter invoked by the JSC trampoline.
 pub fn nodeGetProperty(
     ctx: ?*anyopaque,
@@ -66,6 +80,12 @@ pub fn nodeGetProperty(
     if (std.mem.eql(u8, prop, "className")) {
         return getAttributeValue(bridge, ctx, node, "class");
     }
+    if (std.mem.eql(u8, prop, "classList")) {
+        return getClassListObject(bridge, ctx, node_ctx);
+    }
+    if (std.mem.eql(u8, prop, "style")) {
+        return getStyleObject(bridge, ctx, node_ctx);
+    }
     if (std.mem.eql(u8, prop, "textContent")) {
         return getTextContentValue(bridge, ctx, node);
     }
@@ -80,6 +100,9 @@ pub fn nodeGetProperty(
     }
     if (std.mem.eql(u8, prop, "data")) {
         return getDataValue(bridge, ctx, node);
+    }
+    if (node.node_type == .element and isMirroredAttributeProperty(prop)) {
+        return getAttributeValue(bridge, ctx, node, prop);
     }
     if (node_method_dispatch.getMethodFunction(bridge, ctx, prop)) |method_fn| {
         return method_fn;
@@ -121,6 +144,11 @@ pub fn nodeSetProperty(
     }
     if (std.mem.eql(u8, prop, "className")) {
         node.setAttribute("class", str_val) catch return 0;
+        pipeline.notifyDirty();
+        return 1;
+    }
+    if (node.node_type == .element and isMirroredAttributeProperty(prop)) {
+        node.setAttribute(prop, str_val) catch return 0;
         pipeline.notifyDirty();
         return 1;
     }
@@ -195,4 +223,28 @@ fn getDataValue(bridge: *const JsBridge, ctx: JsHandle, node: *const Node) JsHan
         return bridge.make_string_value(ctx, buf[0..data.len :0]);
     }
     return bridge.make_string_value(ctx, "");
+}
+
+fn getClassListObject(bridge: *const JsBridge, ctx: JsHandle, node_ctx: *NodeContext) JsHandle {
+    const obj = bridge.make_object(ctx);
+    if (obj == null) return bridge.make_null(ctx);
+    const node_handle = node_wrap.wrapNode(node_ctx.js_ctx, node_ctx.registry, node_ctx.node) catch return bridge.make_null(ctx);
+    bridge.object_set_property(ctx, obj, "__node", node_handle);
+    bridge.object_set_property(ctx, obj, "contains", bridge.make_function(ctx, "contains", @ptrCast(&node_methods.jsClassListContains)));
+    bridge.object_set_property(ctx, obj, "add", bridge.make_function(ctx, "add", @ptrCast(&node_methods.jsClassListAdd)));
+    bridge.object_set_property(ctx, obj, "remove", bridge.make_function(ctx, "remove", @ptrCast(&node_methods.jsClassListRemove)));
+    bridge.object_set_property(ctx, obj, "toggle", bridge.make_function(ctx, "toggle", @ptrCast(&node_methods.jsClassListToggle)));
+    bridge.object_set_property(ctx, obj, "replace", bridge.make_function(ctx, "replace", @ptrCast(&node_methods.jsClassListReplace)));
+    return obj;
+}
+
+fn getStyleObject(bridge: *const JsBridge, ctx: JsHandle, node_ctx: *NodeContext) JsHandle {
+    const obj = bridge.make_object(ctx);
+    if (obj == null) return bridge.make_null(ctx);
+    const node_handle = node_wrap.wrapNode(node_ctx.js_ctx, node_ctx.registry, node_ctx.node) catch return bridge.make_null(ctx);
+    bridge.object_set_property(ctx, obj, "__node", node_handle);
+    bridge.object_set_property(ctx, obj, "setProperty", bridge.make_function(ctx, "setProperty", @ptrCast(&node_methods.jsStyleSetProperty)));
+    bridge.object_set_property(ctx, obj, "getPropertyValue", bridge.make_function(ctx, "getPropertyValue", @ptrCast(&node_methods.jsStyleGetPropertyValue)));
+    bridge.object_set_property(ctx, obj, "removeProperty", bridge.make_function(ctx, "removeProperty", @ptrCast(&node_methods.jsStyleRemoveProperty)));
+    return obj;
 }

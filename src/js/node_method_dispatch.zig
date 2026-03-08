@@ -18,6 +18,8 @@ const method_table = [_]MethodEntry{
     .{ .name = "getAttribute", .callback = @ptrCast(&node_methods.jsGetAttribute) },
     .{ .name = "removeAttribute", .callback = @ptrCast(&node_methods.jsRemoveAttribute) },
     .{ .name = "hasAttribute", .callback = @ptrCast(&node_methods.jsHasAttribute) },
+    .{ .name = "matches", .callback = @ptrCast(&node_methods.jsMatches) },
+    .{ .name = "closest", .callback = @ptrCast(&node_methods.jsClosest) },
     .{ .name = "addEventListener", .callback = @ptrCast(&node_event_methods.jsAddEventListener) },
     .{ .name = "removeEventListener", .callback = @ptrCast(&node_event_methods.jsRemoveEventListener) },
 };

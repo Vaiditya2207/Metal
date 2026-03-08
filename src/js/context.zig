@@ -13,6 +13,8 @@ pub const MakeStrValFn = *const fn (JsHandle, [*:0]const u8) JsHandle;
 pub const ValueToStringFn = *const fn (JsHandle, JsHandle) JsHandle;
 pub const StringGetUtf8Fn = *const fn (JsHandle, [*]u8, c_int) c_int;
 pub const ValueIsStringFn = *const fn (JsHandle, JsHandle) c_int;
+pub const GetExceptionFn = *const fn (JsHandle) JsHandle;
+pub const ClearExceptionFn = *const fn (JsHandle) void;
 
 /// Vtable of C bridge functions.  Wired by main.zig (real JSC) or by tests (mocks).
 pub const JsBridge = struct {
@@ -41,6 +43,8 @@ pub const JsBridge = struct {
     call_function: *const fn (JsHandle, JsHandle, JsHandle, c_int, ?[*]const JsHandle) JsHandle,
     class_get_user_data: *const fn (JsHandle) ?*anyopaque,
     has_exception: *const fn (JsHandle) c_int,
+    get_exception: ?GetExceptionFn = null,
+    clear_exception: ?ClearExceptionFn = null,
 };
 
 pub const JsContext = struct {
@@ -88,6 +92,24 @@ pub const JsContext = struct {
     }
 
     pub fn clearException(self: *JsContext) void {
+        if (self.bridge.clear_exception) |clear_ex| {
+            clear_ex(self.ctx);
+            return;
+        }
         _ = self.bridge.evaluate_script(self.ctx, "".ptr, 0);
+    }
+
+    pub fn readExceptionString(self: *JsContext, buf: []u8) ?[]const u8 {
+        const get_ex = self.bridge.get_exception orelse return null;
+        const ex = get_ex(self.ctx);
+        if (ex == null) return null;
+
+        const ex_str = self.bridge.value_to_string(self.ctx, ex);
+        if (ex_str == null) return null;
+        defer self.bridge.string_release(ex_str);
+
+        const len = self.bridge.string_get_utf8(ex_str, buf.ptr, @intCast(buf.len));
+        if (len <= 1) return null;
+        return buf[0..@as(usize, @intCast(len - 1))];
     }
 };

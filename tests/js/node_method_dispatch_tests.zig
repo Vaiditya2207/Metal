@@ -246,6 +246,34 @@ test "nodeGetProperty returns function for hasAttribute" {
     try std.testing.expect(make_fn_called);
 }
 
+test "nodeGetProperty returns function for matches" {
+    var t = try makeTestNode();
+    defer t.doc.deinit();
+    defer t.js_ctx.deinit();
+    defer t.reg.deinit();
+
+    make_fn_called = false;
+    last_fn_name = null;
+    const result = callGetProperty(&t.js_ctx, &t.reg, t.elem, "matches");
+    try std.testing.expect(result != null);
+    try std.testing.expect(make_fn_called);
+    try std.testing.expectEqualStrings("matches", std.mem.span(last_fn_name.?));
+}
+
+test "nodeGetProperty returns function for closest" {
+    var t = try makeTestNode();
+    defer t.doc.deinit();
+    defer t.js_ctx.deinit();
+    defer t.reg.deinit();
+
+    make_fn_called = false;
+    last_fn_name = null;
+    const result = callGetProperty(&t.js_ctx, &t.reg, t.elem, "closest");
+    try std.testing.expect(result != null);
+    try std.testing.expect(make_fn_called);
+    try std.testing.expectEqualStrings("closest", std.mem.span(last_fn_name.?));
+}
+
 test "nodeGetProperty returns function for removeAttribute" {
     var t = try makeTestNode();
     defer t.doc.deinit();

@@ -43,7 +43,17 @@ pub fn freeScripts(allocator: std.mem.Allocator, scripts: [][]const u8) void {
 
 /// Execute all extracted scripts in order via the JS context.
 pub fn executeScripts(js_ctx: *context_mod.JsContext, scripts: []const []const u8) void {
-    for (scripts) |script| {
+    for (scripts, 0..) |script, idx| {
         _ = js_ctx.evaluateScript(script);
+        if (js_ctx.hasException()) {
+            var ex_buf: [2048]u8 = undefined;
+            const preview_len = @min(script.len, 120);
+            if (js_ctx.readExceptionString(&ex_buf)) |msg| {
+                std.debug.print("[JS EXCEPTION][inline:{d}] {s} :: {s}\n", .{ idx, msg, script[0..preview_len] });
+            } else {
+                std.debug.print("[JS EXCEPTION][inline:{d}] {s}\n", .{ idx, script[0..preview_len] });
+            }
+            js_ctx.clearException();
+        }
     }
 }
