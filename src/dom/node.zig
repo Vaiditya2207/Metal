@@ -189,4 +189,59 @@ pub const Node = struct {
         for (self.children.items) |child| child.deinit(allocator);
         self.children.deinit(allocator);
     }
+
+    /// Serialize this node and its children to an XML/HTML string.
+    pub fn serialize(self: *const Node, allocator: std.mem.Allocator) ![]const u8 {
+        var buf = std.ArrayListUnmanaged(u8){};
+        defer buf.deinit(allocator);
+        try self.serializeToBuf(allocator, &buf);
+        return try buf.toOwnedSlice(allocator);
+    }
+
+    fn serializeToBuf(self: *const Node, allocator: std.mem.Allocator, buf: *std.ArrayListUnmanaged(u8)) !void {
+        switch (self.node_type) {
+            .text => {
+                if (self.data) |d| try buf.appendSlice(allocator, d);
+            },
+            .comment => {
+                try buf.appendSlice(allocator, "<!--");
+                if (self.data) |d| try buf.appendSlice(allocator, d);
+                try buf.appendSlice(allocator, "-->");
+            },
+            .doctype => {
+                try buf.appendSlice(allocator, "<!DOCTYPE ");
+                if (self.data) |d| try buf.appendSlice(allocator, d);
+                try buf.appendSlice(allocator, ">");
+            },
+            .element => {
+                const tag = self.tag_name_str orelse "unknown";
+                try buf.appendSlice(allocator, "<");
+                try buf.appendSlice(allocator, tag);
+                for (self.attributes.items) |attr| {
+                    try buf.appendSlice(allocator, " ");
+                    try buf.appendSlice(allocator, attr.name);
+                    try buf.appendSlice(allocator, "=\"");
+                    try buf.appendSlice(allocator, attr.value);
+                    try buf.appendSlice(allocator, "\"");
+                }
+                
+                if (self.children.items.len == 0 and tag_mod.TagName.fromString(tag).isVoid()) {
+                    try buf.appendSlice(allocator, "/>");
+                } else {
+                    try buf.appendSlice(allocator, ">");
+                    for (self.children.items) |child| {
+                        try child.serializeToBuf(allocator, buf);
+                    }
+                    try buf.appendSlice(allocator, "</");
+                    try buf.appendSlice(allocator, tag);
+                    try buf.appendSlice(allocator, ">");
+                }
+            },
+            .document => {
+                for (self.children.items) |child| {
+                    try child.serializeToBuf(allocator, buf);
+                }
+            },
+        }
+    }
 };

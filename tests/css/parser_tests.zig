@@ -124,6 +124,25 @@ test "css_parse:10 shorthand padding" {
     try std.testing.expectEqual(@as(f32, 2), style.padding_left.value);
 }
 
+test "css_parse:10b shorthand inset" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var style = properties_mod.ComputedStyle{};
+    try style.applyProperty("inset", "0", allocator);
+    try std.testing.expectEqual(@as(f32, 0), style.top.?.value);
+    try std.testing.expectEqual(@as(f32, 0), style.right_pos.?.value);
+    try std.testing.expectEqual(@as(f32, 0), style.bottom.?.value);
+    try std.testing.expectEqual(@as(f32, 0), style.left_pos.?.value);
+
+    try style.applyProperty("inset", "1px 2px 3px 4px", allocator);
+    try std.testing.expectEqual(@as(f32, 1), style.top.?.value);
+    try std.testing.expectEqual(@as(f32, 2), style.right_pos.?.value);
+    try std.testing.expectEqual(@as(f32, 3), style.bottom.?.value);
+    try std.testing.expectEqual(@as(f32, 4), style.left_pos.?.value);
+}
+
 test "css_parse:13 new properties" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();

@@ -39,11 +39,11 @@ pub const StyleResolver = struct {
         return .{ .allocator = allocator };
     }
 
-    pub fn resolve(self: *StyleResolver, root: *const dom.Node, stylesheets: []const parser_mod.Stylesheet) !*StyledNode {
+    pub fn resolve(self: *StyleResolver, root: *const dom.Node, stylesheets: []const parser_mod.Stylesheet) !?*StyledNode {
         return try self.resolveNode(root, null, stylesheets);
     }
 
-    fn resolveNode(self: *StyleResolver, node: *const dom.Node, parent_style: ?*const properties_mod.ComputedStyle, stylesheets: []const parser_mod.Stylesheet) !*StyledNode {
+    fn resolveNode(self: *StyleResolver, node: *const dom.Node, parent_style: ?*const properties_mod.ComputedStyle, stylesheets: []const parser_mod.Stylesheet) !?*StyledNode {
         var style = properties_mod.ComputedStyle{};
 
         if (parent_style) |ps| {
@@ -51,13 +51,31 @@ pub const StyleResolver = struct {
             style.font_size = ps.font_size;
             style.font_family = ps.font_family;
             style.font_weight = ps.font_weight;
+            
+            // Inherit custom properties
+            var it = ps.custom_properties.iterator();
+            while (it.next()) |entry| {
+                try style.custom_properties.put(self.allocator, try self.allocator.dupe(u8, entry.key_ptr.*), try self.allocator.dupe(u8, entry.value_ptr.*));
+            }
         }
 
         const matched = try self.collectMatchingDeclarations(node, stylesheets);
         defer self.allocator.free(matched);
 
+        // Pass 1: Collect custom properties
         for (matched) |m| {
-            try style.applyProperty(m.declaration.property, m.declaration.value, self.allocator);
+            if (std.mem.startsWith(u8, m.declaration.property, "--")) {
+                try style.applyProperty(m.declaration.property, m.declaration.value, self.allocator);
+            }
+        }
+
+        // Pass 2: Substitute and apply all other properties
+        for (matched) |m| {
+            if (!std.mem.startsWith(u8, m.declaration.property, "--")) {
+                const substituted = try self.substituteVariables(m.declaration.value, &style);
+                defer self.allocator.free(substituted);
+                try style.applyProperty(m.declaration.property, substituted, self.allocator);
+            }
         }
 
         // Force hidden inputs to not display
@@ -70,6 +88,8 @@ pub const StyleResolver = struct {
                 }
             }
         }
+        
+        if (style.display == .none) return null;
 
         // Resolve font-size to absolute px values.
         // em/rem/% font-sizes are relative to the parent's computed font-size.
@@ -95,8 +115,9 @@ pub const StyleResolver = struct {
         }
 
         for (node.children.items) |child| {
-            const styled_child = try self.resolveNode(child, &style, stylesheets);
-            try children_list.append(self.allocator, styled_child);
+            if (try self.resolveNode(child, &style, stylesheets)) |styled_child| {
+                try children_list.append(self.allocator, styled_child);
+            }
         }
 
         const sn = try self.allocator.create(StyledNode);
@@ -106,6 +127,72 @@ pub const StyleResolver = struct {
             .children = try children_list.toOwnedSlice(self.allocator),
         };
         return sn;
+    }
+
+    fn substituteVariables(self: *StyleResolver, value: []const u8, style: *const properties_mod.ComputedStyle) ![]const u8 {
+        return try self.substituteVariablesRecursive(value, style, 0);
+    }
+
+    fn substituteVariablesRecursive(self: *StyleResolver, value: []const u8, style: *const properties_mod.ComputedStyle, depth: usize) ![]const u8 {
+        if (depth > 16) return try self.allocator.dupe(u8, "");
+        if (std.mem.indexOf(u8, value, "var(") == null) {
+            return try self.allocator.dupe(u8, value);
+        }
+
+        var result = std.ArrayListUnmanaged(u8){};
+        defer result.deinit(self.allocator);
+
+        var i: usize = 0;
+        while (i < value.len) {
+            if (std.mem.startsWith(u8, value[i..], "var(")) {
+                const call_start = i;
+                i += 4;
+                const content_start = i;
+                var paren_depth: usize = 1;
+                while (i < value.len and paren_depth > 0) : (i += 1) {
+                    if (value[i] == '(') paren_depth += 1;
+                    if (value[i] == ')') paren_depth -= 1;
+                }
+                
+                if (paren_depth == 0) {
+                    const var_content = value[content_start .. i - 1];
+                    var comma_idx: ?usize = null;
+                    
+                    // Find top-level comma for fallback
+                    var search_depth: usize = 0;
+                    for (var_content, 0..) |c, idx| {
+                        if (c == '(') search_depth += 1;
+                        if (c == ')') search_depth -= 1;
+                        if (c == ',' and search_depth == 0) {
+                            comma_idx = idx;
+                            break;
+                        }
+                    }
+                    
+                    const var_name = std.mem.trim(u8, if (comma_idx) |idx| var_content[0..idx] else var_content, " \t\n\r");
+                    const fallback = if (comma_idx) |idx| std.mem.trim(u8, var_content[idx + 1 ..], " \t\n\r") else null;
+                    
+                    if (style.custom_properties.get(var_name)) |resolved| {
+                        // Variables themselves can contain var()
+                        const sub_resolved = try self.substituteVariablesRecursive(resolved, style, depth + 1);
+                        defer self.allocator.free(sub_resolved);
+                        try result.appendSlice(self.allocator, sub_resolved);
+                    } else if (fallback) |f| {
+                        const sub_fallback = try self.substituteVariablesRecursive(f, style, depth + 1);
+                        defer self.allocator.free(sub_fallback);
+                        try result.appendSlice(self.allocator, sub_fallback);
+                    }
+                } else {
+                    // Malformed var(), just append original
+                    try result.appendSlice(self.allocator, value[call_start..i]);
+                }
+            } else {
+                try result.append(self.allocator, value[i]);
+                i += 1;
+            }
+        }
+
+        return try result.toOwnedSlice(self.allocator);
     }
 
     fn collectMatchingDeclarations(self: *StyleResolver, node: *const dom.Node, stylesheets: []const parser_mod.Stylesheet) ![]MatchedDeclaration {
@@ -157,6 +244,7 @@ pub const StyleResolver = struct {
         for (sn.children) |child| {
             self.freeStyledNode(@constCast(child));
         }
+        sn.style.deinit(self.allocator);
         self.allocator.free(sn.children);
         self.allocator.destroy(sn);
     }

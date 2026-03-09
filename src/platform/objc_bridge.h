@@ -60,6 +60,9 @@ float get_content_scale(void *view);
 // Get the main screen backing scale factor (does not require a view)
 float get_screen_scale_factor(void);
 
+// Rasterize an SVG string into a Metal texture
+void *rasterize_svg(void *device, void *queue, const char *svg_xml, float width, float height);
+
 // Batched draw: submit all rect vertices in a single draw call
 void batch_solid_rects(void *frame_context, void *device,
                        const void *vertex_data, int vertex_count);

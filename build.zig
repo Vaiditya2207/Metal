@@ -47,6 +47,10 @@ pub fn build(b: *std.Build) void {
         .file = b.path("src/platform/image_bridge.m"),
         .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
     });
+    exe.addCSourceFile(.{
+        .file = b.path("src/platform/svg_bridge.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
     exe.addIncludePath(b.path("src/platform"));
 
     // Link macOS frameworks

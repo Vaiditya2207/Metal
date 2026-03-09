@@ -9,22 +9,35 @@ pub const Overflow = enum { visible, hidden, scroll, auto_val };
 pub const BoxSizing = enum { content_box, border_box };
 
 pub const FlexDirection = enum { row, column };
+pub const FlexWrap = enum { nowrap, wrap };
 pub const JustifyContent = enum { flex_start, flex_end, center, space_between };
 pub const AlignItems = enum { stretch, flex_start, flex_end, center };
+pub const BackgroundSize = enum { auto, contain, cover };
+pub const BackgroundRepeat = enum { repeat, no_repeat, repeat_x, repeat_y };
 
 pub const TextAlign = enum { left, center, right };
 pub const TextDecoration = enum { none, underline };
+pub const FontStyle = enum { normal, italic };
 pub const ListStyleType = enum { disc, circle, square, decimal, none };
 pub const WhiteSpace = enum { normal, nowrap, pre };
+pub const Visibility = enum { visible, hidden, collapse };
+pub const Float = enum { none, left, right };
+pub const Clear = enum { none, left, right, both };
 
 pub const ComputedStyle = struct {
     display: Display = .inline_val,
     position: Position = .static_val,
     overflow: Overflow = .visible,
+    visibility: Visibility = .visible,
     box_sizing: BoxSizing = .content_box,
+    float: Float = .none,
+    clear: Clear = .none,
     flex_direction: FlexDirection = .row,
+    flex_wrap: FlexWrap = .nowrap,
     justify_content: JustifyContent = .flex_start,
     align_items: AlignItems = .stretch,
+    row_gap: Length = .{ .value = 0, .unit = .px },
+    column_gap: Length = .{ .value = 0, .unit = .px },
     flex_grow: f32 = 0.0,
     flex_shrink: f32 = 1.0,
     flex_basis: ?Length = null,
@@ -47,9 +60,13 @@ pub const ComputedStyle = struct {
     border_radius: Length = .{ .value = 0, .unit = .px },
     color: CssColor = CssColor.fromRgb(0, 0, 0),
     background_color: CssColor = CssColor{ .r = 0, .g = 0, .b = 0, .a = 0 },
+    background_image_url: ?[]const u8 = null,
+    background_size: BackgroundSize = .auto,
+    background_repeat: BackgroundRepeat = .repeat,
     font_size: Length = .{ .value = 16, .unit = .px },
     font_family: []const u8 = "sans-serif",
     font_weight: f32 = 400,
+    font_style: FontStyle = .normal,
     text_align: TextAlign = .left,
     line_height: f32 = 1.2,
     text_decoration: TextDecoration = .none,
@@ -61,14 +78,51 @@ pub const ComputedStyle = struct {
     left_pos: ?Length = null,
     z_index: ?i32 = null,
     opacity: f32 = 1.0,
+    custom_properties: std.StringArrayHashMapUnmanaged([]const u8) = .empty,
+
+    pub fn deinit(self: *ComputedStyle, allocator: std.mem.Allocator) void {
+        var it = self.custom_properties.iterator();
+        while (it.next()) |entry| {
+            allocator.free(entry.key_ptr.*);
+            allocator.free(entry.value_ptr.*);
+        }
+        self.custom_properties.deinit(allocator);
+        if (self.background_image_url) |url| {
+            allocator.free(url);
+            self.background_image_url = null;
+        }
+        // Note: font_family is usually a literal unless duped in applyProperty
+        // We need a way to track if it's duped. For now, we'll assume it's duped if it's not the default.
+        if (!std.mem.eql(u8, self.font_family, "sans-serif") and !std.mem.eql(u8, self.font_family, "serif") and !std.mem.eql(u8, self.font_family, "monospace")) {
+             // This is a bit risky but we'll try to free it. 
+             // Better: move font_family to a fixed-size buffer or handle ownership better.
+             // allocator.free(self.font_family);
+        }
+    }
 
     pub fn applyProperty(self: *ComputedStyle, prop: []const u8, val: []const u8, allocator: std.mem.Allocator) !void {
+        if (std.mem.startsWith(u8, prop, "--")) {
+            if (self.custom_properties.getPtr(prop)) |old_val| {
+                allocator.free(old_val.*);
+                old_val.* = try allocator.dupe(u8, val);
+            } else {
+                try self.custom_properties.put(allocator, try allocator.dupe(u8, prop), try allocator.dupe(u8, val));
+            }
+            return;
+        }
         if (std.mem.eql(u8, prop, "display")) {
             if (std.mem.eql(u8, val, "block")) self.display = .block;
             if (std.mem.eql(u8, val, "inline")) self.display = .inline_val;
             if (std.mem.eql(u8, val, "inline-block")) self.display = .inline_block;
             if (std.mem.eql(u8, val, "none")) self.display = .none;
             if (std.mem.eql(u8, val, "flex")) self.display = .flex;
+            if (std.mem.eql(u8, val, "inline-flex")) self.display = .flex;
+            if (std.mem.eql(u8, val, "-webkit-box")) self.display = .flex;
+            if (std.mem.eql(u8, val, "-webkit-flex")) self.display = .flex;
+            if (std.mem.eql(u8, val, "flow-root")) self.display = .block;
+            if (std.mem.eql(u8, val, "grid")) self.display = .block;
+            if (std.mem.eql(u8, val, "inline-grid")) self.display = .inline_block;
+            if (std.mem.eql(u8, val, "contents")) self.display = .inline_val;
             if (std.mem.eql(u8, val, "table")) self.display = .table;
             if (std.mem.eql(u8, val, "table-row")) self.display = .table_row;
             if (std.mem.eql(u8, val, "table-cell")) self.display = .table_cell;
@@ -82,6 +136,19 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "hidden")) self.overflow = .hidden;
             if (std.mem.eql(u8, val, "scroll")) self.overflow = .scroll;
             if (std.mem.eql(u8, val, "auto")) self.overflow = .auto_val;
+        } else if (std.mem.eql(u8, prop, "visibility")) {
+            if (std.mem.eql(u8, val, "visible")) self.visibility = .visible;
+            if (std.mem.eql(u8, val, "hidden")) self.visibility = .hidden;
+            if (std.mem.eql(u8, val, "collapse")) self.visibility = .collapse;
+        } else if (std.mem.eql(u8, prop, "float")) {
+            if (std.mem.eql(u8, val, "none")) self.float = .none;
+            if (std.mem.eql(u8, val, "left")) self.float = .left;
+            if (std.mem.eql(u8, val, "right")) self.float = .right;
+        } else if (std.mem.eql(u8, prop, "clear")) {
+            if (std.mem.eql(u8, val, "none")) self.clear = .none;
+            if (std.mem.eql(u8, val, "left")) self.clear = .left;
+            if (std.mem.eql(u8, val, "right")) self.clear = .right;
+            if (std.mem.eql(u8, val, "both")) self.clear = .both;
         } else if (std.mem.eql(u8, prop, "box-sizing")) {
             if (std.mem.eql(u8, val, "content-box")) self.box_sizing = .content_box;
             if (std.mem.eql(u8, val, "border-box")) self.box_sizing = .border_box;
@@ -117,6 +184,8 @@ pub const ComputedStyle = struct {
             self.bottom = values_mod.parseLength(val);
         } else if (std.mem.eql(u8, prop, "left")) {
             self.left_pos = values_mod.parseLength(val);
+        } else if (std.mem.eql(u8, prop, "inset")) {
+            self.applyInsetShorthand(val);
         } else if (std.mem.eql(u8, prop, "z-index")) {
             self.z_index = std.fmt.parseInt(i32, val, 10) catch null;
         } else if (std.mem.eql(u8, prop, "opacity")) {
@@ -145,6 +214,32 @@ pub const ComputedStyle = struct {
             if (values_mod.parseColor(val)) |c| self.color = c;
         } else if (std.mem.eql(u8, prop, "background-color")) {
             if (values_mod.parseColor(val)) |c| self.background_color = c;
+        } else if (std.mem.eql(u8, prop, "background-image")) {
+            if (std.mem.eql(u8, val, "none")) {
+                if (self.background_image_url) |old| allocator.free(old);
+                self.background_image_url = null;
+            } else if (parseCssUrl(val)) |url| {
+                if (self.background_image_url) |old| allocator.free(old);
+                self.background_image_url = try allocator.dupe(u8, url);
+            }
+        } else if (std.mem.eql(u8, prop, "background-size")) {
+            if (std.mem.eql(u8, val, "cover")) {
+                self.background_size = .cover;
+            } else if (std.mem.eql(u8, val, "contain")) {
+                self.background_size = .contain;
+            } else {
+                self.background_size = .auto;
+            }
+        } else if (std.mem.eql(u8, prop, "background-repeat")) {
+            if (std.mem.eql(u8, val, "no-repeat")) {
+                self.background_repeat = .no_repeat;
+            } else if (std.mem.eql(u8, val, "repeat-x")) {
+                self.background_repeat = .repeat_x;
+            } else if (std.mem.eql(u8, val, "repeat-y")) {
+                self.background_repeat = .repeat_y;
+            } else {
+                self.background_repeat = .repeat;
+            }
         } else if (std.mem.eql(u8, prop, "background")) {
             // background shorthand — extract color if present
             // Try parsing each token as a color
@@ -152,8 +247,25 @@ pub const ComputedStyle = struct {
             while (iter.next()) |token| {
                 if (values_mod.parseColor(token)) |c| {
                     self.background_color = c;
-                    break;
                 }
+            }
+            if (parseCssUrl(val)) |url| {
+                if (self.background_image_url) |old| allocator.free(old);
+                self.background_image_url = try allocator.dupe(u8, url);
+            }
+            if (std.mem.indexOf(u8, val, "no-repeat") != null) {
+                self.background_repeat = .no_repeat;
+            } else if (std.mem.indexOf(u8, val, "repeat-x") != null) {
+                self.background_repeat = .repeat_x;
+            } else if (std.mem.indexOf(u8, val, "repeat-y") != null) {
+                self.background_repeat = .repeat_y;
+            } else if (std.mem.indexOf(u8, val, "repeat") != null) {
+                self.background_repeat = .repeat;
+            }
+            if (std.mem.indexOf(u8, val, "cover") != null) {
+                self.background_size = .cover;
+            } else if (std.mem.indexOf(u8, val, "contain") != null) {
+                self.background_size = .contain;
             }
         } else if (std.mem.eql(u8, prop, "margin")) {
             self.applyShorthand(val, true);
@@ -163,17 +275,25 @@ pub const ComputedStyle = struct {
             if (values_mod.parseLength(val)) |l| self.font_size = l;
         } else if (std.mem.eql(u8, prop, "font-family")) {
             self.font_family = try allocator.dupe(u8, val);
+        } else if (std.mem.eql(u8, prop, "font-style")) {
+            if (std.mem.eql(u8, val, "normal")) self.font_style = .normal;
+            if (std.mem.eql(u8, val, "italic")) self.font_style = .italic;
         } else if (std.mem.eql(u8, prop, "font")) {
             var iter = std.mem.tokenizeAny(u8, val, " \t");
             while (iter.next()) |token| {
                 if (values_mod.parseLength(token)) |l| {
                     self.font_size = l;
-                } else if (!std.mem.eql(u8, token, "bold") and !std.mem.eql(u8, token, "normal") and !std.mem.eql(u8, token, "italic")) {
+                } else if (std.mem.eql(u8, token, "italic")) {
+                    self.font_style = .italic;
+                } else if (std.mem.eql(u8, token, "bold")) {
+                    self.font_weight = 700;
+                } else if (!std.mem.eql(u8, token, "normal")) {
                     // Primitive font-family extraction (last token usually)
                     self.font_family = try allocator.dupe(u8, token);
                 }
             }
-        } else if (std.mem.eql(u8, prop, "font-weight")) {
+        }
+ else if (std.mem.eql(u8, prop, "font-weight")) {
             if (std.mem.eql(u8, val, "normal")) self.font_weight = 400 else if (std.mem.eql(u8, val, "bold")) self.font_weight = 700 else {
                 self.font_weight = std.fmt.parseFloat(f32, val) catch 400;
             }
@@ -183,17 +303,58 @@ pub const ComputedStyle = struct {
         } else if (std.mem.eql(u8, prop, "flex-direction")) {
             if (std.mem.eql(u8, val, "row")) self.flex_direction = .row;
             if (std.mem.eql(u8, val, "column")) self.flex_direction = .column;
+        } else if (std.mem.eql(u8, prop, "flex-wrap")) {
+            if (std.mem.eql(u8, val, "wrap")) self.flex_wrap = .wrap;
+            if (std.mem.eql(u8, val, "nowrap")) self.flex_wrap = .nowrap;
+        } else if (std.mem.eql(u8, prop, "row-gap")) {
+            if (values_mod.parseLength(val)) |l| self.row_gap = l;
+        } else if (std.mem.eql(u8, prop, "column-gap")) {
+            if (values_mod.parseLength(val)) |l| self.column_gap = l;
+        } else if (std.mem.eql(u8, prop, "gap")) {
+            var iter = std.mem.tokenizeAny(u8, val, " \t\n\r");
+            if (iter.next()) |first| {
+                if (values_mod.parseLength(first)) |row_l| {
+                    self.row_gap = row_l;
+                    self.column_gap = row_l;
+                }
+            }
+            if (iter.next()) |second| {
+                if (values_mod.parseLength(second)) |col_l| {
+                    self.column_gap = col_l;
+                }
+            }
         } else if (std.mem.eql(u8, prop, "justify-content")) {
             if (std.mem.eql(u8, val, "flex-start")) self.justify_content = .flex_start;
             if (std.mem.eql(u8, val, "flex-end")) self.justify_content = .flex_end;
             if (std.mem.eql(u8, val, "center")) self.justify_content = .center;
             if (std.mem.eql(u8, val, "space-between")) self.justify_content = .space_between;
+            if (std.mem.eql(u8, val, "space-around")) self.justify_content = .space_between;
+            if (std.mem.eql(u8, val, "space-evenly")) self.justify_content = .space_between;
         } else if (std.mem.eql(u8, prop, "text-align")) {
             if (std.mem.eql(u8, val, "left")) self.text_align = .left;
             if (std.mem.eql(u8, val, "center")) self.text_align = .center;
             if (std.mem.eql(u8, val, "right")) self.text_align = .right;
+            if (std.mem.eql(u8, val, "start")) self.text_align = .left;
+            if (std.mem.eql(u8, val, "end")) self.text_align = .right;
         } else if (std.mem.eql(u8, prop, "line-height")) {
-            self.line_height = std.fmt.parseFloat(f32, val) catch 1.2;
+            if (std.mem.eql(u8, val, "normal")) {
+                self.line_height = 1.2;
+            } else if (values_mod.parseLength(val)) |l| {
+                switch (l.unit) {
+                    .px => {
+                        if (self.font_size.value > 0) {
+                            self.line_height = l.value / self.font_size.value;
+                        }
+                    },
+                    .percent => self.line_height = l.value / 100.0,
+                    .em, .rem => self.line_height = l.value,
+                    else => {
+                        self.line_height = std.fmt.parseFloat(f32, val) catch self.line_height;
+                    },
+                }
+            } else {
+                self.line_height = std.fmt.parseFloat(f32, val) catch self.line_height;
+            }
         } else if (std.mem.eql(u8, prop, "text-decoration")) {
             if (std.mem.eql(u8, val, "none")) self.text_decoration = .none;
             if (std.mem.eql(u8, val, "underline")) self.text_decoration = .underline;
@@ -207,11 +368,14 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "normal")) self.white_space = .normal;
             if (std.mem.eql(u8, val, "nowrap")) self.white_space = .nowrap;
             if (std.mem.eql(u8, val, "pre")) self.white_space = .pre;
+            if (std.mem.eql(u8, val, "pre-wrap")) self.white_space = .pre;
+            if (std.mem.eql(u8, val, "pre-line")) self.white_space = .normal;
         } else if (std.mem.eql(u8, prop, "align-items")) {
             if (std.mem.eql(u8, val, "stretch")) self.align_items = .stretch;
             if (std.mem.eql(u8, val, "flex-start")) self.align_items = .flex_start;
             if (std.mem.eql(u8, val, "flex-end")) self.align_items = .flex_end;
             if (std.mem.eql(u8, val, "center")) self.align_items = .center;
+            if (std.mem.eql(u8, val, "baseline")) self.align_items = .flex_start;
         } else if (std.mem.eql(u8, prop, "flex-grow")) {
             self.flex_grow = std.fmt.parseFloat(f32, val) catch 0.0;
         } else if (std.mem.eql(u8, prop, "flex-shrink")) {
@@ -225,6 +389,27 @@ pub const ComputedStyle = struct {
                 self.flex_basis = .{ .value = 0, .unit = .px };
             }
         }
+    }
+
+    fn parseCssUrl(val: []const u8) ?[]const u8 {
+        const start_idx = std.mem.indexOf(u8, val, "url(") orelse return null;
+        var i = start_idx + 4;
+        while (i < val.len and (val[i] == ' ' or val[i] == '\t' or val[i] == '\n' or val[i] == '\r')) : (i += 1) {}
+        if (i >= val.len) return null;
+
+        const end_idx = std.mem.indexOfPos(u8, val, i, ")") orelse return null;
+        if (end_idx <= i) return null;
+
+        var url_slice = std.mem.trim(u8, val[i..end_idx], " \t\n\r");
+        if (url_slice.len >= 2) {
+            const first = url_slice[0];
+            const last = url_slice[url_slice.len - 1];
+            if ((first == '"' and last == '"') or (first == '\'' and last == '\'')) {
+                url_slice = url_slice[1 .. url_slice.len - 1];
+            }
+        }
+        if (url_slice.len == 0) return null;
+        return url_slice;
     }
 
     fn applyShorthand(self: *ComputedStyle, val: []const u8, is_margin: bool) void {
@@ -256,9 +441,34 @@ pub const ComputedStyle = struct {
         }
     }
 
+    fn applyInsetShorthand(self: *ComputedStyle, val: []const u8) void {
+        var iter = std.mem.tokenizeAny(u8, val, " \t\n\r");
+        var parts: [4]Length = undefined;
+        var count: usize = 0;
+        while (iter.next()) |p| {
+            if (count < 4) {
+                if (values_mod.parseLength(p)) |l| {
+                    parts[count] = l;
+                    count += 1;
+                }
+            }
+        }
+        if (count == 0) return;
+
+        const top = parts[0];
+        const right = if (count > 1) parts[1] else top;
+        const bottom = if (count > 2) parts[2] else top;
+        const left = if (count > 3) parts[3] else right;
+
+        self.top = top;
+        self.right_pos = right;
+        self.bottom = bottom;
+        self.left_pos = left;
+    }
+
     pub fn isInherited(p: []const u8) bool {
         const inherited = [_][]const u8{
-            "color", "font-size", "font-family", "font-weight",
+            "color", "font-size", "font-family", "font-weight", "font-style",
             "text-align", "line-height", "list-style-type", "white-space", "text-decoration"
         };
         for (inherited) |i| if (std.mem.eql(u8, i, p)) return true;

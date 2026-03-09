@@ -143,7 +143,8 @@ pub const Parser = struct {
 
         while (self.current.type != .left_brace and self.current.type != .eof) {
             if (self.current.type == .comma) {
-                try selectors.append(self.allocator, try selector_mod.Selector.parse(self.allocator, current_selector_str.items));
+                const sel = try selector_mod.Selector.parse(self.allocator, current_selector_str.items);
+                if (sel.components.len > 0) try selectors.append(self.allocator, sel);
                 current_selector_str.clearRetainingCapacity();
             } else {
                 if (self.current.type == .hash) {
@@ -155,7 +156,8 @@ pub const Parser = struct {
         }
 
         if (current_selector_str.items.len > 0) {
-            try selectors.append(self.allocator, try selector_mod.Selector.parse(self.allocator, current_selector_str.items));
+            const sel = try selector_mod.Selector.parse(self.allocator, current_selector_str.items);
+            if (sel.components.len > 0) try selectors.append(self.allocator, sel);
         }
 
         if (self.current.type == .left_brace) {
@@ -169,7 +171,15 @@ pub const Parser = struct {
                 continue;
             }
 
-            const decl = try self.parseDeclaration();
+            const decl = self.parseDeclaration() catch |err| {
+                if (err == error.OutOfMemory) return err;
+                // Skip to next ';' or '}'
+                while (self.current.type != .semicolon and self.current.type != .right_brace and self.current.type != .eof) {
+                    self.current = try self.tokenizer.next();
+                }
+                if (self.current.type == .semicolon) self.current = try self.tokenizer.next();
+                continue;
+            };
             try declarations.append(self.allocator, decl);
         }
 

@@ -1,54 +1,58 @@
-Phase Checklist -- Metal Browser Engine
-Living document. Mark items [/] when in progress, [x] when done.
+# Phase Checklist — Metal Browser Engine
+> Living document. Mark items `[/]` when in progress, `[x]` when done.
+
+> Validation snapshot (March 8, 2026): `zig build` passes and `zig build test` passes (552/552).
 
 ---
 
-Phase 0 -- Toolchain Bootstrap (~1 week) [x]
+## Phase 0 — Toolchain Bootstrap *(~1 week)* [x]
 
-Setup
-- [x] Install Zig 0.14+ via brew install zig or official tarball
-- [x] Verify zig version on Apple Silicon
+### Setup
+- [x] Install Zig 0.14+ via `brew install zig` or official tarball
+- [x] Verify `zig version` on Apple Silicon
 
-Build System
-- [x] Create build.zig with aarch64-macos target
-- [x] Add C/ObjC compilation step (addCSourceFiles)
-- [x] Link frameworks: AppKit, Metal, MetalKit, QuartzCore, JavaScriptCore
-- [x] Create build.zig.zon package manifest
-- [x] Verify @cImport works for <Cocoa/Cocoa.h> and <Metal/Metal.h>
+### Build System
+- [x] Create `build.zig` with `aarch64-macos` target
+- [x] Add C/ObjC compilation step (`addCSourceFiles`)
+- [x] Link frameworks: `AppKit`, `Metal`, `MetalKit`, `QuartzCore`, `JavaScriptCore`
+- [x] Create `build.zig.zon` package manifest
+- [x] Verify `@cImport` works for `<Cocoa/Cocoa.h>` and `<Metal/Metal.h>`
 
-Project Structure
+### Project Structure
 - [x] Create directory tree:
+  ```
   src/{main.zig, platform/, dom/, css/, layout/, render/, js/, net/, ipc/, ui/, devtools/, ml/}
   resources/{shaders/, fonts/}
   tests/
-- [x] main.zig -- entry point that prints startup banner and exits
-- [x] Add .gitignore for zig-out/, zig-cache/, .DS_Store
+  ```
+- [x] `main.zig` — entry point that prints startup banner and exits
+- [x] Add `.gitignore` for `zig-out/`, `zig-cache/`, `.DS_Store`
 
-Verification
-- [x] zig build succeeds with zero errors
-- [x] zig build run prints banner and exits cleanly
+### Verification
+- [x] `zig build` succeeds with zero errors
+- [x] `zig build run` prints banner and exits cleanly
 
 ---
 
-Phase 1 -- Native Window & Metal Surface (~1-2 weeks) [x]
+## Phase 1 — Native Window & Metal Surface *(~1–2 weeks)* [x]
 
-ObjC Bridge (src/platform/)
-- [x] app.zig -- NSApplication setup, run loop
-- [x] window.zig -- NSWindow creation (title, size, style)
-- [x] metal_view.zig -- MTKView delegate, drawInMTKView callback
-- [x] objc_bridge.m -- ObjC implementations for delegate protocols
+### ObjC Bridge (`src/platform/`)
+- [x] `app.zig` — `NSApplication` setup, run loop
+- [x] `window.zig` — `NSWindow` creation (title, size, style)
+- [ ] `metal_view.zig` — `MTKView` delegate, `drawInMTKView` callback (currently implemented via ObjC bridge in `metal_render.m`)
+- [x] `objc_bridge.m` — ObjC implementations for delegate protocols
 
-Metal Setup (src/render/)
-- [x] Acquire MTLDevice (system default)
-- [x] Create MTLCommandQueue
+### Metal Setup (`src/render/`)
+- [x] Acquire `MTLDevice` (system default)
+- [x] Create `MTLCommandQueue`
 - [x] Implement clear-color render pass (solid background)
-- [x] Sync to display refresh (CVDisplayLink or MTKViewDelegate)
+- [x] Sync to display refresh (`CVDisplayLink` or `MTKViewDelegate`)
 
-QoS Threading
-- [x] Set render thread to QOS_CLASS_USER_INTERACTIVE
-- [x] Verify with Activity Monitor -- thread QoS column
+### QoS Threading
+- [x] Set render thread to `QOS_CLASS_USER_INTERACTIVE`
+- [x] Verify with `Activity Monitor` → thread QoS column
 
-Verification
+### Verification
 - [x] Window opens with title "Metal"
 - [x] Solid color clears at 60/120 Hz (no tearing)
 - [x] RSS < 20 MB idle
@@ -56,78 +60,81 @@ Verification
 
 ---
 
-Phase 2 -- HTML Tokenizer & DOM Tree (~2-3 weeks) [x]
+## Phase 2 — HTML Tokenizer & DOM Tree *(~2–3 weeks)* [x]
 
-HTML Tokenizer (src/dom/tokenizer.zig)
+### HTML Tokenizer (`src/dom/tokenizer.zig`)
 - [x] State machine: Data, TagOpen, TagName, Attribute, SelfClosing, EndTag
 - [x] Emit tokens: StartTag, EndTag, Character, EOF
-- [x] Handle entities: &amp;, &lt;, &gt;, &quot; (via entity.zig)
+- [x] Handle entities: `&amp;`, `&lt;`, `&gt;`, `&quot;` (via `entity.zig`)
 - [x] Error recovery: unclosed tags, mismatched nesting
 
-DOM Tree (modular split)
-- [x] tag.zig: TagName enum with fromString() and isVoid()
-- [x] node.zig: Node, NodeType, DomAttribute, tree operations
-- [x] document.zig: Document, Limits, arena lifecycle
-- [x] mod.zig: Barrel file re-exporting all public types
+### DOM Tree (modular split)
+- [x] `tag.zig`: TagName enum with `fromString()` and `isVoid()`
+- [x] `node.zig`: Node, NodeType, DomAttribute, tree operations
+- [x] `document.zig`: Document, Limits, arena lifecycle
+- [x] `mod.zig`: Barrel file re-exporting all public types
 
-Tree Builder (src/dom/builder.zig)
-- [x] Consume token stream -- build DOM tree
-- [x] Handle implicit elements (<html>, <head>, <body>)
-- [x] API: parseHTML(allocator, html_bytes) -> *Document
+### Tree Builder (`src/dom/builder.zig`)
+- [x] Consume token stream → build DOM tree
+- [x] Handle implicit elements (`<html>`, `<head>`, `<body>`)
+- [x] API: `parseHTML(allocator, html_bytes) -> *Document`
 
-Tests (tests/dom/)
+### Tests (`tests/dom/`)
 - [x] Tokenizer: 150+ test cases (valid HTML, malformed, XSS, fuzzing)
 - [x] Tree: 8 test cases (document, node, relationships, queries)
 - [x] Builder: 10 test cases (parsing, implicit elements, void elements)
 - [x] Fuzz: 100+ random byte sequences don't crash the tokenizer
 
+
 ---
 
-Phase 3 -- CSS Parser & Style Resolution (~2-3 weeks) [x]
+## Phase 3 — CSS Parser & Style Resolution *(~2–3 weeks)* [x]
 
-CSS Tokenizer (src/css/tokenizer.zig)
+### CSS Tokenizer (`src/css/tokenizer.zig`)
 - [x] Tokens: Ident, Hash, String, Number, Delim, Whitespace, Colon, Semicolon, LeftBrace, RightBrace, etc.
-- [x] Handle comments /* */
+- [x] Handle comments `/* */`
 
-CSS Values (src/css/values.zig)
+### CSS Values (`src/css/values.zig`)
 - [x] CssColor: hex (3/6/8 digit), named colors, rgb
 - [x] Length: px, em, rem, vh, vw, percent, auto, none
 - [x] CssValue union: keyword, length, color, number, string, none
 
-CSS Parser (src/css/parser.zig)
-- [x] Parse selectors: tag, .class, #id, descendant, child >, comma list
-- [x] Parse declarations: property: value;
-- [x] Parse inline style="" attributes via parseInlineStyle
+### CSS Parser (`src/css/parser.zig`)
+- [x] Parse selectors: tag, `.class`, `#id`, descendant ` `, child `>`, `,` list
+- [x] Parse declarations: `property: value;`
+- [x] Parse inline `style=""` attributes via `parseInlineStyle`
 - [x] Property value types: Length (px, em, %), Color (hex, named), Keyword
 
-Selectors (src/css/selector.zig)
+### Selectors (`src/css/selector.zig`)
 - [x] SelectorPart: tag, id, classes, universal
 - [x] Combinators: descendant (space), child (>)
 - [x] Specificity: (a, b, c) calculation
 - [x] matchesNode: right-to-left matching with parent traversal
 - [x] Case-insensitive tag matching
 
-Supported Properties (initial set)
-- [x] display (block, inline, none, flex)
-- [x] width, height, min-*, max-*
-- [x] margin, padding (shorthand + individual, 1-4 value)
-- [x] border-width, border-color, border-radius
-- [x] color, background-color
-- [x] font-size, font-family, font-weight
-- [x] position, top, right, bottom, left
-- [x] overflow, z-index, opacity
+### Supported Properties (initial set)
+- [x] `display` (block, inline, none, flex)
+- [x] `width`, `height`, `min-*`, `max-*`
+- [x] `margin`, `padding` (shorthand + individual, 1-4 value)
+- [x] `border-width`, `border-color`, `border-radius`
+- [x] `color`, `background-color`
+- [x] `font-size`, `font-family`, `font-weight`
+- [x] `position`, `top`, `right`, `bottom`, `left`
+- [x] `overflow`, `z-index`, `opacity`
+- [x] CSS `!important` declaration support
+- [x] `@media screen` / `@media all` query parsing
 
-Style Resolution (src/css/resolver.zig)
-- [x] Cascade: author stylesheets -- inline styles (inline wins)
+### Style Resolution (`src/css/resolver.zig`)
+- [x] Cascade: author stylesheets → inline styles (inline wins)
 - [x] Specificity sorting with source-order tiebreak
 - [x] Inheritance: color, font-size, font-family, font-weight
-- [x] StyledNode tree: DOM node + resolved computed style
+- [x] `StyledNode` tree: DOM node + resolved computed style
 
-Module Structure
-- [x] src/css/mod.zig: barrel file with all re-exports
-- [x] src/config.zig: CssConfig with max_value_length, max_selector_parts, max_rules_per_stylesheet, max_declarations_per_rule
+### Module Structure
+- [x] `src/css/mod.zig`: barrel file with all re-exports
+- [x] `src/config.zig`: CssConfig with max_value_length, max_selector_parts, max_rules_per_stylesheet, max_declarations_per_rule
 
-Tests (75 total)
+### Tests (75 total)
 - [x] CSS values: 13 test cases (color parsing, length parsing, named colors)
 - [x] CSS tokenizer: 21 test cases (all token types, comments, edge cases)
 - [x] Selectors: 14 test cases (parse + match: tag, class, id, descendant, child, specificity)
@@ -136,52 +143,52 @@ Tests (75 total)
 
 ---
 
-Phase 4 -- Layout Engine (Box Model) (~3-4 weeks) [x]
+## Phase 4 — Layout Engine (Box Model) *(~3–4 weeks)* [x]
 
-Box Generation (src/layout/box.zig)
-- [x] LayoutBox: (x, y, width, height), margin/padding/border edges
-- [x] Map display: block | inline | none -- box types
+### Box Generation (`src/layout/box.zig`)
+- [x] `LayoutBox`: `(x, y, width, height)`, margin/padding/border edges
+- [x] Map `display: block | inline | none` → box types
 - [x] Anonymous block/inline boxes for mixed content
 
-Block Layout (src/layout/block.zig)
+### Block Layout (`src/layout/block.zig`)
 - [x] Width: resolve from parent containing block
 - [x] Height: determined by children content
 - [x] Vertical margin collapsing (adjacent siblings, parent-child)
-- [x] auto margins for centering
+- [x] `auto` margins for centering
 
-Inline Layout (src/layout/inline.zig)
+### Inline Layout (`src/layout/inline.zig`)
 - [x] Line box generation
 - [x] Word wrapping (break at whitespace)
-- [x] text-align: left (start with left-only)
+- [x] `text-align`: left (start with left-only)
 - [x] Inline-level element boxes within line boxes
 
-Positioning (src/layout/position.zig)
-- [x] position: relative -- offset from normal flow
-- [x] position: absolute -- offset from nearest positioned ancestor
-- [x] position: fixed -- offset from viewport
+### Positioning (`src/layout/position.zig`)
+- [x] `position: relative` — offset from normal flow
+- [x] `position: absolute` — offset from nearest positioned ancestor
+- [x] `position: fixed` — offset from viewport
 
-Flexbox (src/layout/flex.zig)
-- [x] flex-direction: row, column
-- [x] justify-content: flex-start, center, space-between
-- [x] align-items: stretch, center, flex-start, flex-end
-- [x] flex-grow, flex-shrink, flex-basis
+### Flexbox (`src/layout/flex.zig`)
+- [x] `flex-direction`: row, column
+- [x] `justify-content`: flex-start, center, space-between
+- [x] `align-items`: stretch, center, flex-start, flex-end
+- [x] `flex-grow`, `flex-shrink`, `flex-basis`
 
-Tests
-- [x] Block layout: div(width:200px, padding:10px) -- total width = 220px
-- [x] Margin collapsing: two blocks with margin 20px -- gap = 20px not 40px
+### Tests
+- [x] Block layout: div(width:200px, padding:10px) → total width = 220px
+- [x] Margin collapsing: two blocks with margin 20px → gap = 20px not 40px
 - [x] Inline: text wraps correctly at container boundary
-- [x] Flexbox: 3 items with justify-content: space-between -- correct spacing
+- [x] Flexbox: 3 items with `justify-content: space-between` → correct spacing
 - [x] Visual test: render layout tree as colored rectangles on Metal surface (deferred to Phase 5 Render)
 
 ---
 
-Phase 5 -- GPU Rasterizer & MSDF Text (~3-4 weeks) [x]
+## Phase 5 — GPU Rasterizer & MSDF Text *(~3–4 weeks)* [/]
 
-Display List (src/render/display_list.zig)
+### Display List (`src/render/display_list.zig`)
 - [x] DisplayCommand union (SolidRect, TextRun)
 - [x] buildDisplayList traversal from layout tree
 
-Rectangle Renderer (src/render/rect.zig)
+### Rectangle Renderer (`src/render/renderer.zig`, `src/platform/metal_render.m`)
 - [x] Metal render pipeline: vertex + fragment shaders (shaders.metal)
 - [x] Vertex format: position (x, y), color (rgba)
 - [x] Emit 2 triangles per layout box via draw_solid_rect
@@ -189,7 +196,7 @@ Rectangle Renderer (src/render/rect.zig)
 - [ ] Border rendering (SDF border-radius)
 - [ ] Batch all quads into single draw call
 
-Text Pipeline (src/render/text.zig)
+### Text Pipeline (`src/render/text.zig`)
 - [x] CoreText glyph atlas generation (text_atlas.m)
 - [x] Atlas texture loaded as MTLTexture
 - [x] Per-glyph quad rendering (position + UV)
@@ -197,25 +204,25 @@ Text Pipeline (src/render/text.zig)
 - [ ] MSDF font atlas (using bitmap atlas instead)
 - [ ] Subpixel positioning for crisp text at all sizes
 
-Compositor (src/render/compositor.zig)
+### Compositor (`src/render/compositor.zig`)
 - [x] Iterates display list, issues Metal draw calls
 - [x] Orthographic projection setup
 - [x] Scroll offset subtracted from all Y coordinates
 
-Image Rendering (src/render/image.zig)
-- [ ] Decode JPEG/PNG via ImageIO.framework
-- [ ] Upload decoded bitmap as MTLTexture
-- [ ] Render as textured quad in the existing pipeline
+### Image Rendering (`src/render/display_list.zig`, `src/platform/image_bridge.m`)
+- [x] Decode JPEG/PNG via `ImageIO.framework` (image_bridge.m)
+- [x] Upload decoded bitmap as `MTLTexture`
+- [x] Render as textured quad in the existing pipeline
 - [ ] Sparse textures for large images (Metal 3)
 
-Tests
+### Tests
 - [x] Render colored divs as solid rectangles on Metal surface
 - [x] Display list builds from layout tree (2 tests)
-- [x] Render text -- crisp at 2x Retina (RC-1/RC-2/BUG-C: Retina coords, scaled atlas, pixel snapping)
-- [ ] Zoom 4x -- text remains sharp (MSDF)
+- [x] Render text — crisp at 2x Retina (RC-1/RC-2/BUG-C: Retina coords, scaled atlas, pixel snapping)
+- [ ] Zoom 4x — text remains sharp (MSDF)
 - [ ] Frame time < 2 ms on M1 for simple page (measured via Metal GPU profiler)
 
-Phase 5 Visual Rendering Fixes (4 commits, 11 root causes) [x]
+### Phase 5 Visual Rendering Fixes (4 commits, 11 root causes) [x]
 - [x] RC-1: Point/pixel coordinate space mismatch (get_drawable_size returns points)
 - [x] RC-2: Font atlas rasterized at 1x (now accepts scale_factor, atlas at 512*scale)
 - [x] RC-3: Hardcoded 16px font size in inline layout (now reads styled_node font_size)
@@ -228,380 +235,455 @@ Phase 5 Visual Rendering Fixes (4 commits, 11 root causes) [x]
 - [x] BUG-F: Inline child width set to full unwrapped text width (cap at available_width)
 - [x] BUG-H: Space width uses parent font size for all children (per-child computation)
 
-Phase 5 Audit Hardening (78 findings, 6 chunks) [x]
+### Phase 5 Audit Hardening (78 findings, 6 chunks) [x]
 - [x] Chunk A: ObjC/Metal Foundation Fixes (C3, C4, H3, H4, H5, H6)
 - [x] Chunk B: Draw Call Batching (C1, C2, M15, M16)
 - [x] Chunk C: Scroll + Layout Fixes (C5, H1, H8, H10, H13, H9)
 - [x] Chunk D: Parser Hardening (C6, C7, C8, C9, H11, H12)
 - [x] Chunk E: Compositor Improvements (M14, M10, M11)
 - [x] Chunk F: Compliance Cleanup (C10, C11, C12, H14-H16, H17, H18, M21, M22, M24)
-- [x] 340 tests passing, 0 failures, 0 memory leaks
+- [x] Full suite validation now passes at 552/552 tests
 
 ---
 
-Phase 6 -- JavaScript Engine Binding (~3-4 weeks)
+## Phase 6 — JavaScript Engine Binding *(~3–4 weeks)* [/]
 
-JavaScriptCore Integration (src/js/jsc.zig)
-- [ ] Link JavaScriptCore.framework
-- [ ] Create JSGlobalContextRef per tab
-- [ ] JSEvaluateScript() -- execute JS strings
-- [ ] Inject native functions via JSObjectMakeFunctionWithCallback
-- [ ] Error handling: catch JS exceptions, surface to console
+### JavaScriptCore Integration (`src/js/context.zig`, `src/platform/jsc_bridge.h/m`)
+- [x] Link `JavaScriptCore.framework`
+- [x] Create `JSGlobalContextRef` per tab (via JsContext + JsBridge vtable)
+- [x] `JSEvaluateScript()` — execute JS strings
+- [x] Inject native functions via `JSObjectMakeFunctionWithCallback`
+- [x] Error handling: catch JS exceptions, surface to console (has_exception vtable entry)
 
-QuickJS Integration (src/js/quickjs.zig)
-- [ ] Vendor QuickJS C source (or use zig-quickjs-ng)
-- [ ] Create JSRuntime + JSContext per tab
-- [ ] JS_Eval() -- execute JS strings
-- [ ] Inject native functions via JS_NewCFunction
+### QuickJS Integration (`src/js/quickjs.zig`)
+- [ ] Vendor QuickJS C source (or use `zig-quickjs-ng`) -- deferred to Phase 10
+- [ ] Create `JSRuntime` + `JSContext` per tab -- deferred to Phase 10
+- [ ] `JS_Eval()` — execute JS strings -- deferred to Phase 10
+- [ ] Inject native functions via `JS_NewCFunction` -- deferred to Phase 10
 
-DOM Bindings (src/js/dom_bindings.zig)
-- [ ] document.getElementById(id) -- DOM node lookup
-- [ ] document.querySelector(selector) -- CSS selector match
-- [ ] document.createElement(tag) -- allocate new node
-- [ ] node.appendChild(child) -- tree manipulation
-- [ ] node.removeChild(child)
-- [ ] node.textContent (get/set)
-- [ ] node.innerHTML (get/set -- re-parse)
-- [ ] node.setAttribute(name, value)
-- [ ] node.addEventListener(event, callback)
+### DOM Bindings (`src/js/dom_bindings.zig`, `node_wrap.zig`, `node_props.zig`, `node_methods.zig`, `document_global.zig`)
+- [x] `document.getElementById(id)` — DOM node lookup
+- [x] `document.querySelector(selector)` — CSS selector match
+- [x] `document.querySelectorAll(selector)` — CSS selector match (all)
+- [x] `document.createElement(tag)` — allocate new node
+- [x] `document.createTextNode(text)` — allocate text node
+- [x] `node.appendChild(child)` — tree manipulation
+- [x] `node.removeChild(child)`
+- [x] `node.textContent` (get/set)
+- [x] `node.tagName`, `node.nodeName`, `node.nodeType` (get)
+- [x] `node.parentNode`, `node.firstChild`, `node.lastChild` (get)
+- [x] `node.nextSibling`, `node.previousSibling` (get)
+- [x] `node.id`, `node.className` (get/set)
+- [x] `node.setAttribute(name, value)`
+- [x] `node.getAttribute(name)`
+- [x] `node.removeAttribute(name)`
+- [x] `node.hasAttribute(name)`
+- [x] `node.addEventListener(event, callback)`
+- [x] `node.removeEventListener(event, callback)`
+- [ ] `node.innerHTML` (get/set -- re-parse) -- deferred (getter only, no setter parse)
 
-Timer APIs (src/js/timers.zig)
-- [ ] setTimeout(fn, ms) / clearTimeout
-- [ ] setInterval(fn, ms) / clearInterval
-- [ ] requestAnimationFrame(fn)
+### Event System (`src/js/event_dispatch.zig`, `callback_registry.zig`)
+- [x] CallbackRegistry with GC protection (value_protect/unprotect)
+- [x] EventDispatcher with bubble phase
+- [x] createEvent (type, target, bubbles, preventDefault, stopPropagation)
+- [x] dispatchEvent walks DOM tree (target + bubble phases)
 
-Console (src/js/console.zig)
-- [ ] console.log(), .warn(), .error() -- native log output
+### Timer APIs (`src/js/timers.zig`)
+- [x] `setTimeout(fn, ms)` / `clearTimeout`
+- [x] `setInterval(fn, ms)` / `clearInterval`
+- [x] `requestAnimationFrame(fn)` / `cancelAnimationFrame` (in `src/js/raf.zig`)
 
-Engine Switching
-- [ ] JSC -- QuickJS state migration for backgrounded tabs
-- [ ] Serialize essential state (variables, pending timers)
+### Console (`src/js/console.zig`)
+- [x] `console.log()`, `.warn()`, `.error()` — native log output
 
-Tests
-- [ ] document.getElementById('x').textContent = 'Hello' -- text updates on screen
-- [ ] addEventListener('click', fn) -- click div -- callback fires
-- [ ] setTimeout(() => ..., 100) -- fires after ~100 ms
-- [ ] QuickJS context < 500 KB RSS
-- [ ] JSC context cold-start < 5 ms
+### Re-render Pipeline (`src/js/pipeline.zig`)
+- [x] PipelineState dirty flag
+- [x] DOM mutations trigger markDirty (node_props.zig, node_methods.zig)
+- [x] has_exception in JsBridge vtable for exception checking
+
+### Integration Wiring (`src/js/wiring.zig`)
+- [x] JsRuntime struct with two-phase init (initRuntime + wire)
+- [x] Single-call wiring of all JS subsystems in main.zig
+- [x] Interactive demo at resources/demo.html
+
+### Engine Switching
+- [ ] JSC to QuickJS state migration for backgrounded tabs -- deferred to Phase 10
+- [ ] Serialize essential state (variables, pending timers) -- deferred to Phase 10
+
+### Tests (current full-suite baseline: 552/552 passing)
+- [x] `document.getElementById('x').textContent = 'Hello'` -- text updates via DOM binding
+- [x] `addEventListener('click', fn)` -- click div, callback fires via EventDispatcher
+- [x] `setTimeout(() => ..., 100)` -- fires after delay via TimerQueue.tick()
+- [ ] QuickJS context < 500 KB RSS -- deferred (QuickJS not yet integrated)
+- [ ] JSC context cold-start < 5 ms -- not measured (functional tests only)
 
 ---
 
-Phase 7 -- Networking & Resource Loader (~2-3 weeks)
+## Phase 6.5 — Interactive Runtime (Segfault Fix + Runtime Wiring) [x]
 
-Network Layer (src/net/session.zig)
-- [ ] ObjC bridge for NSURLSession (shared session)
-- [ ] fetch(url) -> Response -- async callback-based
-- [ ] HTTP/1.1 and HTTP/2 (automatic via NSURLSession)
-- [ ] HTTPS with system certificate store
+### Segfault Fix (3 pointer-type bugs)
+- [x] `node_wrap.zig`: heap-allocate `NodeContext`, pass as private_data (was raw `*Node`)
+- [x] `node_methods.zig`: use `class_get_user_data` via g_bridge global (was direct pointer cast)
+- [x] `node_event_methods.zig`: use `class_get_user_data` via g_js_ctx (same issue)
+- [x] `wiring.zig`: wire `setBridge()` and `setGlobal()` during init
+
+### Runtime Loop Wiring (5 disconnections)
+- [x] Timer ticking: `draw()` calls `TimerQueue.tick(now_ms)` every frame
+- [x] rAF ticking: `draw()` calls `RafQueue.tick(timestamp)` every frame
+- [x] Click event dispatch: `processEvents()` calls `EventDispatcher.dispatchEvent()` on hit target
+- [x] Dirty re-render: `draw()` checks `PipelineState.isDirty()`, triggers `rebuildRenderTree()`
+- [x] FrameContext bridge: `Renderer` holds `{*TimerQueue, *RafQueue, *EventDispatcher, *PipelineState}`
+
+### Hit-Test Fix (anonymous block click-through)
+- [x] Anonymous blocks (from `wrapAnonymousBlocks`) returned null DOM node on hit
+- [x] Fix: walk up layout `.parent` chain to find nearest ancestor with a `styled_node`
+- [x] Clicking anywhere on a colored box (not just text) now dispatches events correctly
+
+### Runtime Verification
+- [x] `zig build run -- resources/demo.html`: click counter increments on box click
+- [x] Timer text changes after 2 seconds ("Timer fired after 2 seconds!")
+- [x] "Created by JavaScript" text appears via `createElement` + `appendChild`
+- [x] Smooth scrolling works with momentum physics
+- [x] Full suite validation now passes at 552/552 tests
+
+---
+
+## Phase 7 — Networking & Resource Loader *(~2–3 weeks)* [/]
+
+### Network Layer (`src/net/fetch.zig`, `src/platform/net_bridge.m`)
+- [x] ObjC bridge for `NSURLSession` (shared session)
+- [x] `fetch(url) -> Response` — synchronous poll-based
+- [x] HTTP/1.1 and HTTP/2 (automatic via NSURLSession)
+- [x] HTTPS with system certificate store
+- [x] Response headers extraction (Content-Type, Set-Cookie, etc.)
+- [x] User-Agent and Accept-Encoding default headers
 - [ ] Response streaming (chunked data to parser)
 
-Resource Loader (src/net/loader.zig)
-- [ ] Pipeline: URL -- fetch -- parse -- discover sub-resources -- fetch children
-- [ ] Priority: HTML > CSS > fonts > JS > images
-- [ ] Sub-resource discovery from DOM: <link>, <script src>, <img src>, @import
+### Resource Loader (`src/net/loader.zig`)
+- [x] Pipeline: URL → fetch → parse → discover sub-resources → fetch children
+- [x] Priority: HTML > CSS > JS > images
+- [x] Sub-resource discovery from DOM: `<link>`, `<script src>`, `<img src>`
+- [x] Wired into main.zig (external CSS parsed, external JS executed)
+- [x] Async sub-resource loading with `startLoading()` + `poll()` loop
+- [ ] `@import` CSS discovery
 - [ ] Parallel fetching with concurrency limit
 
-Cookie Jar (src/net/cookies.zig)
-- [ ] Parse Set-Cookie headers
-- [ ] Send matching cookies on requests
+### Cookie Jar (`src/net/cookies.zig`)
+- [x] Parse `Set-Cookie` headers
+- [x] Domain matching (exact + subdomain)
+- [x] `HttpOnly`, `Secure` flag parsing
+- [x] Cookie replacement (same name+domain)
+- [x] Format Cookie header for outgoing requests
+- [ ] Send matching cookies on requests (auto-attach)
 - [ ] Persistent storage (per-profile)
-- [ ] HttpOnly, Secure, SameSite enforcement
+- [ ] `SameSite` enforcement
 
-Cache (src/net/cache.zig)
+### Cache (`src/net/cache.zig`)
 - [ ] Volatile arena cache (first-visit assets)
 - [ ] Persistent disk cache (committed after ML approval or repeat visit)
-- [ ] Cache-Control, ETag, Last-Modified support
+- [ ] `Cache-Control`, `ETag`, `Last-Modified` support
 - [ ] Cache size limit with LRU eviction
 
-Tests
-- [ ] Fetch http://example.com -- receive HTML
-- [ ] Sub-resource loading: page with CSS + image renders fully
-- [ ] Close tab -- arena freed, RSS drops
-- [ ] Cookie round-trip: set on response -- sent on next request
+### Tests (current full-suite baseline: 552/552 passing)
+- [x] Fetch pipeline: mock bridge → poll → response with headers
+- [x] Response header extraction (Content-Type, X-Custom)
+- [x] Cookie jar: 9 tests (add, domain match, path, replace, flags, dot-prefix)
+- [x] Resource discovery: DOM traversal finds link/script/img
+- [x] Resource loading priority: CSS → JS → Image
+- [ ] Close tab → arena freed, RSS drops
 
 ---
 
-Phase 8 -- Event Loop & User Input (~2-3 weeks) [/]
+## Phase 8 — Event Loop & User Input *(~2–3 weeks)* [/]
 
-Event System (src/platform/events.zig)
-- [x] Bridge NSEvent -- internal Event union (Click, Scroll, KeyDown, KeyUp, MouseMove)
+### Event System (`src/platform/events.zig`)
+- [x] Bridge `NSEvent` → internal `Event` union (Click, Scroll, KeyDown, KeyUp, MouseMove)
 - [x] Event dispatch queue integrated with render loop
 
-Hit Testing (src/render/hit_test.zig)
-- [x] Screen coordinates -- layout box -- DOM node
+### Hit Testing (`src/render/hit_test.zig`)
+- [x] Screen coordinates → layout box → DOM node
 - [x] Traverse layout tree in paint order (z-index aware)
 - [x] Return topmost interactive node
 
-Scrolling (src/render/scroll.zig)
+### Scrolling (`src/render/scroll.zig`)
 - [x] Content overflow detection
 - [x] Smooth scroll with momentum (trackpad physics)
-- [x] Scroll offset -- viewport transform in Metal
-- [ ] Scroll bar rendering (native-style overlay)
+- [x] Scroll offset → viewport transform in Metal
+- [x] Scroll bar rendering (semi-transparent overlay thumb)
 
-Navigation
-- [ ] Click <a href="..."> -- trigger page load (href returned, navigation not wired)
-- [ ] Form submission (GET)
-- [ ] history.pushState / popState (basic)
+### Navigation
+- [x] Click `<a href="...">` → trigger page load with full re-render
+- [x] Relative URL resolution via `url.Url.resolve()`
+- [x] Form submission (GET) — `<form>` action + input values
+- [x] Back/Forward keyboard shortcuts (⌘[ / ⌘])
+- [x] Navigation history stack (64-entry)
+- [ ] `history.pushState` / `popState` (basic)
 
-Text Input (src/ui/input.zig)
-- [ ] <input type="text"> -- cursor, character insertion, deletion
-- [ ] <textarea> -- multi-line input
-- [ ] Clipboard: Cmd+C, Cmd+V, Cmd+X
-- [ ] Text selection (click-drag, Cmd+A)
+### Text Input (`src/ui/input.zig`)
+- [x] `<input type="text">` — cursor, character insertion, deletion
+- [ ] `<textarea>` — multi-line input
+- [ ] Clipboard: ⌘C, ⌘V, ⌘X
+- [ ] Text selection (click-drag, ⌘A)
 
-Cursor
+### URL Bar (`src/render/renderer.zig`)
+- [x] Interactive URL text input at top of window
+- [x] Type URL and press Enter to navigate
+- [x] Page title display in URL bar and macOS title bar
+- [x] Loading progress indicator (animated bar)
+
+### Cursor
 - [x] Arrow cursor (default)
 - [x] Pointer cursor (over links)
 - [ ] Text cursor (over input fields)
 
-Tests
-- [ ] Click link -- navigate to new page
+### Tests
+- [x] Click link → navigate to new page
 - [x] Scroll long page smoothly at 120 Hz
-- [ ] Type into input field -- characters appear
-- [ ] Cmd+V paste -- text inserted
+- [ ] Type into input field → characters appear
+- [ ] ⌘V paste → text inserted
 - [x] Hit test: clicking nested elements targets correct node
 
 ---
 
-Phase 9 -- Process Isolation & IPC (~3-4 weeks)
+## Phase 9 — Process Isolation & IPC *(~3–4 weeks)*
 
-Process Spawning (src/ipc/process.zig)
-- [ ] Fork renderer processes via posix_spawn
+### Process Spawning (`src/ipc/process.zig`)
+- [ ] Fork renderer processes via `posix_spawn`
 - [ ] Each renderer has own arena, JS context, DOM
 - [ ] Configure App Sandbox entitlements per process
 
-Mach Ports (src/ipc/mach.zig)
+### Mach Ports (`src/ipc/mach.zig`)
 - [ ] Create Mach port pairs (send + receive)
 - [ ] Message types: Navigate, Resize, Close, InputEvent, FrameReady
 - [ ] Secure port transfer between UI and renderer
 
-Shared Memory (src/ipc/shm.zig)
-- [ ] shm_open + mmap for zero-copy vertex buffers
+### Shared Memory (`src/ipc/shm.zig`)
+- [ ] `shm_open` + `mmap` for zero-copy vertex buffers
 - [ ] Lock-free ring buffer protocol
-- [ ] Atomic signaling (renderer done writing -- GPU can read)
+- [ ] Atomic signaling (renderer done writing → GPU can read)
 
-IOSurface Compositing (src/ipc/iosurface.zig)
-- [ ] Renderer creates IOSurface for its framebuffer
+### IOSurface Compositing (`src/ipc/iosurface.zig`)
+- [ ] Renderer creates `IOSurface` for its framebuffer
 - [ ] Transfer IOSurface handle via Mach port to UI process
 - [ ] UI process composites all tab surfaces into final frame
 
-Crash Handling
+### Crash Handling
 - [ ] Detect renderer crash (SIGCHLD / Mach exception port)
 - [ ] Show "tab crashed" page in UI
 - [ ] Offer reload
 - [ ] No other tabs affected
 
-Tests
-- [ ] Crash renderer -- UI stays alive
-- [ ] Activity Monitor shows separate processes
+### Tests
+- [ ] Crash renderer → UI stays alive
+- [ ] `Activity Monitor` shows separate processes
 - [ ] Frame time unchanged vs single-process (zero-copy validated)
 - [ ] Sandbox prevents renderer from reading ~/Desktop
 
 ---
 
-Phase 10 -- Tab Manager & Browser Chrome (~2-3 weeks)
+## Phase 10 — Tab Manager & Browser Chrome *(~2–3 weeks)* [/]
 
-Tab Bar (src/ui/tab_bar.zig)
+### Tab Bar (`src/ui/tab_bar.zig`)
 - [ ] Metal-rendered tabs with smooth open/close animations
-- [ ] Tab title from <title> element
+- [x] Tab title from `<title>` element (via `findTitleNode` + macOS `set_window_title`)
 - [ ] Favicon display
 - [ ] Close button per tab
 - [ ] Tab drag reordering
 
-URL Bar (src/ui/url_bar.zig)
-- [ ] NSTextField embedded in chrome
-- [ ] Show current URL
-- [ ] Edit -- Enter -- navigate
+### URL Bar (`src/render/renderer.zig` — Metal-rendered)
+- [x] Metal-rendered URL bar at top 40px of window
+- [x] Show current URL
+- [x] Edit → Enter → navigate
 - [ ] Autocomplete from history
 
-Navigation Controls (src/ui/nav.zig)
-- [ ] Back / Forward buttons (per-tab history stack)
+### Navigation Controls (`src/render/renderer.zig`)
+- [x] Back / Forward (⌘[ / ⌘]) — per-tab history stack
 - [ ] Reload button
 - [ ] Stop loading button
-- [ ] Loading progress indicator
+- [x] Loading progress indicator (animated teal bar)
 
-Background Tab Management
-- [ ] JSC -- QuickJS swap after 30s background
-- [ ] Arena compression (madvise to release physical pages)
+### Background Tab Management
+- [ ] JSC → QuickJS swap after 30s background
+- [ ] Arena compression (`madvise` to release physical pages)
 - [ ] RSS target: < 2 MB per compressed background tab
 
-Keyboard Shortcuts
-- [ ] Cmd+T -- new tab
-- [ ] Cmd+W -- close tab
-- [ ] Cmd+L -- focus URL bar
-- [ ] Cmd+R -- reload
-- [ ] Cmd+[ / Cmd+] -- back / forward
-- [ ] Cmd+1-9 -- switch to tab N
+### Keyboard Shortcuts
+- [ ] ⌘T — new tab
+- [ ] ⌘W — close tab
+- [ ] ⌘L — focus URL bar
+- [ ] ⌘R — reload
+- [x] ⌘[ / ⌘] — back / forward
+- [ ] ⌘1–⌘9 — switch to tab N
 
-Tests
-- [ ] Open 50 tabs -- RSS < 1 GB
-- [ ] Switch tab -- instant restore (< 50 ms)
-- [ ] Close tab -- RSS drops proportionally
-- [ ] Back/forward navigates correctly
+### Tests
+- [ ] Open 50 tabs → RSS < 1 GB
+- [ ] Switch tab → instant restore (< 50 ms)
+- [ ] Close tab → RSS drops proportionally
+- [x] Back/forward navigates correctly
 - [ ] All keyboard shortcuts work
 
 ---
 
-Phase 11 -- Predictive Caching & ML (~3-4 weeks)
+## Phase 11 — Predictive Caching & ML *(~3–4 weeks)*
 
-Browsing History Graph (src/ml/history.zig)
+### Browsing History Graph (`src/ml/history.zig`)
 - [ ] Record navigation edges: (source_url, target_url, timestamp)
 - [ ] SQLite or custom arena-backed graph structure
 - [ ] Privacy: local-only, per-profile
 
-Prediction Model (src/ml/predictor.zig)
+### Prediction Model (`src/ml/predictor.zig`)
 - [ ] Markov chain: transition probability matrix
 - [ ] Train incrementally on new navigation events
 - [ ] Core ML model export (optional, for ANE acceleration)
 - [ ] Confidence threshold tuning (start at 0.7)
 
-Prefetch Engine (src/ml/prefetch.zig)
+### Prefetch Engine (`src/ml/prefetch.zig`)
 - [ ] On high-confidence prediction: DNS resolve + TLS handshake + fetch HTML
-- [ ] Run on QOS_CLASS_BACKGROUND (E-cores)
+- [ ] Run on `QOS_CLASS_BACKGROUND` (E-cores)
 - [ ] Store prefetched content in volatile arena
 - [ ] Cancel prefetch if user navigates elsewhere
 
-Delayed Cache Commit (src/net/cache.zig update)
+### Delayed Cache Commit (`src/net/cache.zig` update)
 - [ ] First visit to domain: assets stay in volatile memory only
-- [ ] Commit to disk only when domain appears >= 2x in history graph
-- [ ] Bounce detection: tab closed < 10s -- zero disk writes
+- [ ] Commit to disk only when domain appears ≥ 2× in history graph
+- [ ] Bounce detection: tab closed < 10s → zero disk writes
 
-Adaptive Throttling
-- [ ] Monitor battery level (IOPSCopyPowerSourcesInfo)
+### Adaptive Throttling
+- [ ] Monitor battery level (`IOPSCopyPowerSourcesInfo`)
 - [ ] Monitor CPU thermal state
 - [ ] Reduce prefetch aggressiveness when resources constrained
 
-Tests
-- [ ] Visit A -- B -- C loop 10x -- 11th time B prefetched
-- [ ] Bounce site -- zero disk cache footprint
-- [ ] Energy Impact stays "Low" during prefetching
+### Tests
+- [ ] Visit A → B → C loop 10× → 11th time B prefetched
+- [ ] Bounce site → zero disk cache footprint
+- [ ] `Energy Impact` stays "Low" during prefetching
 - [ ] Throttle engages on low battery simulation
 
 ---
 
-Phase 12 -- Native Developer Tools (~4-5 weeks)
+## Phase 12 — Native Developer Tools *(~4–5 weeks)*
 
-DOM Inspector (src/devtools/inspector.zig)
+### DOM Inspector (`src/devtools/inspector.zig`)
 - [ ] Secondary Metal render pass: box-model overlay (content, padding, border, margin)
-- [ ] Hover -- highlight element + show dimensions
-- [ ] Click -- select element
+- [ ] Hover → highlight element + show dimensions
+- [ ] Click → select element
 - [ ] Element tree view (native UI panel)
 - [ ] Computed styles panel
 
-JS Console (src/devtools/console.zig)
-- [ ] REPL: type JS -- evaluate -- show result
-- [ ] console.log output stream
+### JS Console (`src/devtools/console.zig`)
+- [ ] REPL: type JS → evaluate → show result
+- [ ] `console.log` output stream
 - [ ] Error highlighting with stack traces
 - [ ] Object inspection (expandable tree)
 
-JS Debugger (src/devtools/debugger.zig)
+### JS Debugger (`src/devtools/debugger.zig`)
 - [ ] Set breakpoints by line number
 - [ ] Step over / step into / step out / continue
 - [ ] Variable inspection at break point
 - [ ] DAP (Debug Adapter Protocol) server for external IDE integration
 - [ ] LLDB bridge for system-level debugging
 
-Network Monitor (src/devtools/network.zig)
+### Network Monitor (`src/devtools/network.zig`)
 - [ ] Log all requests: URL, method, status, timing, size
 - [ ] Waterfall visualization
 - [ ] Filter by type (HTML, CSS, JS, Image, XHR)
 - [ ] Request/response header inspection
 
-Performance Profiler (src/devtools/profiler.zig)
+### Performance Profiler (`src/devtools/profiler.zig`)
 - [ ] Frame time graph (real-time)
-- [ ] Layout thrash detection (consecutive style -- layout -- paint cycles)
+- [ ] Layout thrash detection (consecutive style → layout → paint cycles)
 - [ ] Memory usage over time
 - [ ] Alert on frame drops
 
-Session Replay (src/devtools/replay.zig)
+### Session Replay (`src/devtools/replay.zig`)
 - [ ] Rolling buffer of DOM mutation snapshots
 - [ ] Timeline scrubber: step through past states
 - [ ] Capture user interactions (clicks, scrolls) with timestamps
 
-Tests
-- [ ] Open DevTools -- zero measurable change in page frame time
-- [ ] Inspector hover -- correct element highlighted
-- [ ] JS breakpoint -- execution pauses, variables visible
+### Tests
+- [ ] Open DevTools → zero measurable change in page frame time
+- [ ] Inspector hover → correct element highlighted
+- [ ] JS breakpoint → execution pauses, variables visible
 - [ ] Network monitor shows all requests with timing
 
 ---
 
-Phase 13 -- LLM Integration (MLX) (~3-4 weeks)
+## Phase 13 — LLM Integration (MLX) *(~3–4 weeks)*
 
-MLX Runtime (src/ml/llm.zig)
+### MLX Runtime (`src/ml/llm.zig`)
 - [ ] Load quantized model (e.g., Llama-3.1-8B-4bit) via MLX
 - [ ] Tokenizer integration
 - [ ] Streaming text generation
 - [ ] Memory budget: model + 5 tabs < 6 GB total RSS
 
-Page Summarization (src/ml/summarize.zig)
+### Page Summarization (`src/ml/summarize.zig`)
 - [ ] Extract visible text content from DOM
 - [ ] Feed to LLM with summarization prompt
 - [ ] Display summary in sidebar panel
 - [ ] Target: < 3 seconds on M1 Pro
 
-Semantic Search (src/ml/search.zig)
+### Semantic Search (`src/ml/search.zig`)
 - [ ] User query: "find the pricing section"
 - [ ] LLM identifies relevant DOM region
 - [ ] Scroll to and highlight the matched section
 
-AI DevTools Copilot (src/devtools/ai.zig)
+### AI DevTools Copilot (`src/devtools/ai.zig`)
 - [ ] Feed DOM tree + error stack to LLM
 - [ ] Suggest CSS fixes for broken layouts
 - [ ] Identify accessibility violations
 - [ ] Highlight elements causing layout thrashing
 
-MCP Integration (src/ml/mcp.zig)
+### MCP Integration (`src/ml/mcp.zig`)
 - [ ] Expose browser context via Model Context Protocol
 - [ ] Allow external AI tools to query DOM, screenshots, console output
 
-Tests
+### Tests
 - [ ] Summarize Wikipedia article < 3 seconds on M1 Pro
 - [ ] AI suggests valid CSS fix for broken layout
-- [ ] Semantic search: "pricing" -- scrolls to correct section
+- [ ] Semantic search: "pricing" → scrolls to correct section
 - [ ] RSS with loaded model stays within budget
 
 ---
 
-Phase 14 -- Profiles, Polish & Ship (~4-6 weeks)
+## Phase 14 — Profiles, Polish & Ship *(~4–6 weeks)*
 
-Profile System (src/ui/profiles.zig)
+### Profile System (`src/ui/profiles.zig`)
 - [ ] Isolated containers per profile (cookies, localStorage, cache)
 - [ ] App Groups for shared engine assets
 - [ ] Profile switcher in UI
 - [ ] Profile-specific history and bookmarks
 
-Settings (src/ui/settings.zig)
+### Settings (`src/ui/settings.zig`)
 - [ ] Preferences window (native macOS)
 - [ ] Default search engine (Google, DuckDuckGo, custom)
 - [ ] Privacy controls (clear data, cookie policy, tracking protection)
 - [ ] Appearance (light/dark/system)
 - [ ] Font size override
 
-Missing Features
-- [ ] Find-in-page (Cmd+F): highlight matches, navigate between
+### Missing Features
+- [ ] Find-in-page (⌘F): highlight matches, navigate between
 - [ ] Downloads manager: list, progress, open, reveal in Finder
 - [ ] Print support via macOS print system
 - [ ] PDF viewing
 - [ ] Right-click context menus
 
-Accessibility
+### Accessibility
 - [ ] VoiceOver support: semantic aria roles exposed to NSAccessibility
 - [ ] Keyboard-only navigation (Tab / Shift+Tab / Enter)
 - [ ] Dynamic Type: respect system font size
 
-Release Engineering
+### Release Engineering
 - [ ] App icon design
-- [ ] Info.plist with proper CFBundleIdentifier
+- [ ] `Info.plist` with proper `CFBundleIdentifier`
 - [ ] Code signing with Developer ID
-- [ ] Notarization via notarytool
+- [ ] Notarization via `notarytool`
 - [ ] DMG creation with drag-to-Applications
 - [ ] Auto-update mechanism (Sparkle or custom)
 - [ ] Crash reporting (symbolicated stack traces)
 
-Final Validation
-- [ ] Daily-drive for 1 week -- track crashes and missing features
+### Final Validation
+- [ ] Daily-drive for 1 week → track crashes and missing features
 - [ ] Test on M1, M2, M3, M4 (if available)
 - [ ] VoiceOver audit: all interactive elements accessible
-- [ ] Memory soak: 8 hours with 30 tabs -- no unbounded growth
+- [ ] Memory soak: 8 hours with 30 tabs → no unbounded growth
 - [ ] Clean install from DMG on fresh macOS

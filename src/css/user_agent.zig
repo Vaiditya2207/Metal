@@ -30,7 +30,7 @@ const ua_css =
     \\meta { display: none }
     \\noscript { display: none }
     \\span { display: inline }
-    \\img { display: inline }
+    \\img { display: inline-block; max-width: 100% }
     \\br { display: block }
     \\input { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }
     \\button { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }

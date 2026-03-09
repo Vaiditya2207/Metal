@@ -218,6 +218,69 @@ test "css_sel:16 universal with class matches with class" {
     try std.testing.expect(sel.matchesNode(div.?));
 }
 
+test "css_sel:17 attribute selector exists and equals" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const doc = try dom_builder.parseHTML(allocator, "<html><body><input id=\"t\" type=\"search\" disabled></input></body></html>");
+    const input = doc.root.getElementById("t").?;
+
+    const has_attr = try selector_mod.Selector.parse(allocator, "input[disabled]");
+    try std.testing.expect(has_attr.matchesNode(input));
+
+    const eq_attr = try selector_mod.Selector.parse(allocator, "input[type=search]");
+    try std.testing.expect(eq_attr.matchesNode(input));
+
+    const not_eq = try selector_mod.Selector.parse(allocator, "input[type=text]");
+    try std.testing.expect(!not_eq.matchesNode(input));
+}
+
+test "css_sel:18 root pseudo matches html root element" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const doc = try dom_builder.parseHTML(allocator, "<html><body><div id=\"x\"></div></body></html>");
+    const html = doc.root.children.items[0];
+    const div = doc.root.getElementById("x").?;
+
+    const sel = try selector_mod.Selector.parse(allocator, ":root");
+    try std.testing.expect(sel.matchesNode(html));
+    try std.testing.expect(!sel.matchesNode(div));
+}
+
+test "css_sel:19 not pseudo simple selector" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const doc = try dom_builder.parseHTML(allocator, "<html><body><div id=\"a\" class=\"foo\"></div><div id=\"b\"></div></body></html>");
+    const a = doc.root.getElementById("a").?;
+    const b = doc.root.getElementById("b").?;
+
+    const sel = try selector_mod.Selector.parse(allocator, "div:not(.foo)");
+    try std.testing.expect(!sel.matchesNode(a));
+    try std.testing.expect(sel.matchesNode(b));
+}
+
+test "css_sel:20 is where pseudo simple selector list" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const doc = try dom_builder.parseHTML(allocator, "<html><body><div id=\"a\" class=\"x\"></div><p id=\"b\"></p></body></html>");
+    const a = doc.root.getElementById("a").?;
+    const b = doc.root.getElementById("b").?;
+
+    const sel_is = try selector_mod.Selector.parse(allocator, ":is(div,p)");
+    try std.testing.expect(sel_is.matchesNode(a));
+    try std.testing.expect(sel_is.matchesNode(b));
+
+    const sel_where = try selector_mod.Selector.parse(allocator, "div:where(.x,.y)");
+    try std.testing.expect(sel_where.matchesNode(a));
+}
+
 fn findDiv(node: *dom_node.Node) ?*dom_node.Node {
     if (node.node_type == .element and node.tag_name_str != null and std.mem.eql(u8, node.tag_name_str.?, "div")) return node;
     for (node.children.items) |child| {

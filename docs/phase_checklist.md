@@ -1,6 +1,8 @@
 # Phase Checklist — Metal Browser Engine
 > Living document. Mark items `[/]` when in progress, `[x]` when done.
 
+> Validation snapshot (March 8, 2026): `zig build` passes and `zig build test` passes (552/552).
+
 ---
 
 ## Phase 0 — Toolchain Bootstrap *(~1 week)* [x]
@@ -37,7 +39,7 @@
 ### ObjC Bridge (`src/platform/`)
 - [x] `app.zig` — `NSApplication` setup, run loop
 - [x] `window.zig` — `NSWindow` creation (title, size, style)
-- [x] `metal_view.zig` — `MTKView` delegate, `drawInMTKView` callback
+- [ ] `metal_view.zig` — `MTKView` delegate, `drawInMTKView` callback (currently implemented via ObjC bridge in `metal_render.m`)
 - [x] `objc_bridge.m` — ObjC implementations for delegate protocols
 
 ### Metal Setup (`src/render/`)
@@ -180,13 +182,13 @@
 
 ---
 
-## Phase 5 — GPU Rasterizer & MSDF Text *(~3–4 weeks)* [x]
+## Phase 5 — GPU Rasterizer & MSDF Text *(~3–4 weeks)* [/]
 
 ### Display List (`src/render/display_list.zig`)
 - [x] DisplayCommand union (SolidRect, TextRun)
 - [x] buildDisplayList traversal from layout tree
 
-### Rectangle Renderer (`src/render/rect.zig`)
+### Rectangle Renderer (`src/render/renderer.zig`, `src/platform/metal_render.m`)
 - [x] Metal render pipeline: vertex + fragment shaders (shaders.metal)
 - [x] Vertex format: position (x, y), color (rgba)
 - [x] Emit 2 triangles per layout box via draw_solid_rect
@@ -207,7 +209,7 @@
 - [x] Orthographic projection setup
 - [x] Scroll offset subtracted from all Y coordinates
 
-### Image Rendering (`src/render/image.zig`)
+### Image Rendering (`src/render/display_list.zig`, `src/platform/image_bridge.m`)
 - [x] Decode JPEG/PNG via `ImageIO.framework` (image_bridge.m)
 - [x] Upload decoded bitmap as `MTLTexture`
 - [x] Render as textured quad in the existing pipeline
@@ -240,11 +242,11 @@
 - [x] Chunk D: Parser Hardening (C6, C7, C8, C9, H11, H12)
 - [x] Chunk E: Compositor Improvements (M14, M10, M11)
 - [x] Chunk F: Compliance Cleanup (C10, C11, C12, H14-H16, H17, H18, M21, M22, M24)
-- [x] 340 tests passing, 0 failures, 0 memory leaks
+- [x] Full suite validation now passes at 552/552 tests
 
 ---
 
-## Phase 6 — JavaScript Engine Binding *(~3–4 weeks)* [x]
+## Phase 6 — JavaScript Engine Binding *(~3–4 weeks)* [/]
 
 ### JavaScriptCore Integration (`src/js/context.zig`, `src/platform/jsc_bridge.h/m`)
 - [x] Link `JavaScriptCore.framework`
@@ -308,7 +310,7 @@
 - [ ] JSC to QuickJS state migration for backgrounded tabs -- deferred to Phase 10
 - [ ] Serialize essential state (variables, pending timers) -- deferred to Phase 10
 
-### Tests (521 total, 0 failures, 0 memory leaks)
+### Tests (current full-suite baseline: 552/552 passing)
 - [x] `document.getElementById('x').textContent = 'Hello'` -- text updates via DOM binding
 - [x] `addEventListener('click', fn)` -- click div, callback fires via EventDispatcher
 - [x] `setTimeout(() => ..., 100)` -- fires after delay via TimerQueue.tick()
@@ -342,11 +344,11 @@
 - [x] Timer text changes after 2 seconds ("Timer fired after 2 seconds!")
 - [x] "Created by JavaScript" text appears via `createElement` + `appendChild`
 - [x] Smooth scrolling works with momentum physics
-- [x] 521+ tests passing, 0 failures, 0 memory leaks
+- [x] Full suite validation now passes at 552/552 tests
 
 ---
 
-## Phase 7 — Networking & Resource Loader *(~2–3 weeks)* [x]
+## Phase 7 — Networking & Resource Loader *(~2–3 weeks)* [/]
 
 ### Network Layer (`src/net/fetch.zig`, `src/platform/net_bridge.m`)
 - [x] ObjC bridge for `NSURLSession` (shared session)
@@ -382,7 +384,7 @@
 - [ ] `Cache-Control`, `ETag`, `Last-Modified` support
 - [ ] Cache size limit with LRU eviction
 
-### Tests (531+ total, 0 failures, 0 memory leaks)
+### Tests (current full-suite baseline: 552/552 passing)
 - [x] Fetch pipeline: mock bridge → poll → response with headers
 - [x] Response header extraction (Content-Type, X-Custom)
 - [x] Cookie jar: 9 tests (add, domain match, path, replace, flags, dot-prefix)

@@ -105,9 +105,16 @@ const bw = struct {
     fn hasException(c: ?*anyopaque) c_int {
         return jsc.jsc_has_exception(c);
     }
+    fn getException(c: ?*anyopaque) ?*anyopaque {
+        return jsc.jsc_get_exception(c);
+    }
+    fn clearException(c: ?*anyopaque) void {
+        jsc.jsc_clear_exception(c);
+    }
 };
 
-const jsc_bridge = js.context.JsBridge{ .context_create = &bw.ctxCreate, .context_release = &bw.ctxRelease, .evaluate_script = &bw.eval, .global_object = &bw.global, .make_object = &bw.makeObj, .object_set_property = &bw.setProp, .make_function = &bw.makeFn, .make_string_value = &bw.makeStr, .make_undefined = &bw.makeUndef, .value_to_string = &bw.valToStr, .string_get_utf8 = &bw.strUtf8, .string_release = &bw.strRelease, .value_is_string = &bw.isStr, .value_protect = &bw.valueProtect, .value_unprotect = &bw.valueUnprotect, .make_class_instance = &bw.makeClassInstance, .object_get_private = &bw.objectGetPrivate, .object_get_property = &bw.objectGetProperty, .make_number_value = &bw.makeNumberValue, .value_to_number = &bw.valueToNumber, .value_is_number = &bw.valueIsNumber, .make_null = &bw.makeNull, .call_function = &bw.callFunction, .class_get_user_data = &bw.classGetUserData, .has_exception = &bw.hasException };
+const jsc_bridge = js.context.JsBridge{ .context_create = &bw.ctxCreate, .context_release = &bw.ctxRelease, .evaluate_script = &bw.eval, .global_object = &bw.global, .make_object = &bw.makeObj, .object_set_property = &bw.setProp, .make_function = &bw.makeFn, .make_string_value = &bw.makeStr, .make_undefined = &bw.makeUndef, .value_to_string = &bw.valToStr, .string_get_utf8 = &bw.strUtf8, .string_release = &bw.strRelease, .value_is_string = &bw.isStr, .value_protect = &bw.valueProtect, .value_unprotect = &bw.valueUnprotect, .make_class_instance = &bw.makeClassInstance, .object_get_private = &bw.objectGetPrivate, .object_get_property = &bw.objectGetProperty, .make_number_value = &bw.makeNumberValue, .value_to_number = &bw.valueToNumber, .value_is_number = &bw.valueIsNumber, .make_null = &bw.makeNull, .call_function = &bw.callFunction, .class_get_user_data = &bw.classGetUserData, .has_exception = &bw.hasException, .get_exception = &bw.getException, .clear_exception = &bw.clearException };
+const toolbar_height: f32 = 40.0;
 
 fn jsConsolePrint(
     ctx_handle: ?*anyopaque,
@@ -181,6 +188,38 @@ fn atlasMeasure(text_str: []const u8, font_size: f32, font_weight: f32) f32 {
     return @as(f32, @floatFromInt(text_str.len)) * 8.0;
 }
 
+fn logJsException(js_ctx: *js.context.JsContext, source_url: []const u8, script_body: []const u8) void {
+    const ex = jsc.jsc_get_exception(js_ctx.ctx);
+    var preview: [161]u8 = undefined;
+    const preview_len = @min(script_body.len, preview.len - 1);
+    for (script_body[0..preview_len], 0..) |c, i| {
+        preview[i] = if (c == '\n' or c == '\r' or c == '\t') ' ' else c;
+    }
+    preview[preview_len] = 0;
+
+    if (ex == null) {
+        std.debug.print("[JS EXCEPTION] {s} :: {s}\n", .{ source_url, preview[0..preview_len] });
+        return;
+    }
+
+    const ex_str = jsc.jsc_value_to_string(js_ctx.ctx, ex);
+    if (ex_str == null) {
+        std.debug.print("[JS EXCEPTION] {s} :: {s}\n", .{ source_url, preview[0..preview_len] });
+        jsc.jsc_clear_exception(js_ctx.ctx);
+        return;
+    }
+    defer jsc.jsc_string_release(ex_str);
+
+    var buf: [2048]u8 = undefined;
+    const len = jsc.jsc_string_get_utf8(ex_str, &buf, @intCast(buf.len));
+    if (len > 1) {
+        std.debug.print("[JS EXCEPTION] {s} :: {s} :: {s}\n", .{ source_url, buf[0..@as(usize, @intCast(len - 1))], preview[0..preview_len] });
+    } else {
+        std.debug.print("[JS EXCEPTION] {s} :: {s}\n", .{ source_url, preview[0..preview_len] });
+    }
+    jsc.jsc_clear_exception(js_ctx.ctx);
+}
+
 const net_bridge = net.fetch.NetBridge{
     .net_fetch_start = @ptrCast(&struct { fn start(url_arg: [*:0]const u8, method: [*:0]const u8, h1: ?[*]const ?[*:0]const u8, c1: c_int, body: ?[*]const u8, l: c_int) callconv(.c) net.fetch.FetchHandle { return jsc.net_fetch_start(url_arg, method, @ptrCast(@constCast(h1)), c1, body, l); } }.start),
     .net_fetch_poll = @ptrCast(&jsc.net_fetch_poll),
@@ -190,6 +229,7 @@ const net_bridge = net.fetch.NetBridge{
     .net_fetch_get_header = @ptrCast(&struct { fn f(h: net.fetch.FetchHandle, n: [*:0]const u8, o: [*]u8, m: c_int) callconv(.c) c_int { return jsc.net_fetch_get_header(h, n, o, m); } }.f),
     .net_fetch_get_header_count = @ptrCast(&jsc.net_fetch_get_header_count),
     .net_fetch_get_header_at = @ptrCast(&struct { fn f(h: net.fetch.FetchHandle, i: c_int, on: [*]u8, nm: c_int, ov: [*]u8, vm: c_int) callconv(.c) c_int { return jsc.net_fetch_get_header_at(h, i, on, nm, ov, vm); } }.f),
+    .net_fetch_get_final_url = @ptrCast(&struct { fn f(h: net.fetch.FetchHandle, out: [*]u8, max_len: c_int) callconv(.c) c_int { return jsc.net_fetch_get_final_url(h, out, max_len); } }.f),
 };
 
 pub fn main() !void {
@@ -198,6 +238,7 @@ pub fn main() !void {
     _ = my_app;
 
     var my_renderer = try renderer.Renderer.init();
+    defer my_renderer.deinit();
     var my_window = try window.Window.init(cfg.window.title, @floatFromInt(cfg.window.width), @floatFromInt(cfg.window.height));
 
     const view = try my_window.setMetalView(my_renderer.device);
@@ -212,6 +253,8 @@ pub fn main() !void {
     
     var fetch_client = net.fetch.FetchClient.init(allocator, &net_bridge);
     var base_url = net.url.Url.parse("http://localhost/") catch unreachable;
+    var base_url_storage: ?[]u8 = null;
+    defer if (base_url_storage) |u| allocator.free(u);
 
     const html_source = blk: {
         var args = std.process.args();
@@ -235,6 +278,20 @@ pub fn main() !void {
                 resp.headers = &[_]net.types.HttpHeader{};
                 
                 if (resp.status_code == 200) {
+                    if (resp.final_url) |final_url| {
+                        const owned = allocator.dupe(u8, final_url) catch null;
+                        if (owned) |owned_buf| {
+                            if (net.url.Url.parse(owned_buf)) |parsed| {
+                                if (base_url_storage) |old| allocator.free(old);
+                                base_url_storage = owned_buf;
+                                base_url = parsed;
+                            } else |_| {
+                                allocator.free(owned_buf);
+                            }
+                        }
+                        allocator.free(final_url);
+                        resp.final_url = null;
+                    }
                     break :blk resp.body;
                 } else {
                     resp.deinit(allocator);
@@ -288,6 +345,7 @@ pub fn main() !void {
     // --- JS Context ---
     var js_ctx = try js.context.JsContext.init(allocator, &jsc_bridge);
     defer js_ctx.deinit();
+    my_renderer.setJsContext(&js_ctx);
     js.console.bindConsole(&js_ctx, @ptrCast(&jsConsoleLog), @ptrCast(&jsConsoleWarn), @ptrCast(&jsConsoleError));
 
     var js_runtime = js.wiring.JsRuntime.initRuntime(allocator, &js_ctx);
@@ -339,10 +397,16 @@ pub fn main() !void {
             .JS => {
                 std.debug.print("Executing external JS: {s}\n", .{res.url});
                 _ = js_ctx.evaluateScript(res.body);
+                if (js_ctx.hasException()) {
+                    logJsException(&js_ctx, res.url, res.body);
+                }
             },
             .Image => {
                 std.debug.print("Loading image: {s}\n", .{res.url});
                 // Store image data for later attachment to layout boxes
+            },
+            .Favicon => {
+                std.debug.print("Found favicon: {s}\n", .{res.url});
             },
         }
     }
@@ -358,7 +422,7 @@ pub fn main() !void {
     for (ext_sheets.items) |s| try all_sheets.append(allocator, s);
 
     var resolver = css.resolver.StyleResolver.init(allocator);
-    const styled_root = try resolver.resolve(document.root, all_sheets.items);
+    const styled_root = (try resolver.resolve(document.root, all_sheets.items)) orelse return;
 
     global_renderer = &my_renderer;
     layout.text_measure.setMeasureFn(&atlasMeasure);
@@ -366,7 +430,7 @@ pub fn main() !void {
     const lctx = layout.LayoutContext{
         .allocator = allocator,
         .viewport_width = @floatFromInt(cfg.window.width),
-        .viewport_height = @floatFromInt(cfg.window.height),
+        .viewport_height = @max(0.0, @as(f32, @floatFromInt(cfg.window.height)) - toolbar_height),
     };
     layout.layoutTree(layout_root, lctx);
 
@@ -390,11 +454,13 @@ pub fn main() !void {
         );
         if (texture) |tex| {
             std.debug.print("Decoded image {s}: {d}x{d}\n", .{ res.url, tex_w, tex_h });
-            attachImageToLayoutTree(layout_root, res.url, tex, @floatFromInt(tex_w), @floatFromInt(tex_h));
+            my_renderer.registerImageResource(res.url, tex, @floatFromInt(tex_w), @floatFromInt(tex_h));
         } else {
             std.debug.print("Failed to decode image: {s}\n", .{res.url});
         }
     }
+    my_renderer.refreshDisplayList();
+    my_renderer.resource_loader = resource_loader;
     my_renderer.setFrameContext(.{
         .timer_queue = &js_runtime.timer_queue,
         .raf_queue = &js_runtime.raf_queue,
@@ -412,32 +478,4 @@ pub fn main() !void {
     std.debug.print("Metal Browser Engine -- Version 0.1.0-draft\n", .{});
     app.objc.activate_app();
     app.objc.run_application();
-}
-
-fn attachImageToLayoutTree(box: *layout.LayoutBox, url: []const u8, texture: *anyopaque, w: f32, h: f32) void {
-    if (box.styled_node) |sn| {
-        if (sn.node.node_type == .element) {
-            if (sn.node.tag == .img) {
-                if (sn.node.getAttribute("src")) |src| {
-                    // Check if the src matches (could be relative or absolute)
-                    if (std.mem.eql(u8, src, url) or std.mem.endsWith(u8, url, src)) {
-                        box.image_texture = texture;
-                        box.intrinsic_width = w;
-                        box.intrinsic_height = h;
-                        // Set box dimensions if not already set by CSS
-                        if (box.dimensions.content.width == 0) {
-                            box.dimensions.content.width = w;
-                        }
-                        if (box.dimensions.content.height == 0) {
-                            box.dimensions.content.height = h;
-                        }
-                        return;
-                    }
-                }
-            }
-        }
-    }
-    for (box.children.items) |child| {
-        attachImageToLayoutTree(child, url, texture, w, h);
-    }
 }

@@ -59,6 +59,7 @@ pub const TagName = enum {
     code,
     pre,
     blockquote,
+    svg,
     unknown,
 
     pub fn fromString(name: []const u8) TagName {
@@ -81,7 +82,7 @@ pub const TagName = enum {
             .{ "header", .header },   .{ "footer", .footer },         .{ "main", .main },
             .{ "section", .section }, .{ "article", .article },       .{ "aside", .aside },
             .{ "strong", .strong },   .{ "em", .em },                 .{ "code", .code },
-            .{ "pre", .pre },         .{ "blockquote", .blockquote },
+            .{ "pre", .pre },         .{ "blockquote", .blockquote }, .{ "svg", .svg },
         });
         return map.get(name) orelse .unknown;
     }
