@@ -34,6 +34,7 @@ pub const HttpResponse = struct {
     status_code: u16,
     body: []const u8,
     headers: []HttpHeader = &[_]HttpHeader{},
+    final_url: ?[]const u8 = null,
 
     /// Free the response body and headers.
     pub fn deinit(self: *HttpResponse, allocator: std.mem.Allocator) void {
@@ -43,6 +44,7 @@ pub const HttpResponse = struct {
             allocator.free(hdr.value);
         }
         if (self.headers.len > 0) allocator.free(self.headers);
+        if (self.final_url) |u| allocator.free(u);
     }
 
     /// Get a response header value by name (case-insensitive).
@@ -63,4 +65,3 @@ pub const FetchError = error{
     BridgeError,
     UnknownError,
 };
-

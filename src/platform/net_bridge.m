@@ -6,6 +6,7 @@
 @property(atomic, assign) NSInteger statusCode;
 @property(atomic, strong) NSData *responseData;
 @property(atomic, strong) NSDictionary *responseHeaders;
+@property(atomic, strong) NSString *finalURL;
 @property(atomic, strong) NSURLSessionDataTask *task;
 @end
 
@@ -27,7 +28,7 @@ FetchHandle net_fetch_start(const char *url_cstr, const char *method_cstr,
   [request setHTTPMethod:[NSString stringWithUTF8String:method_cstr]];
 
   // Default headers
-  [request setValue:@"MetalBrowser/0.1" forHTTPHeaderField:@"User-Agent"];
+  [request setValue:@"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 MetalBrowser/0.1" forHTTPHeaderField:@"User-Agent"];
   [request setValue:@"gzip, deflate" forHTTPHeaderField:@"Accept-Encoding"];
   [request setValue:@"text/html,application/xhtml+xml,*/*"
       forHTTPHeaderField:@"Accept"];
@@ -49,6 +50,7 @@ FetchHandle net_fetch_start(const char *url_cstr, const char *method_cstr,
   op.status = FETCH_STATUS_PENDING;
   op.statusCode = 0;
   op.responseHeaders = nil;
+  op.finalURL = urlString;
 
   NSURLSession *session = [NSURLSession sharedSession];
   NSURLSessionDataTask *task = [session
@@ -67,9 +69,15 @@ FetchHandle net_fetch_start(const char *url_cstr, const char *method_cstr,
               NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
               op.statusCode = httpResponse.statusCode;
               op.responseHeaders = httpResponse.allHeaderFields;
+              if (httpResponse.URL.absoluteString) {
+                op.finalURL = httpResponse.URL.absoluteString;
+              }
             } else {
               op.statusCode = 200;
               op.responseHeaders = @{};
+              if (response.URL.absoluteString) {
+                op.finalURL = response.URL.absoluteString;
+              }
             }
             op.responseData = data;
             op.status = FETCH_STATUS_SUCCESS;
@@ -179,6 +187,23 @@ int net_fetch_get_header_at(FetchHandle handle, int index, char *out_name,
   out_value[vcopy] = '\0';
 
   return 1;
+}
+
+int net_fetch_get_final_url(FetchHandle handle, char *out_url, int max_len) {
+  if (!handle || !out_url || max_len <= 0)
+    return 0;
+  FetchOperation *op = (__bridge FetchOperation *)handle;
+  NSString *url = op.finalURL;
+  if (!url)
+    return 0;
+  const char *utf8 = [url UTF8String];
+  if (!utf8)
+    return 0;
+  int len = (int)strlen(utf8);
+  int copy_len = (len < max_len - 1) ? len : (max_len - 1);
+  memcpy(out_url, utf8, copy_len);
+  out_url[copy_len] = '\0';
+  return copy_len;
 }
 
 void net_fetch_free(FetchHandle handle) {

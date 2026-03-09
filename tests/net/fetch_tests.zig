@@ -71,6 +71,10 @@ fn mock_get_header_at(_: fetch.FetchHandle, _: c_int, _: [*]u8, _: c_int, _: [*]
     return 0;
 }
 
+fn mock_get_final_url(_: fetch.FetchHandle, _: [*]u8, _: c_int) callconv(.c) c_int {
+    return 0;
+}
+
 const mock_bridge = fetch.NetBridge{
     .net_fetch_start = @ptrCast(&mock_start),
     .net_fetch_poll = @ptrCast(&mock_poll),
@@ -80,6 +84,7 @@ const mock_bridge = fetch.NetBridge{
     .net_fetch_get_header = @ptrCast(&mock_get_header),
     .net_fetch_get_header_count = @ptrCast(&mock_get_header_count),
     .net_fetch_get_header_at = @ptrCast(&mock_get_header_at),
+    .net_fetch_get_final_url = @ptrCast(&mock_get_final_url),
 };
 
 // --- Tests ---
@@ -124,6 +129,7 @@ test "FetchClient respects timeout" {
         .net_fetch_get_header = @ptrCast(&mock_get_header),
         .net_fetch_get_header_count = @ptrCast(&mock_get_header_count),
         .net_fetch_get_header_at = @ptrCast(&mock_get_header_at),
+        .net_fetch_get_final_url = @ptrCast(&mock_get_final_url),
     };
 
     var client = fetch.FetchClient.init(testing.allocator, &timeout_bridge);
@@ -163,6 +169,7 @@ test "FetchClient extracts response headers" {
                 return 1;
             }
         }.f),
+        .net_fetch_get_final_url = @ptrCast(&mock_get_final_url),
     };
 
     var client = fetch.FetchClient.init(testing.allocator, &hdr_bridge);
@@ -174,4 +181,3 @@ test "FetchClient extracts response headers" {
     try testing.expect(ct != null);
     try testing.expectEqualStrings("text/html", ct.?);
 }
-

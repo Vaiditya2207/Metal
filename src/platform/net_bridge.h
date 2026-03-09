@@ -52,6 +52,11 @@ int net_fetch_get_header_count(FetchHandle handle);
 int net_fetch_get_header_at(FetchHandle handle, int index, char *out_name,
                             int name_max, char *out_value, int value_max);
 
+// Get the final response URL after redirects.
+// Copies into out_url up to max_len bytes and null-terminates.
+// Returns copied length, or 0 if unavailable.
+int net_fetch_get_final_url(FetchHandle handle, char *out_url, int max_len);
+
 // Free the fetch operation and all associated memory (including response body).
 void net_fetch_free(FetchHandle handle);
 

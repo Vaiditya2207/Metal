@@ -74,6 +74,11 @@ pub const Url = struct {
             return try allocator.dupe(u8, relative);
         }
 
+        // Handle protocol-relative URLs (e.g. //www.gstatic.com/...)
+        if (std.mem.startsWith(u8, relative, "//")) {
+            return try std.fmt.allocPrint(allocator, "{s}:{s}", .{ base.scheme, relative });
+        }
+
         var new_path: []const u8 = undefined;
 
         if (std.mem.startsWith(u8, relative, "/")) {

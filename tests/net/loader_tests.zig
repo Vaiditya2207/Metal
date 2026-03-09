@@ -41,6 +41,7 @@ const dummy_bridge = net.fetch.NetBridge{
     .net_fetch_get_header = @ptrCast(&struct { fn f(_: net.fetch.FetchHandle, _: [*:0]const u8, _: [*]u8, _: c_int) callconv(.c) c_int { return 0; } }.f),
     .net_fetch_get_header_count = @ptrCast(&struct { fn f(_: net.fetch.FetchHandle) callconv(.c) c_int { return 0; } }.f),
     .net_fetch_get_header_at = @ptrCast(&struct { fn f(_: net.fetch.FetchHandle, _: c_int, _: [*]u8, _: c_int, _: [*]u8, _: c_int) callconv(.c) c_int { return 0; } }.f),
+    .net_fetch_get_final_url = @ptrCast(&struct { fn f(_: net.fetch.FetchHandle, _: [*]u8, _: c_int) callconv(.c) c_int { return 0; } }.f),
 };
 
 test "ResourceLoader discoverResources" {

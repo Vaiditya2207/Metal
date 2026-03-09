@@ -21,6 +21,7 @@ pub const NetBridge = struct {
     net_fetch_get_header: *const fn (FetchHandle, [*:0]const u8, [*]u8, c_int) callconv(.c) c_int,
     net_fetch_get_header_count: *const fn (FetchHandle) callconv(.c) c_int,
     net_fetch_get_header_at: *const fn (FetchHandle, c_int, [*]u8, c_int, [*]u8, c_int) callconv(.c) c_int,
+    net_fetch_get_final_url: *const fn (FetchHandle, [*]u8, c_int) callconv(.c) c_int,
 };
 
 pub const FetchClient = struct {
@@ -103,11 +104,18 @@ pub const FetchClient = struct {
         }
 
         const resp_headers = try self.extractHeaders(handle);
+        var final_url: ?[]const u8 = null;
+        var final_url_buf: [8192]u8 = undefined;
+        const final_url_len = self.bridge.net_fetch_get_final_url(handle, &final_url_buf, @intCast(final_url_buf.len));
+        if (final_url_len > 0) {
+            final_url = try self.allocator.dupe(u8, final_url_buf[0..@intCast(final_url_len)]);
+        }
 
         return types.HttpResponse{
             .status_code = @as(u16, @intCast(status_code)),
             .body = response_body,
             .headers = resp_headers,
+            .final_url = final_url,
         };
     }
 
@@ -148,4 +156,3 @@ pub const FetchClient = struct {
         return headers[0..actual];
     }
 };
-
