@@ -14,3 +14,10 @@ zig-out/
 /agents
 /agent
 /.agent
+# Node dependencies
+node_modules/
+
+# Fidelity snapshots
+tests/fidelity/google_snapshot.html
+tests/fidelity/chrome_dump.json
+tests/fidelity/metal_dump.json

@@ -105,4 +105,29 @@ pub fn build(b: *std.Build) void {
     all_tests.linkFramework("Metal");
     all_tests.linkLibC();
     test_step.dependOn(&b.addRunArtifact(all_tests).step);
+
+    // Fidelity Test Dumper
+    const dump_dom = b.addExecutable(.{
+        .name = "dump_dom",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/dump_dom.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    b.installArtifact(dump_dom);
+
+    // Provide an explicit step to build it manually if requested
+    const dump_dom_step = b.step("dump_dom", "Build the DOM dumper for fidelity tests");
+    dump_dom_step.dependOn(&b.addInstallArtifact(dump_dom, .{}).step);
+
+    // Fidelity Test Master Step
+    const fidelity_step = b.step("test-fidelity", "Run the cross-browser fidelity test");
+    const run_fidelity_script = b.addSystemCommand(&.{"bash", "tests/fidelity/run_test.sh"});
+    
+    if (b.args) |args| {
+        run_fidelity_script.addArgs(args);
+    }
+    
+    fidelity_step.dependOn(&run_fidelity_script.step);
 }
