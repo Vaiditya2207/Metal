@@ -427,13 +427,25 @@ pub fn main() !void {
     global_renderer = &my_renderer;
     layout.text_measure.setMeasureFn(&atlasMeasure);
     const layout_root = try layout.buildLayoutTree(allocator, styled_root);
-    const lctx = layout.LayoutContext{
+    std.debug.print("Main: Starting layout with viewport {d}x{d}\n", .{ cfg.window.width, cfg.window.height });
+    const layout_ctx = layout.LayoutContext{
         .allocator = allocator,
         .viewport_width = @floatFromInt(cfg.window.width),
         .viewport_height = @max(0.0, @as(f32, @floatFromInt(cfg.window.height)) - toolbar_height),
     };
-    layout.layoutTree(layout_root, lctx);
-
+    try layout.layoutTree(layout_root, layout_ctx);
+    
+    var node_count: usize = 0;
+    var node_stack = std.ArrayListUnmanaged(*layout.LayoutBox){};
+    defer node_stack.deinit(allocator);
+    try node_stack.append(allocator, layout_root);
+    while (node_stack.items.len > 0) {
+        const node = node_stack.pop();
+        node_count += 1;
+        try node_stack.appendSlice(allocator, node.?.children.items);
+    }
+    std.debug.print("Main: Layout tree complete. Nodes: {d}\n", .{ node_count });
+ 
     const dl = try display_list.buildDisplayList(allocator, layout_root, null);
 
     my_renderer.setDocument(allocator, layout_root, dl);

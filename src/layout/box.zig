@@ -22,32 +22,58 @@ pub const Dimensions = struct {
     border: EdgeSizes = .{},
     margin: EdgeSizes = .{},
 
+    pub fn sanitize(self: *Dimensions) void {
+        const cap = 5000.0;
+        self.content.x = @max(-cap, @min(cap, self.content.x));
+        self.content.y = @max(-cap, @min(cap, self.content.y));
+        self.content.width = @max(0, @min(cap, self.content.width));
+        self.content.height = @max(0, @min(cap, self.content.height));
+        
+        self.padding.top = @max(0, @min(cap, self.padding.top));
+        self.padding.bottom = @max(0, @min(cap, self.padding.bottom));
+        self.padding.left = @max(0, @min(cap, self.padding.left));
+        self.padding.right = @max(0, @min(cap, self.padding.right));
+        
+        self.border.top = @max(0, @min(cap, self.border.top));
+        self.border.bottom = @max(0, @min(cap, self.border.bottom));
+        self.border.left = @max(0, @min(cap, self.border.left));
+        self.border.right = @max(0, @min(cap, self.border.right));
+        
+        self.margin.top = @max(-cap, @min(cap, self.margin.top));
+        self.margin.bottom = @max(-cap, @min(cap, self.margin.bottom));
+        self.margin.left = @max(-cap, @min(cap, self.margin.left));
+        self.margin.right = @max(-cap, @min(cap, self.margin.right));
+    }
+
     pub fn paddingBox(self: Dimensions) Rect {
+        var d = self; d.sanitize();
         return .{
-            .x = self.content.x - self.padding.left,
-            .y = self.content.y - self.padding.top,
-            .width = self.content.width + self.padding.left + self.padding.right,
-            .height = self.content.height + self.padding.top + self.padding.bottom,
+            .x = d.content.x - d.padding.left,
+            .y = d.content.y - d.padding.top,
+            .width = d.content.width + d.padding.left + d.padding.right,
+            .height = d.content.height + d.padding.top + d.padding.bottom,
         };
     }
 
     pub fn borderBox(self: Dimensions) Rect {
-        const p_box = self.paddingBox();
+        var d = self; d.sanitize();
+        const p_box = d.paddingBox();
         return .{
-            .x = p_box.x - self.border.left,
-            .y = p_box.y - self.border.top,
-            .width = p_box.width + self.border.left + self.border.right,
-            .height = p_box.height + self.border.top + self.border.bottom,
+            .x = p_box.x - d.border.left,
+            .y = p_box.y - d.border.top,
+            .width = p_box.width + d.border.left + d.border.right,
+            .height = p_box.height + d.border.top + d.border.bottom,
         };
     }
 
     pub fn marginBox(self: Dimensions) Rect {
-        const b_box = self.borderBox();
+        var d = self; d.sanitize();
+        const b_box = d.borderBox();
         return .{
-            .x = b_box.x - self.margin.left,
-            .y = b_box.y - self.margin.top,
-            .width = b_box.width + self.margin.left + self.margin.right,
-            .height = b_box.height + self.margin.top + self.margin.bottom,
+            .x = b_box.x - d.margin.left,
+            .y = b_box.y - d.margin.top,
+            .width = b_box.width + d.margin.left + d.margin.right,
+            .height = b_box.height + d.margin.top + d.margin.bottom,
         };
     }
 };
@@ -66,9 +92,11 @@ pub const BoxType = enum {
 pub const TextRun = struct {
     text: []const u8,
     styled_node: *const resolver.StyledNode,
+    layout_box: *LayoutBox,
     x: f32,
     y: f32,
     width: f32,
+    line_height: f32 = 0,
 };
 
 pub const LayoutBox = struct {
@@ -87,6 +115,56 @@ pub const LayoutBox = struct {
     intrinsic_height: f32 = 0,
     lock_content_width: bool = false,
     lock_content_height: bool = false,
+
+    pub fn calculateIntrinsicWidth(self: *LayoutBox) f32 {
+        if (self.intrinsic_width > 0) return self.intrinsic_width;
+        
+        const tm = @import("text_measure.zig");
+        
+        if (self.styled_node) |sn| {
+            if (sn.node.node_type == .text) {
+                if (sn.node.data) |data| {
+                   return tm.measureTextWidth(data, sn.style.font_size.value, sn.style.font_weight);
+                }
+            } else if (sn.node.tag == .input) {
+                if (sn.node.getAttribute("value")) |val| {
+                   // Input padding and borders should be accounted for in the caller if box-sizing is content-box,
+                   // but intrinsic width provides the baseline text width.
+                   return tm.measureTextWidth(val, sn.style.font_size.value, sn.style.font_weight);
+                }
+            }
+        }
+        
+        var max_w: f32 = 0;
+        var sum_inline_w: f32 = 0;
+        
+        var is_inline_flow = true;
+        for (self.children.items) |child| {
+            if (child.box_type != .inlineNode and child.box_type != .inlineBlockNode) {
+                is_inline_flow = false;
+                break;
+            }
+        }
+        
+        var is_flex_row = false;
+        if (self.box_type == .flexNode) {
+            if (self.styled_node) |sn| {
+                if (sn.style.flex_direction == .row) is_flex_row = true;
+            }
+        }
+
+        for (self.children.items) |child| {
+            const w = child.calculateIntrinsicWidth();
+            if (is_inline_flow or is_flex_row) {
+                sum_inline_w += w;
+            } else {
+                max_w = @max(max_w, w);
+            }
+        }
+        
+        if (is_inline_flow or is_flex_row) return sum_inline_w;
+        return max_w;
+    }
 
     pub fn init(box_type: BoxType, styled_node: ?*const resolver.StyledNode) LayoutBox {
         return .{
@@ -134,9 +212,13 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             const box_type: BoxType = switch (sn.style.display) {
                 .block => .blockNode,
                 .flex => .flexNode,
+                .inline_flex => .flexNode,
                 .table => .tableNode,
                 .table_row => .tableRowNode,
                 .table_cell => .tableCellNode,
+                .table_row_group => .blockNode, // Fallback
+                .table_header_group => .blockNode, // Fallback
+                .table_footer_group => .blockNode, // Fallback
                 .inline_val => .inlineNode,
                 .inline_block => .inlineBlockNode,
                 .none => unreachable,
@@ -147,8 +229,9 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             // Set intrinsic size for replaced elements like <input> and <textarea>
             if (sn.node.node_type == .element) {
                 if (sn.node.tag == .input or sn.node.tag == .textarea) {
-                    root.intrinsic_width = 140.0;
                     root.intrinsic_height = sn.style.font_size.value * 1.2;
+                    root.lock_content_width = true;
+                    root.lock_content_height = true;
                 } else if (sn.node.tag == .svg) {
                     root.intrinsic_width = 300.0;
                     root.intrinsic_height = 150.0;
@@ -158,7 +241,21 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
                     if (sn.node.getAttribute("height")) |h| {
                         root.intrinsic_height = std.fmt.parseFloat(f32, h) catch 150.0;
                     }
+                    root.lock_content_width = true;
+                    root.lock_content_height = true;
                     root.svg_xml = sn.node.serialize(self.allocator) catch null;
+                } else if (sn.node.tag == .img) {
+                    // Default broken image fallback size
+                    root.intrinsic_width = 20.0;
+                    root.intrinsic_height = 20.0;
+                    if (sn.node.getAttribute("width")) |w| {
+                        root.intrinsic_width = std.fmt.parseFloat(f32, w) catch 20.0;
+                    }
+                    if (sn.node.getAttribute("height")) |h| {
+                        root.intrinsic_height = std.fmt.parseFloat(f32, h) catch 20.0;
+                    }
+                    root.lock_content_width = true;
+                    root.lock_content_height = true;
                 }
             }
             
@@ -186,13 +283,24 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
 
         fn wrapAnonymousBlocks(self: *@This(), parent: *LayoutBox) !void {
             var has_block = false;
-            var has_inline = false;
+            var has_naked_inline = false;
+            var has_inline_level = false;
             for (parent.children.items) |child| {
-                if (child.box_type == .blockNode or child.box_type == .flexNode) has_block = true;
-                if (child.box_type == .inlineNode or child.box_type == .inlineBlockNode or child.box_type == .anonymousBlock) has_inline = true;
+                if (child.box_type == .blockNode or child.box_type == .flexNode or child.box_type == .tableNode) has_block = true;
+                if (child.box_type == .inlineNode) {
+                    has_naked_inline = true;
+                    has_inline_level = true;
+                }
+                if (child.box_type == .inlineBlockNode) {
+                    has_inline_level = true;
+                }
             }
 
-            if (!has_inline) return;
+            if (parent.box_type == .flexNode) {
+                if (!has_naked_inline) return;
+            } else {
+                if (!has_inline_level) return;
+            }
             if (!has_block) {
                 const anon = try self.allocator.create(LayoutBox);
                 anon.* = LayoutBox.init(.anonymousBlock, null);

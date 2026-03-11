@@ -6,6 +6,7 @@ pub const parser = @import("parser.zig");
 pub const resolver = @import("resolver.zig");
 pub const user_agent = @import("user_agent.zig");
 pub const style_extract = @import("style_extract.zig");
+pub const ua = @import("ua_stylesheet.zig");
 
 pub const CssValue = values.CssValue;
 pub const CssColor = values.CssColor;

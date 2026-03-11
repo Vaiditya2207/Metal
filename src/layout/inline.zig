@@ -8,6 +8,10 @@ const block = @import("block.zig");
 fn shiftBox(box: *box_mod.LayoutBox, dx: f32, dy: f32) void {
     box.dimensions.content.x += dx;
     box.dimensions.content.y += dy;
+    for (box.text_runs.items) |*run| {
+        run.x += dx;
+        run.y += dy;
+    }
     for (box.children.items) |child| {
         shiftBox(child, dx, dy);
     }
@@ -29,7 +33,7 @@ fn collectTextSegments(
     segments: *std.ArrayListUnmanaged(TextSegment),
     allocator: std.mem.Allocator,
 ) void {
-    if (box.box_type == .inlineBlockNode) {
+    if (box.box_type == .inlineBlockNode or box.box_type == .blockNode or box.box_type == .flexNode) {
         if (box.styled_node) |sn| {
             segments.append(allocator, .{
                 .text = "",
@@ -42,7 +46,7 @@ fn collectTextSegments(
                 .is_inline_block = true,
             }) catch return;
         }
-        return; // do not dig into inlineBlockNode's children for text extraction
+        return; // do not dig into inlineBlockNode/blockNode's children for text extraction
     }
 
     if (box.styled_node) |sn| {
@@ -87,7 +91,8 @@ fn collectTextSegments(
 }
 
 fn expandBoxRect(box: *box_mod.LayoutBox, abs_x: f32, abs_y: f32, w: f32, h: f32) void {
-    if (box.box_type == .anonymousBlock) return;
+    // We used to skip anonymous blocks here, but they need to encompass their inline content
+    // so they can propagate dimensions up to their block parents.
     
     if (box.dimensions.content.width == 0 and box.dimensions.content.height == 0) {
         box.dimensions.content.x = abs_x;
@@ -97,12 +102,13 @@ fn expandBoxRect(box: *box_mod.LayoutBox, abs_x: f32, abs_y: f32, w: f32, h: f32
     } else {
         const old_r = box.dimensions.content.x + box.dimensions.content.width;
         const old_b = box.dimensions.content.y + box.dimensions.content.height;
-        box.dimensions.content.x = @min(box.dimensions.content.x, abs_x);
-        box.dimensions.content.y = @min(box.dimensions.content.y, abs_y);
         const new_r = @max(old_r, abs_x + w);
         const new_b = @max(old_b, abs_y + h);
-        box.dimensions.content.width = new_r - box.dimensions.content.x;
-        box.dimensions.content.height = new_b - box.dimensions.content.y;
+        
+        // We only expand width/height, we DO NOT pull the box's established X/Y coordinate.
+        // The parent determines our X/Y. We just tell it how much space we occupied.
+        box.dimensions.content.width = @max(box.dimensions.content.width, new_r - box.dimensions.content.x);
+        box.dimensions.content.height = @max(box.dimensions.content.height, new_b - box.dimensions.content.y);
     }
 
     if (box.parent) |p| {
@@ -113,8 +119,12 @@ fn expandBoxRect(box: *box_mod.LayoutBox, abs_x: f32, abs_y: f32, w: f32, h: f32
 fn resetChildDimensions(box: *box_mod.LayoutBox) void {
     box.dimensions.content.x = 0;
     box.dimensions.content.y = 0;
-    box.dimensions.content.width = 0;
-    box.dimensions.content.height = 0;
+    if (!box.lock_content_width) {
+        box.dimensions.content.width = 0;
+    }
+    if (!box.lock_content_height) {
+        box.dimensions.content.height = 0;
+    }
     for (box.children.items) |child| {
         resetChildDimensions(child);
     }
@@ -122,12 +132,29 @@ fn resetChildDimensions(box: *box_mod.LayoutBox) void {
 
 pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, ctx: @import("layout.zig").LayoutContext) void {
     const allocator = ctx.allocator;
-    const container_width = layout_box.dimensions.content.width;
+    // For inline-blocks with auto width (0), use the parent's width as the wrapping limit
+    var container_width = layout_box.dimensions.content.width;
+    if (container_width == 0) {
+        var curr = layout_box.parent;
+        while (curr) |p| {
+            if (p.dimensions.content.width > 0) {
+                container_width = p.dimensions.content.width;
+                break;
+            }
+            curr = p.parent;
+        }
+    }
+    if (container_width == 0) container_width = ctx.viewport_width;
+    if (container_width > ctx.viewport_width * 2.0) {
+         // std.debug.print("Inline: Capping extreme container_width {d} to {d}\n", .{ container_width, ctx.viewport_width });
+         container_width = ctx.viewport_width;
+    }
     const anon_abs_x = layout_box.dimensions.content.x;
     const anon_abs_y = layout_box.dimensions.content.y;
 
     var cursor_x: f32 = 0;
     var cursor_y: f32 = 0;
+    var max_line_width: f32 = 0;
     var current_line_height: f32 = parent_font_size * 1.2;
 
     for (layout_box.children.items) |child| {
@@ -164,7 +191,12 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
             block.layoutBlock(seg.layout_box, layout_box, ctx);
 
             var block_w = seg.layout_box.dimensions.marginBox().width;
-            if (block_w == 0) block_w = seg.layout_box.intrinsic_width;
+            if (block_w == 0) block_w = seg.layout_box.calculateIntrinsicWidth();
+            
+            // diagnostic
+            if (seg.layout_box.styled_node != null and seg.layout_box.styled_node.?.node.tag == .input) {
+                std.debug.print("INPUT INLINE: cursor_x={d}, block_w={d}, avail_w={d}\n", .{ cursor_x, block_w, available.width });
+            }
             
             var block_h = seg.layout_box.dimensions.marginBox().height;
             if (block_h == 0) block_h = seg.line_height;
@@ -174,6 +206,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
                 alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
                 line_start_idx = current_run_idx;
                 
+                max_line_width = @max(max_line_width, cursor_x);
                 cursor_x = 0;
                 cursor_y += current_line_height;
                 current_line_height = block_h;
@@ -201,6 +234,17 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
             const dy = target_y - seg.layout_box.dimensions.content.y;
             shiftBox(seg.layout_box, dx, dy);
 
+            layout_box.text_runs.append(allocator, .{
+                .text = "",
+                .styled_node = seg.styled_node,
+                .layout_box = seg.layout_box,
+                .x = anon_abs_x + available.x_offset + cursor_x,
+                .y = anon_abs_y + cursor_y,
+                .width = block_w,
+                .line_height = block_h,
+            }) catch continue;
+
+            current_run_idx += 1;
             cursor_x += block_w;
             current_line_height = @max(current_line_height, block_h);
             continue;
@@ -210,6 +254,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
             alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
             line_start_idx = current_run_idx;
             
+            max_line_width = @max(max_line_width, cursor_x);
             cursor_x = 0;
             cursor_y += current_line_height;
             current_line_height = seg.line_height;
@@ -235,6 +280,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
                 alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
                 line_start_idx = current_run_idx;
                 
+                max_line_width = @max(max_line_width, cursor_x);
                 cursor_x = 0;
                 cursor_y += current_line_height;
                 current_line_height = seg.line_height;
@@ -257,12 +303,12 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
             layout_box.text_runs.append(allocator, .{
                 .text = word,
                 .styled_node = seg.styled_node,
+                .layout_box = seg.layout_box,
                 .x = anon_abs_x + available.x_offset + cursor_x,
                 .y = anon_abs_y + cursor_y,
                 .width = word_width,
+                .line_height = seg.line_height,
             }) catch continue;
-            
-            expandBoxRect(seg.layout_box, anon_abs_x + available.x_offset + cursor_x, anon_abs_y + cursor_y, word_width, seg.line_height);
 
             current_run_idx += 1;
             cursor_x += word_width;
@@ -277,8 +323,23 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
     else 
         @import("layout.zig").AvailableSpace{ .x_offset = 0, .width = container_width };
     alignLine(layout_box, line_start_idx, current_run_idx, final_available.width, cursor_x, final_available.x_offset);
+    max_line_width = @max(max_line_width, cursor_x);
     
+    // AFTER alignment, expand rects for inline boundaries
+    for (layout_box.text_runs.items) |run| {
+        if (run.layout_box.box_type == .inlineBlockNode) {
+            if (run.layout_box.parent) |p| {
+                expandBoxRect(p, run.x, run.y, run.width, run.line_height);
+            }
+        } else {
+            expandBoxRect(run.layout_box, run.x, run.y, run.width, run.line_height);
+        }
+    }
+    
+    layout_box.dimensions.content.width = max_line_width;
     layout_box.dimensions.content.height = cursor_y + current_line_height;
+    layout_box.lock_content_width = true;
+    layout_box.lock_content_height = true;
 }
 
 fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, available_width: f32, line_width: f32, x_offset: f32) void {
@@ -306,12 +367,14 @@ fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, availabl
         // Let's re-examine.
     }
     
-    // I added x_offset in text_runs.append: `.x = anon_abs_x + available.x_offset + cursor_x`
-    // So here I only need to apply the alignment offset.
     if (align_offset > 0) {
         var i: usize = start_idx;
         while (i < end_idx) : (i += 1) {
             box.text_runs.items[i].x += align_offset;
+            const run_box = box.text_runs.items[i].layout_box;
+            if (run_box.box_type == .inlineBlockNode) {
+                shiftBox(run_box, align_offset, 0);
+            }
         }
     }
 }

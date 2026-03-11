@@ -99,7 +99,7 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
     var out = std.ArrayListUnmanaged(u8){};
     var writer = out.writer(allocator);
     
-    try writer.print("{{\"type\":\"element\",\"tag\":\"{s}\"", .{tag_str});
+    try writer.print("{{\"type\":\"element\",\"tag\":\"{s}\",\"attrCount\":{d}", .{tag_str, sn.node.attributes.items.len});
     if (has_id) try writer.print(",\"id\":\"{s}\"", .{try escapeJsonString(allocator, id_val)});
     if (has_class) try writer.print(",\"className\":\"{s}\"", .{try escapeJsonString(allocator, class_val)});
     
@@ -123,6 +123,28 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
     try writer.print("]}}", .{});
     
     try list.append(allocator, try out.toOwnedSlice(allocator));
+}
+
+fn collectAuthorStyles(allocator: std.mem.Allocator, node: *const dom.Node, list: *std.ArrayListUnmanaged(css.Stylesheet)) !void {
+    if (node.node_type == .element and node.tag == .style) {
+        var style_content = std.ArrayListUnmanaged(u8){};
+        defer style_content.deinit(allocator);
+        
+        for (node.children.items) |child| {
+            if (child.node_type == .text) {
+                if (child.data) |d| try style_content.appendSlice(allocator, d);
+            }
+        }
+        
+        if (style_content.items.len > 0) {
+            const sheet = try css.Parser.parse(allocator, style_content.items);
+            try list.append(allocator, sheet);
+        }
+    }
+    
+    for (node.children.items) |child| {
+        try collectAuthorStyles(allocator, child, list);
+    }
 }
 
 pub fn main() !void {
@@ -151,13 +173,18 @@ pub fn main() !void {
 
     const document = try dom.parseHTML(allocator, html);
 
-    // Default UA stylesheet for testing
-    const ua_css = "html, body, div, p { display: block; }";
-    var resolver = css.StyleResolver.init(allocator);
-    const ua_sheet = try css.Parser.parse(allocator, ua_css);
-    const stylesheets = [_]css.Stylesheet{ua_sheet};
+    var stylesheets = std.ArrayListUnmanaged(css.Stylesheet){};
+    defer stylesheets.deinit(allocator);
 
-    const styled_root = try resolver.resolve(document.root, &stylesheets);
+    // 1. User Agent Styles
+    const ua_sheet = try css.Parser.parse(allocator, css.ua.default_css);
+    try stylesheets.append(allocator, ua_sheet);
+
+    // 2. Author Styles (from <style> tags)
+    try collectAuthorStyles(allocator, document.root, &stylesheets);
+
+    var resolver = css.StyleResolver.init(allocator);
+    const styled_root = try resolver.resolve(document.root, stylesheets.items);
 
     if (styled_root) |sr| {
         const layout_root = try layout.buildLayoutTree(allocator, sr);
@@ -167,7 +194,7 @@ pub fn main() !void {
             .viewport_width = 1200.0,
             .viewport_height = 800.0,
         };
-        layout.layoutTree(layout_root, lctx);
+        try layout.layoutTree(layout_root, lctx);
         
         var json_out = std.ArrayListUnmanaged([]const u8){};
         defer {

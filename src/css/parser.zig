@@ -54,12 +54,32 @@ pub const Parser = struct {
                     // Check conditions until opening brace
                     while (p.current.type != .left_brace and p.current.type != .eof) {
                         if (p.current.type == .ident) {
-                            // If it's specifically for print, we ignore it. Screen & all are accepted.
                             if (std.mem.eql(u8, p.current.value, "print")) {
                                 match_media = false;
                             }
+                        } else if (p.current.type == .left_paren) {
+                            // Basic support for (max-width: XXXpx) and (min-width: XXXpx)
+                            p.current = try p.tokenizer.next();
+                            if (p.current.type == .ident) {
+                                const prop = p.current.value;
+                                p.current = try p.tokenizer.next();
+                                if (p.current.type == .colon) {
+                                    p.current = try p.tokenizer.next();
+                                    if (p.current.type == .dimension) {
+                                        const val = p.current.number_value;
+                                        if (std.mem.eql(u8, prop, "max-width")) {
+                                            if (val < 1200) match_media = false;
+                                        } else if (std.mem.eql(u8, prop, "min-width")) {
+                                            if (val > 1200) match_media = false;
+                                        }
+                                    }
+                                }
+                            }
+                            while (p.current.type != .right_paren and p.current.type != .eof) {
+                                p.current = try p.tokenizer.next();
+                            }
                         }
-                        p.current = try p.tokenizer.next();
+                        if (p.current.type != .eof) p.current = try p.tokenizer.next();
                     }
                     if (p.current.type == .left_brace) {
                         p.current = try p.tokenizer.next();

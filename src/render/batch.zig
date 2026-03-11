@@ -5,6 +5,7 @@
 
 pub const RectVertex = extern struct {
     position: [2]f32,
+    _pad: [2]f32 = .{ 0, 0 },
     color: [4]f32,
 };
 

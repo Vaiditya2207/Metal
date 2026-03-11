@@ -48,7 +48,7 @@ pub const TreeBuilder = struct {
         }
 
         // 3. Ensure head exists for head-content tags
-        if (tag == .title or tag == .meta or tag == .link or tag == .style) {
+        if (tag == .title or tag == .meta or tag == .link or tag == .style or tag == .script or tag == .noscript or tag == .base or tag == .template) {
             if (!self.head_inserted) {
                 try self.insertImplicitElement("head");
                 self.head_inserted = true;
@@ -63,7 +63,8 @@ pub const TreeBuilder = struct {
 
         // 5. Ensure body exists for body-content tags
         if (tag != .html and tag != .head and tag != .body and
-            tag != .title and tag != .meta and tag != .link and tag != .style)
+            tag != .title and tag != .meta and tag != .link and tag != .style and
+            tag != .script and tag != .noscript and tag != .base and tag != .template)
         {
             if (!self.body_inserted) {
                 if (self.hasOpenElement(.head)) self.closeUpTo(.head);
@@ -82,7 +83,7 @@ pub const TreeBuilder = struct {
         }
 
         const parent = self.currentNode();
-        parent.appendChild(elem, self.doc.limits) catch return elem;
+        try parent.appendChild(elem, self.doc.limits);
 
         if (!tag.isVoid()) {
             try self.open_elements.append(self.allocator, elem);
@@ -145,8 +146,20 @@ pub const TreeBuilder = struct {
             try self.insertImplicitElement("body");
             self.body_inserted = true;
         }
-        const text_node = try self.doc.createTextNode(text);
         const parent = self.currentNode();
+        // Merge with previous text node if available
+        if (parent.children.items.len > 0) {
+            const last = parent.children.items[parent.children.items.len - 1];
+            if (last.node_type == .text) {
+                const old_data = last.data orelse "";
+                const new_data = try self.allocator.alloc(u8, old_data.len + text.len);
+                @memcpy(new_data[0..old_data.len], old_data);
+                @memcpy(new_data[old_data.len..], text);
+                last.data = new_data;
+                return;
+            }
+        }
+        const text_node = try self.doc.createTextNode(text);
         parent.appendChild(text_node, self.doc.limits) catch return;
     }
 

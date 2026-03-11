@@ -575,7 +575,7 @@ pub const Renderer = struct {
                                     .viewport_width = window_width, // Could also get actual viewport
                                     .viewport_height = content_height,
                                 };
-                                layout_mod.layoutTree(root, ctx);
+                                try layout_mod.layoutTree(root, ctx);
                                 if (self.owned_display_list) |*old_dl| {
                                     old_dl.deinit();
                                 }
@@ -615,7 +615,7 @@ pub const Renderer = struct {
                                 .viewport_width = event.width,
                                 .viewport_height = adj_height,
                             };
-                            layout_mod.layoutTree(root, ctx);
+                            try layout_mod.layoutTree(root, ctx);
                             if (self.owned_display_list) |*old_dl| {
                                 old_dl.deinit();
                             }
@@ -710,7 +710,7 @@ pub const Renderer = struct {
         }
 
         const view = self.view orelse return;
-
+        objc.set_clear_color(view, 0.97, 0.98, 0.98, 1.0); // #f8f9fa
         const frame_context = objc.begin_frame(self.command_queue, view);
         if (frame_context) |fc| {
             var frame_width: f32 = 0;
@@ -718,6 +718,15 @@ pub const Renderer = struct {
             objc.get_drawable_size(view, &frame_width, &frame_height);
             const content_height = if (frame_height > toolbar_height) frame_height - toolbar_height else 0;
             self.scroll.setViewportHeight(content_height);
+
+            const scale = objc.get_content_scale(view);
+            std.debug.print("Renderer: Frame Start - viewport={d}x{d}, scroll_y={d}, scale={d}\n", .{ frame_width, frame_height, self.scroll.scroll_y, scale });
+
+            if (self.pipeline_state == null) std.debug.print("Renderer: WARNING - pipeline_state is NULL\n", .{});
+            if (self.text_renderer == null) std.debug.print("Renderer: WARNING - text_renderer is NULL\n", .{});
+
+            objc.set_projection(fc, frame_width, frame_height);
+            
 
             if (self.owned_display_list) |*dl| {
                 if (self.pipeline_state) |ps| {
@@ -728,7 +737,7 @@ pub const Renderer = struct {
                             .image_pipeline = objc.create_image_pipeline(self.device),
                             .device = self.device,
                             .command_queue = self.command_queue,
-                            .allocator = self.allocator,
+                            .allocator = self.allocator.?,
                             .svg_cache = &self.svg_cache,
                         };
                         comp.render(fc, view, dl, self.scroll.scroll_y);
@@ -916,7 +925,7 @@ pub const Renderer = struct {
                 .viewport_width = vw,
                 .viewport_height = if (vh > toolbar_height) vh - toolbar_height else 0,
             };
-            layout_mod.layoutTree(new_layout, lctx);
+            try layout_mod.layoutTree(new_layout, lctx);
             self.attachCachedImages(new_layout);
 
             const new_dl = display_list_mod.buildDisplayList(alloc, new_layout, self.input_manager.focused_node) catch |err| {

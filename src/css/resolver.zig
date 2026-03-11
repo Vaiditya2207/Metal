@@ -51,6 +51,7 @@ pub const StyleResolver = struct {
             style.font_size = ps.font_size;
             style.font_family = ps.font_family;
             style.font_weight = ps.font_weight;
+            style.line_height = ps.line_height;
             
             // Inherit custom properties
             var it = ps.custom_properties.iterator();
@@ -61,6 +62,42 @@ pub const StyleResolver = struct {
 
         const matched = try self.collectMatchingDeclarations(node, stylesheets);
         defer self.allocator.free(matched);
+
+        // Pass 0: HTML Presentation attributes (lowest priority)
+        if (node.node_type == .element) {
+            if (node.getAttribute("bgcolor")) |bg| {
+                try style.applyProperty("background-color", bg, self.allocator);
+            }
+            if (node.getAttribute("width")) |w| {
+                if (std.mem.indexOf(u8, w, "%") != null or std.mem.indexOf(u8, w, "px") != null) {
+                    try style.applyProperty("width", w, self.allocator);
+                } else {
+                    const w_px = try std.fmt.allocPrint(self.allocator, "{s}px", .{w});
+                    defer self.allocator.free(w_px);
+                    try style.applyProperty("width", w_px, self.allocator);
+                }
+            }
+            if (node.getAttribute("height")) |h| {
+                if (std.mem.indexOf(u8, h, "%") != null or std.mem.indexOf(u8, h, "px") != null) {
+                    try style.applyProperty("height", h, self.allocator);
+                } else {
+                    const h_px = try std.fmt.allocPrint(self.allocator, "{s}px", .{h});
+                    defer self.allocator.free(h_px);
+                    try style.applyProperty("height", h_px, self.allocator);
+                }
+            }
+            if (node.getAttribute("cellpadding")) |cp| {
+                const cp_px = try std.fmt.allocPrint(self.allocator, "{s}px", .{cp});
+                defer self.allocator.free(cp_px);
+                try style.applyProperty("padding", cp_px, self.allocator);
+            }
+            if (node.getAttribute("cellspacing")) |cs| {
+                const cs_px = try std.fmt.allocPrint(self.allocator, "{s}px", .{cs});
+                defer self.allocator.free(cs_px);
+                try style.applyProperty("row-gap", cs_px, self.allocator);
+                try style.applyProperty("column-gap", cs_px, self.allocator);
+            }
+        }
 
         // Pass 1: Collect custom properties
         for (matched) |m| {
@@ -126,6 +163,12 @@ pub const StyleResolver = struct {
             .style = style,
             .children = try children_list.toOwnedSlice(self.allocator),
         };
+
+        // Post-process: ensure block items have layout boxes even if empty
+        if (sn.style.display != .none and sn.node.node_type == .element) {
+             // standard behavior
+        }
+
         return sn;
     }
 

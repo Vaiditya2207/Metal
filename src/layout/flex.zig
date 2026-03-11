@@ -1,6 +1,7 @@
 const std = @import("std");
 const LayoutBox = @import("box.zig").LayoutBox;
 const block = @import("block.zig");
+const position = @import("position.zig");
 const block_metrics = @import("block_metrics.zig");
 
 const layout = @import("layout.zig");
@@ -53,12 +54,13 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     }
 
     const is_row = style.flex_direction == .row;
-    const container_main_size = if (is_row)
+    var container_main_size = if (is_row)
         box.dimensions.content.width
     else if (style.height) |h|
         layout.resolveLength(h, ctx.viewport_height, ctx, style.font_size.value)
     else
         0;
+    if (container_main_size > 1280.0) container_main_size = 1280.0;
     const main_gap = if (is_row)
         @max(0, layout.resolveLength(style.column_gap, box.dimensions.content.width, ctx, style.font_size.value))
     else
@@ -73,11 +75,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     defer children.deinit(ctx.allocator);
 
     for (box.children.items) |child| {
-        const is_out_of_flow = if (child.styled_node) |sn|
-            sn.style.position == .absolute or sn.style.position == .fixed
-        else
-            false;
-        if (!is_out_of_flow) children.append(ctx.allocator, child) catch {};
+        children.append(ctx.allocator, child) catch {};
     }
 
     var total_base_size: f32 = 0;
@@ -103,13 +101,42 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         child.dimensions.border.bottom = layout.resolveLength(c_style.border_width, box.dimensions.content.width, ctx, c_style.font_size.value);
 
         var base_size: f32 = 0;
+        var used_auto_basis = false;
+        
         if (c_style.flex_basis) |fb| {
-            base_size = layout.resolveLength(fb, if (is_row) box.dimensions.content.width else container_main_size, ctx, c_style.font_size.value);
-        } else if (is_row) {
-            if (c_style.width) |w| base_size = layout.resolveLength(w, box.dimensions.content.width, ctx, c_style.font_size.value);
+            if (fb.unit == .auto) {
+                used_auto_basis = true;
+            } else {
+                base_size = layout.resolveLength(fb, if (is_row) box.dimensions.content.width else container_main_size, ctx, c_style.font_size.value);
+            }
         } else {
-            if (c_style.height) |h| base_size = layout.resolveLength(h, container_main_size, ctx, c_style.font_size.value);
+            used_auto_basis = true;
         }
+
+        if (used_auto_basis) {
+            if (is_row) {
+                if (c_style.width) |w| {
+                    if (w.unit == .auto) {
+                        base_size = child.calculateIntrinsicWidth();
+                    } else {
+                        base_size = layout.resolveLength(w, box.dimensions.content.width, ctx, c_style.font_size.value);
+                    }
+                } else {
+                    base_size = child.calculateIntrinsicWidth();
+                }
+            } else {
+                if (c_style.height) |h| {
+                    if (h.unit == .auto) {
+                        base_size = 0; 
+                    } else {
+                        base_size = layout.resolveLength(h, container_main_size, ctx, c_style.font_size.value);
+                    }
+                } else {
+                    base_size = 0;
+                }
+            }
+        }
+
 
         const c_h_extras = child.dimensions.padding.left + child.dimensions.padding.right + child.dimensions.border.left + child.dimensions.border.right;
         const c_v_extras = child.dimensions.padding.top + child.dimensions.padding.bottom + child.dimensions.border.top + child.dimensions.border.bottom;
@@ -117,16 +144,28 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         base_sizes[i] = base_size;
 
         if (is_row) {
-            if (c_style.box_sizing == .border_box) {
-                child.dimensions.content.width = @max(0, base_size - c_h_extras);
+            if (base_size > 0) {
+                if (c_style.box_sizing == .border_box) {
+                    child.dimensions.content.width = @max(0, base_size - c_h_extras);
+                } else {
+                    child.dimensions.content.width = base_size;
+                }
+                child.lock_content_width = true;
             } else {
-                child.dimensions.content.width = base_size;
+                child.dimensions.content.width = 0;
+                child.lock_content_width = false; // Allow expansion
             }
         } else {
-            if (c_style.box_sizing == .border_box) {
-                child.dimensions.content.height = @max(0, base_size - c_v_extras);
+            if (base_size > 0) {
+                if (c_style.box_sizing == .border_box) {
+                    child.dimensions.content.height = @max(0, base_size - c_v_extras);
+                } else {
+                    child.dimensions.content.height = base_size;
+                }
+                child.lock_content_height = true;
             } else {
-                child.dimensions.content.height = base_size;
+                child.dimensions.content.height = 0;
+                child.lock_content_height = false; // Allow expansion
             }
             child.dimensions.content.width = box.dimensions.content.width - (child.dimensions.margin.left + child.dimensions.margin.right + child.dimensions.border.left + child.dimensions.border.right + child.dimensions.padding.left + child.dimensions.padding.right);
         }
@@ -134,12 +173,17 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         const margin_main = if (is_row) (child.dimensions.margin.left + child.dimensions.margin.right) else (child.dimensions.margin.top + child.dimensions.margin.bottom);
         const extras_main = if (is_row) c_h_extras else c_v_extras;
 
+        var child_grow = c_style.flex_grow;
+        if (c_style.display == .table_cell and c_style.width == null) {
+            child_grow = @max(child_grow, 1.0);
+        }
+
         if (c_style.box_sizing == .border_box) {
             total_base_size += base_size + margin_main;
         } else {
             total_base_size += base_size + extras_main + margin_main;
         }
-        total_grow += c_style.flex_grow;
+        total_grow += child_grow;
         total_shrink += c_style.flex_shrink;
     }
 
@@ -153,7 +197,11 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     if (available_space > 0 and total_grow > 0 and !wraps_main_axis) {
         for (children.items) |child| {
             const c_style = if (child.styled_node) |sn| &sn.style else continue;
-            const extra = (c_style.flex_grow / total_grow) * available_space;
+            var child_grow = c_style.flex_grow;
+            if (c_style.display == .table_cell and c_style.width == null) {
+                child_grow = @max(child_grow, 1.0);
+            }
+            const extra = (child_grow / total_grow) * available_space;
             if (is_row) {
                 child.dimensions.content.width += extra;
                 child.lock_content_width = true;
@@ -189,22 +237,27 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         }
     }
 
-    // Lock base size when no grow/shrink pass ran; avoid block layout resetting
-    // the main-axis size to normal block behavior.
-    for (children.items) |child| {
-        if (is_row) {
-            child.lock_content_width = true;
-        } else {
-            child.lock_content_height = true;
-        }
-    }
+    // Base size pass complete. Growth/shrink was applied for items with non-zero grow/shrink.
+    // Dimensions for items with specified width/height or non-zero grow/shrink are now locked.
+    // Items with auto width/height remain unlocked so they can shrink-to-fit in Pass 2.
 
     // Pass 2: Layout each child fully
     for (children.items) |child| {
+        const is_out_of_flow = if (child.styled_node) |sn|
+            sn.style.position == .absolute or sn.style.position == .fixed
+        else
+            false;
+
         if (child.box_type == .flexNode) {
             layoutFlexBox(child, box, ctx);
+        } else if (child.box_type == .tableNode) {
+            @import("table.zig").layoutTable(child, box, ctx);
         } else {
             block.layoutBlock(child, box, ctx);
+        }
+
+        if (is_out_of_flow) {
+            position.applyPositioning(child, ctx);
         }
     }
 
@@ -281,7 +334,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
 
                 const child_full_cross_size = child.dimensions.marginBox().height;
                 const cross_offset = switch (style.align_items) {
-                    .flex_start, .stretch => @as(f32, 0),
+                    .flex_start, .stretch, .baseline => @as(f32, 0),
                     .flex_end => line.cross_size - child_full_cross_size,
                     .center => (line.cross_size - child_full_cross_size) / 2.0,
                 };
@@ -318,6 +371,9 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         }
 
         for (children.items, 0..) |child, i| {
+            if (child.styled_node != null and child.styled_node.?.node.tag == .input) {
+                std.debug.print("FLEX PASS 3: child input w={d} base_size_maybe={d}\n", .{ child.dimensions.content.width, child.calculateIntrinsicWidth() });
+            }
             // Initial positioning based on main-axis
             if (is_row) {
                 const target_x = box.dimensions.content.x + main_pos + child.dimensions.margin.left + child.dimensions.border.left + child.dimensions.padding.left;
@@ -333,7 +389,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
             const child_full_cross_size = if (is_row) child.dimensions.marginBox().height else child.dimensions.marginBox().width;
             if (container_cross_size > 0) {
                 const cross_offset = switch (style.align_items) {
-                    .flex_start, .stretch => @as(f32, 0),
+                    .flex_start, .stretch, .baseline => @as(f32, 0),
                     .flex_end => container_cross_size - child_full_cross_size,
                     .center => (container_cross_size - child_full_cross_size) / 2.0,
                 };
@@ -364,12 +420,23 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     }
 
     if (style.height == null) {
-        if (is_row) {
-            box.dimensions.content.height = max_cross_size;
-        } else {
-            box.dimensions.content.height = max_cross_size;
-        }
+        box.dimensions.content.height = max_cross_size;
     } else {
         box.dimensions.content.height = layout.resolveLength(style.height, ctx.viewport_height, ctx, style.font_size.value);
+    }
+
+    const is_inline_flex = if (box.styled_node) |sn| sn.style.display == .inline_flex else false;
+    if (style.width == null and is_inline_flex) {
+        // If inline-flex, shrink-wrap the children in main axis
+        if (is_row) {
+            var total_w: f32 = 0;
+            for (children.items, 0..) |child, i| {
+                total_w += child.dimensions.marginBox().width;
+                if (i + 1 < children.items.len) total_w += main_gap;
+            }
+            if (total_w > 0) box.dimensions.content.width = total_w;
+        } else {
+            box.dimensions.content.width = max_cross_size;
+        }
     }
 }

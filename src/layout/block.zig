@@ -32,11 +32,67 @@ pub fn layoutBlock(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
     
     const locked_height = box.lock_content_height;
     const preserved_height = box.dimensions.content.height;
+
+    // Resolve height BEFORE children if it's a fixed value or percentage (not auto)
+    var is_auto_height = true;
+    if (box.styled_node) |sn| {
+        if (sn.style.height != null) {
+            is_auto_height = false;
+            block_metrics.calculateHeight(box, containing_block, ctx);
+        }
+    }
+
     layoutChildren(box, ctx);
+
     if (locked_height) {
         box.dimensions.content.height = preserved_height;
-    } else {
+    } else if (is_auto_height) {
         block_metrics.calculateHeight(box, containing_block, ctx);
+    }
+
+    // Resolve intrinsic image dimensions if not already set by CSS
+    if (box.styled_node) |sn| {
+        if (sn.node.tag == .img) {
+            if (sn.style.width == null) {
+                if (sn.node.getAttribute("width")) |w_str| {
+                    if (std.fmt.parseFloat(f32, w_str)) |w| {
+                        box.dimensions.content.width = w;
+                        box.lock_content_width = true;
+                    } else |_| {}
+                }
+            }
+            if (sn.style.height == null) {
+                if (sn.node.getAttribute("height")) |h_str| {
+                    if (std.fmt.parseFloat(f32, h_str)) |h| {
+                        box.dimensions.content.height = h;
+                        box.lock_content_height = true;
+                    } else |_| {}
+                }
+            }
+        }
+        if (sn.node.tag == .input) {
+            if (sn.node.getAttribute("value")) |val| {
+                const text_measure = @import("text_measure.zig");
+                const fs = sn.style.font_size.value;
+                const fw = sn.style.font_weight;
+                const tw = text_measure.measureTextWidth(val, fs, fw);
+                
+                // Center the text
+                const ox = box.dimensions.content.x + (box.dimensions.content.width - tw) / 2.0;
+                const string_lh = fs * 1.2;
+                const oy = box.dimensions.content.y + (box.dimensions.content.height - string_lh) / 2.0;
+
+                box.text_runs.append(ctx.allocator, .{
+                    .text = val,
+                    .styled_node = sn,
+                    .layout_box = box,
+                    .x = @max(box.dimensions.content.x, ox),
+                    .y = @max(box.dimensions.content.y, oy),
+                    .width = tw,
+                    .line_height = string_lh,
+                }) catch {};
+            }
+        }
     }
 
     // Apply relative positioning last for normal flow elements
@@ -49,12 +105,15 @@ pub fn layoutBlock(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
 
 
 fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
+    const is_shrink_to_fit = (box.box_type == .inlineBlockNode) and (!box.lock_content_width);
     box.dimensions.content.height = 0;
+    if (is_shrink_to_fit) box.dimensions.content.width = 0;
     
+    var max_child_width: f32 = 0;
     var pending_margin: f32 = 0;
     var is_at_parent_top = true;
     
-    const is_root = box.styled_node != null and box.styled_node.?.node.parent == null;
+    const is_root = box.styled_node != null and (box.styled_node.?.node.parent == null or box.styled_node.?.node.tag == .html);
     const parent_can_collapse_top = (box.styled_node != null) and !is_root and
                                     box.dimensions.padding.top == 0 and
                                     box.dimensions.border.top == 0;
@@ -131,6 +190,13 @@ fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
         const child_bpt = child.dimensions.border.top + child.dimensions.padding.top;
         const child_bpb = child.dimensions.border.bottom + child.dimensions.padding.bottom;
         
+        const child_full_width = child.dimensions.marginBox().width;
+        if (child_full_width > 2000) {
+            const tag = if (child.styled_node) |sn| sn.node.tag_name_str orelse "unknown" else "anon";
+            std.debug.print("Block: child '{s}' causing large width: {d} at relative y={d}\n", .{ tag, child_full_width, box.dimensions.content.height });
+        }
+        max_child_width = @max(max_child_width, child_full_width);
+
         const child_is_empty = (child_content_h == 0 and child_bpt == 0 and child_bpb == 0);
 
         if (is_at_parent_top and parent_can_collapse_top) {
@@ -165,22 +231,21 @@ fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
                 const adjustment = collapsed - original_child_mt;
                 block_metrics.shiftBoxY(child, adjustment);
                 
-                // Task 5: Block Centering
-                // If the parent has text-align: center, and this child is a block with smaller width, center it.
-                if (box.styled_node) |sn| {
-                    if (sn.style.text_align == .center) {
-                        const child_outer_w = child.dimensions.marginBox().width;
-                        const parent_w = box.dimensions.content.width;
-                        if (child_outer_w < parent_w) {
-                            const center_offset = (parent_w - child_outer_w) / 2.0;
-                            block_metrics.shiftBoxX(child, center_offset);
-                        }
-                    }
-                }
-                
                 box.dimensions.content.height += collapsed + child_bpt + child_content_h + child_bpb;
                 pending_margin = child_mb;
                 is_at_parent_top = false;
+            }
+        }
+
+        // Apply Block Centering (e.g. for `<center>` tag) unconditionally after Y positioning
+        if (box.styled_node) |sn| {
+            if (sn.style.text_align == .center) {
+                const child_outer_w = child.dimensions.marginBox().width;
+                const parent_w = box.dimensions.content.width;
+                if (child_outer_w < parent_w) {
+                    const center_offset = (parent_w - child_outer_w) / 2.0;
+                    block_metrics.shiftBoxX(child, center_offset);
+                }
             }
         }
     }
@@ -191,5 +256,9 @@ fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
         } else {
             box.dimensions.content.height += pending_margin;
         }
+    }
+
+    if (is_shrink_to_fit) {
+        box.dimensions.content.width = max_child_width;
     }
 }

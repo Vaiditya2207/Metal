@@ -3,15 +3,15 @@ const values_mod = @import("values.zig");
 const Length = values_mod.Length;
 const CssColor = values_mod.CssColor;
 
-pub const Display = enum { block, inline_val, inline_block, none, flex, table, table_row, table_cell };
-pub const Position = enum { static_val, relative, absolute, fixed };
+pub const Display = enum { block, inline_val, inline_block, none, flex, inline_flex, table, table_row, table_cell, table_row_group, table_header_group, table_footer_group };
+pub const Position = enum { static_val, relative, absolute, fixed, sticky };
 pub const Overflow = enum { visible, hidden, scroll, auto_val };
 pub const BoxSizing = enum { content_box, border_box };
 
 pub const FlexDirection = enum { row, column };
 pub const FlexWrap = enum { nowrap, wrap };
 pub const JustifyContent = enum { flex_start, flex_end, center, space_between };
-pub const AlignItems = enum { stretch, flex_start, flex_end, center };
+pub const AlignItems = enum { stretch, flex_start, flex_end, center, baseline };
 pub const BackgroundSize = enum { auto, contain, cover };
 pub const BackgroundRepeat = enum { repeat, no_repeat, repeat_x, repeat_y };
 
@@ -116,9 +116,11 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "inline-block")) self.display = .inline_block;
             if (std.mem.eql(u8, val, "none")) self.display = .none;
             if (std.mem.eql(u8, val, "flex")) self.display = .flex;
-            if (std.mem.eql(u8, val, "inline-flex")) self.display = .flex;
+            if (std.mem.eql(u8, val, "inline-flex")) self.display = .inline_flex;
             if (std.mem.eql(u8, val, "-webkit-box")) self.display = .flex;
             if (std.mem.eql(u8, val, "-webkit-flex")) self.display = .flex;
+            if (std.mem.eql(u8, val, "-webkit-inline-box")) self.display = .inline_flex;
+            if (std.mem.eql(u8, val, "-webkit-inline-flex")) self.display = .inline_flex;
             if (std.mem.eql(u8, val, "flow-root")) self.display = .block;
             if (std.mem.eql(u8, val, "grid")) self.display = .block;
             if (std.mem.eql(u8, val, "inline-grid")) self.display = .inline_block;
@@ -126,11 +128,16 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "table")) self.display = .table;
             if (std.mem.eql(u8, val, "table-row")) self.display = .table_row;
             if (std.mem.eql(u8, val, "table-cell")) self.display = .table_cell;
+            if (std.mem.eql(u8, val, "table-row-group")) self.display = .table_row_group;
+            if (std.mem.eql(u8, val, "table-header-group")) self.display = .table_header_group;
+            if (std.mem.eql(u8, val, "table-footer-group")) self.display = .table_footer_group;
         } else if (std.mem.eql(u8, prop, "position")) {
             if (std.mem.eql(u8, val, "static")) self.position = .static_val;
             if (std.mem.eql(u8, val, "relative")) self.position = .relative;
             if (std.mem.eql(u8, val, "absolute")) self.position = .absolute;
             if (std.mem.eql(u8, val, "fixed")) self.position = .fixed;
+            if (std.mem.eql(u8, val, "sticky")) self.position = .sticky;
+            if (std.mem.eql(u8, val, "-webkit-sticky")) self.position = .sticky;
         } else if (std.mem.startsWith(u8, prop, "overflow")) {
             if (std.mem.eql(u8, val, "visible")) self.overflow = .visible;
             if (std.mem.eql(u8, val, "hidden")) self.overflow = .hidden;
@@ -300,10 +307,13 @@ pub const ComputedStyle = struct {
         } else if (std.mem.eql(u8, prop, "opacity")) {
             const f = std.fmt.parseFloat(f32, val) catch 1.0;
             self.opacity = std.math.clamp(f, 0.0, 1.0);
-        } else if (std.mem.eql(u8, prop, "flex-direction")) {
+        } else if (std.mem.eql(u8, prop, "flex-direction") or std.mem.eql(u8, prop, "-webkit-flex-direction")) {
             if (std.mem.eql(u8, val, "row")) self.flex_direction = .row;
             if (std.mem.eql(u8, val, "column")) self.flex_direction = .column;
-        } else if (std.mem.eql(u8, prop, "flex-wrap")) {
+        } else if (std.mem.eql(u8, prop, "-webkit-box-orient")) {
+            if (std.mem.eql(u8, val, "horizontal")) self.flex_direction = .row;
+            if (std.mem.eql(u8, val, "vertical")) self.flex_direction = .column;
+        } else if (std.mem.eql(u8, prop, "flex-wrap") or std.mem.eql(u8, prop, "-webkit-flex-wrap")) {
             if (std.mem.eql(u8, val, "wrap")) self.flex_wrap = .wrap;
             if (std.mem.eql(u8, val, "nowrap")) self.flex_wrap = .nowrap;
         } else if (std.mem.eql(u8, prop, "row-gap")) {
@@ -323,13 +333,18 @@ pub const ComputedStyle = struct {
                     self.column_gap = col_l;
                 }
             }
-        } else if (std.mem.eql(u8, prop, "justify-content")) {
+        } else if (std.mem.eql(u8, prop, "justify-content") or std.mem.eql(u8, prop, "-webkit-justify-content")) {
             if (std.mem.eql(u8, val, "flex-start")) self.justify_content = .flex_start;
             if (std.mem.eql(u8, val, "flex-end")) self.justify_content = .flex_end;
             if (std.mem.eql(u8, val, "center")) self.justify_content = .center;
             if (std.mem.eql(u8, val, "space-between")) self.justify_content = .space_between;
             if (std.mem.eql(u8, val, "space-around")) self.justify_content = .space_between;
             if (std.mem.eql(u8, val, "space-evenly")) self.justify_content = .space_between;
+        } else if (std.mem.eql(u8, prop, "-webkit-box-pack")) {
+            if (std.mem.eql(u8, val, "start")) self.justify_content = .flex_start;
+            if (std.mem.eql(u8, val, "end")) self.justify_content = .flex_end;
+            if (std.mem.eql(u8, val, "center")) self.justify_content = .center;
+            if (std.mem.eql(u8, val, "justify")) self.justify_content = .space_between;
         } else if (std.mem.eql(u8, prop, "text-align")) {
             if (std.mem.eql(u8, val, "left")) self.text_align = .left;
             if (std.mem.eql(u8, val, "center")) self.text_align = .center;
@@ -370,23 +385,42 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "pre")) self.white_space = .pre;
             if (std.mem.eql(u8, val, "pre-wrap")) self.white_space = .pre;
             if (std.mem.eql(u8, val, "pre-line")) self.white_space = .normal;
-        } else if (std.mem.eql(u8, prop, "align-items")) {
+        } else if (std.mem.eql(u8, prop, "align-items") or std.mem.eql(u8, prop, "-webkit-align-items")) {
             if (std.mem.eql(u8, val, "stretch")) self.align_items = .stretch;
             if (std.mem.eql(u8, val, "flex-start")) self.align_items = .flex_start;
             if (std.mem.eql(u8, val, "flex-end")) self.align_items = .flex_end;
             if (std.mem.eql(u8, val, "center")) self.align_items = .center;
-            if (std.mem.eql(u8, val, "baseline")) self.align_items = .flex_start;
-        } else if (std.mem.eql(u8, prop, "flex-grow")) {
+            if (std.mem.eql(u8, val, "baseline")) self.align_items = .baseline;
+        } else if (std.mem.eql(u8, prop, "-webkit-box-align")) {
+            if (std.mem.eql(u8, val, "start")) self.align_items = .flex_start;
+            if (std.mem.eql(u8, val, "end")) self.align_items = .flex_end;
+            if (std.mem.eql(u8, val, "center")) self.align_items = .center;
+            if (std.mem.eql(u8, val, "baseline")) self.align_items = .baseline;
+            if (std.mem.eql(u8, val, "stretch")) self.align_items = .stretch;
+        } else if (std.mem.eql(u8, prop, "flex-grow") or std.mem.eql(u8, prop, "-webkit-flex-grow") or std.mem.eql(u8, prop, "-webkit-box-flex")) {
             self.flex_grow = std.fmt.parseFloat(f32, val) catch 0.0;
         } else if (std.mem.eql(u8, prop, "flex-shrink")) {
             self.flex_shrink = std.fmt.parseFloat(f32, val) catch 1.0;
         } else if (std.mem.eql(u8, prop, "flex-basis")) {
             self.flex_basis = values_mod.parseLength(val);
         } else if (std.mem.eql(u8, prop, "flex")) {
-            self.flex_grow = std.fmt.parseFloat(f32, val) catch 0.0;
-            if (self.flex_grow > 0) {
-                self.flex_shrink = 1.0;
-                self.flex_basis = .{ .value = 0, .unit = .px };
+            // flex shorthand: flex-grow flex-shrink flex-basis
+            var iter = std.mem.tokenizeAny(u8, val, " \t\n\r");
+            var count: usize = 0;
+            while (iter.next()) |token| {
+                if (count == 0) {
+                    self.flex_grow = std.fmt.parseFloat(f32, token) catch 0.0;
+                } else if (count == 1) {
+                    // Could be shrink or basis
+                    if (values_mod.parseLength(token)) |l| {
+                        self.flex_basis = l;
+                    } else {
+                        self.flex_shrink = std.fmt.parseFloat(f32, token) catch 1.0;
+                    }
+                } else if (count == 2) {
+                    self.flex_basis = values_mod.parseLength(token);
+                }
+                count += 1;
             }
         }
     }

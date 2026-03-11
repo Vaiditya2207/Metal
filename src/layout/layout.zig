@@ -40,7 +40,6 @@ pub const FloatContext = struct {
         var min_right: f32 = container_x + container_width;
 
         for (self.floats.items) |f| {
-            // Check if float overlaps Y range [y, y+height]
             if (f.rect.y < y + height and f.rect.y + f.rect.height > y) {
                 if (f.side == .left) {
                     max_left = @max(max_left, f.rect.x + f.rect.width);
@@ -78,7 +77,7 @@ pub const LayoutContext = struct {
     float_ctx: ?*FloatContext = null,
 };
 
-pub fn layoutTree(root: *LayoutBox, ctx: LayoutContext) void {
+pub fn layoutTree(root: *box.LayoutBox, ctx: LayoutContext) !void {
     root.dimensions.content.width = ctx.viewport_width;
     
     var fc = FloatContext.init(ctx.allocator);
@@ -98,6 +97,9 @@ pub fn layoutTree(root: *LayoutBox, ctx: LayoutContext) void {
 
 pub fn resolveLength(length: ?values.Length, containing_size: f32, ctx: LayoutContext, element_font_size: f32) f32 {
     const l = length orelse return 0;
+    if (containing_size > 2000) {
+        std.debug.print("resolveLength: large containing_size={d} for length={any}\n", .{ containing_size, l });
+    }
     return switch (l.unit) {
         .px => l.value,
         .em => l.value * element_font_size,

@@ -40,6 +40,7 @@ pub const Document = struct {
             .node_count = 0,
             .limits = Limits.fromConfig(),
         };
+        std.debug.print("DOM Limits: nodes={d} depth={d} children={d}\n", .{doc.limits.max_total_nodes, doc.limits.max_depth, doc.limits.max_children});
 
         const stable_alloc = doc.arena.allocator();
         const root = try stable_alloc.create(Node);

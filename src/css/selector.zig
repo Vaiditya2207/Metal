@@ -3,7 +3,15 @@ const dom_node = @import("../dom/node.zig");
 const css_tokenizer = @import("tokenizer.zig");
 const config = @import("../config.zig");
 
-pub const AttributeMatch = enum { exists, equals };
+pub const AttributeMatch = enum { 
+    exists, 
+    equals, 
+    includes,    // ~=
+    dash_match,  // |=
+    prefix,      // ^=
+    suffix,      // $=
+    contains,    // *=
+};
 
 pub const AttributeSelector = struct {
     name: []const u8,
@@ -233,6 +241,44 @@ pub const Selector = struct {
                         const expected = a.value orelse return false;
                         const actual = attr_val orelse return false;
                         if (!std.mem.eql(u8, expected, actual)) return false;
+                    },
+                    .includes => {
+                        const expected = a.value orelse return false;
+                        const actual = attr_val orelse return false;
+                        var iter = std.mem.tokenizeAny(u8, actual, " \t\n\r");
+                        var found = false;
+                        while (iter.next()) |token| {
+                            if (std.mem.eql(u8, token, expected)) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) return false;
+                    },
+                    .dash_match => {
+                        const expected = a.value orelse return false;
+                        const actual = attr_val orelse return false;
+                        if (std.mem.eql(u8, actual, expected)) return true;
+                        if (std.mem.startsWith(u8, actual, expected) and actual.len > expected.len and actual[expected.len] == '-') {
+                            // ok
+                        } else {
+                            return false;
+                        }
+                    },
+                    .prefix => {
+                        const expected = a.value orelse return false;
+                        const actual = attr_val orelse return false;
+                        if (!std.mem.startsWith(u8, actual, expected)) return false;
+                    },
+                    .suffix => {
+                        const expected = a.value orelse return false;
+                        const actual = attr_val orelse return false;
+                        if (!std.mem.endsWith(u8, actual, expected)) return false;
+                    },
+                    .contains => {
+                        const expected = a.value orelse return false;
+                        const actual = attr_val orelse return false;
+                        if (std.mem.indexOf(u8, actual, expected) == null) return false;
                     },
                 }
             }
@@ -468,6 +514,7 @@ fn parseAttributeSelector(
     var value_buf: std.ArrayListUnmanaged(u8) = .empty;
     defer value_buf.deinit(allocator);
     var seen_eq = false;
+    var op: AttributeMatch = .exists;
 
     while (true) {
         const tok = if (pushed.*) |pt| blk: {
@@ -477,26 +524,48 @@ fn parseAttributeSelector(
         if (tok.type == .eof or tok.type == .right_bracket) break;
         if (tok.type == .whitespace) continue;
 
-        if (!seen_eq and tok.type == .delim and std.mem.eql(u8, tok.value, "=")) {
-            seen_eq = true;
-            continue;
+        if (!seen_eq and tok.type == .delim) {
+            if (std.mem.eql(u8, tok.value, "=")) {
+                seen_eq = true;
+                if (op == .exists) op = .equals;
+                continue;
+            } else if (std.mem.eql(u8, tok.value, "~") or std.mem.eql(u8, tok.value, "|") or 
+                       std.mem.eql(u8, tok.value, "^") or std.mem.eql(u8, tok.value, "$") or 
+                       std.mem.eql(u8, tok.value, "*")) {
+                const op_char = tok.value[0];
+                const next = if (pushed.*) |pt| blk: {
+                    pushed.* = null;
+                    break :blk pt;
+                } else try tokenizer.next();
+                
+                if (next.type == .delim and std.mem.eql(u8, next.value, "=")) {
+                    seen_eq = true;
+                    op = switch (op_char) {
+                        '~' => .includes,
+                        '|' => .dash_match,
+                        '^' => .prefix,
+                        '$' => .suffix,
+                        '*' => .contains,
+                        else => .equals,
+                    };
+                    continue;
+                } else {
+                    pushed.* = next;
+                }
+            }
         }
 
         if (!seen_eq) {
             try name_buf.appendSlice(allocator, tok.value);
         } else {
-            if (tok.type == .string) {
-                try value_buf.appendSlice(allocator, tok.value);
-            } else {
-                try value_buf.appendSlice(allocator, tok.value);
-            }
+            try value_buf.appendSlice(allocator, tok.value);
         }
     }
 
     const name = std.mem.trim(u8, name_buf.items, " \t\n\r");
     if (name.len == 0) return;
 
-    var attrs: std.ArrayListUnmanaged(AttributeSelector) = .empty;
+    var attrs = std.ArrayListUnmanaged(AttributeSelector){};
     for (part.attributes) |a| try attrs.append(allocator, a);
 
     if (seen_eq) {
@@ -504,7 +573,7 @@ fn parseAttributeSelector(
         try attrs.append(allocator, .{
             .name = try allocator.dupe(u8, name),
             .value = try allocator.dupe(u8, val),
-            .op = .equals,
+            .op = op,
         });
     } else {
         try attrs.append(allocator, .{
