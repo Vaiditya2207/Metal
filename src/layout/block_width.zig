@@ -86,7 +86,11 @@ pub fn calculateWidth(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layou
     }
 
     const width_is_auto = if (style.width) |w| w.unit == .auto else true;
-    if (!width_is_auto) {
+    // Per CSS 2.1 §10.3.3: auto margins absorb remaining space when used width < CB width.
+    // This applies both when width is explicit AND when width was auto but clamped by max-width.
+    const available_cb = cb_width - (margin_left + margin_right + padding_left + padding_right + border_left + border_right);
+    const was_clamped_narrower = width_is_auto and (box.dimensions.content.width < available_cb) and (box.dimensions.content.width > 0);
+    if (!width_is_auto or was_clamped_narrower) {
         const current_content_width = box.dimensions.content.width;
         const used_width = margin_left + border_left + padding_left + current_content_width + padding_right + border_right + margin_right;
         const available_space = cb_width - used_width;

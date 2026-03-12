@@ -1,11 +1,15 @@
+const std = @import("std");
 const layout = @import("layout.zig");
 const LayoutBox = @import("box.zig").LayoutBox;
 
 pub fn calculatePosition(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.LayoutContext) void {
     const style = if (box.styled_node) |sn| &sn.style else {
+        // L-3 FIX: Anonymous blocks must stack below previous siblings.
+        // Use cb.y + cb.height (same as styled blocks) so second+ anonymous
+        // blocks don't overlap the first.
         if (containing_block) |cb| {
             box.dimensions.content.x = cb.dimensions.content.x;
-            box.dimensions.content.y = cb.dimensions.content.y;
+            box.dimensions.content.y = cb.dimensions.content.y + cb.dimensions.content.height;
         }
         return;
     };

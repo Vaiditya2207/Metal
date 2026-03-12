@@ -76,14 +76,17 @@ pub const LayoutContext = struct {
     viewport_height: f32,
     root_font_size: f32 = 16.0,
     float_ctx: ?*FloatContext = null,
+    /// Non-zero when a parent flex container stretched this box's cross-axis.
+    /// Used by layoutFlexBox to propagate stretch to nested flex children.
+    forced_cross_size: f32 = 0,
 };
 
 pub fn layoutTree(root: *LayoutBox, ctx: LayoutContext) void {
     root.dimensions.content.width = ctx.viewport_width;
-    
+
     var fc = FloatContext.init(ctx.allocator);
     defer fc.deinit();
-    
+
     var mutable_ctx = ctx;
     mutable_ctx.float_ctx = &fc;
 
@@ -106,5 +109,6 @@ pub fn resolveLength(length: ?values.Length, containing_size: f32, ctx: LayoutCo
         .auto, .none => 0,
         .vw => (l.value / 100.0) * ctx.viewport_width,
         .vh => (l.value / 100.0) * ctx.viewport_height,
+        .calc => (l.value / 100.0) * containing_size + l.calc_offset,
     };
 }

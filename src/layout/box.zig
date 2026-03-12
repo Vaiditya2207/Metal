@@ -143,7 +143,7 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             };
             const root = try self.allocator.create(LayoutBox);
             root.* = LayoutBox.init(box_type, sn);
-            
+
             // Set intrinsic size for replaced elements like <input> and <textarea>
             if (sn.node.node_type == .element) {
                 if (sn.node.tag == .input or sn.node.tag == .textarea) {
@@ -152,32 +152,56 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
                 } else if (sn.node.tag == .svg) {
                     root.intrinsic_width = 300.0;
                     root.intrinsic_height = 150.0;
+                    var has_explicit_width = false;
+                    var has_explicit_height = false;
                     if (sn.node.getAttribute("width")) |w| {
                         root.intrinsic_width = std.fmt.parseFloat(f32, w) catch 300.0;
+                        has_explicit_width = true;
                     }
                     if (sn.node.getAttribute("height")) |h| {
                         root.intrinsic_height = std.fmt.parseFloat(f32, h) catch 150.0;
+                        has_explicit_height = true;
+                    }
+                    // If no explicit width/height, try viewBox
+                    if (!has_explicit_width and !has_explicit_height) {
+                        if (sn.node.getAttribute("viewBox") orelse sn.node.getAttribute("viewbox")) |vb| {
+                            var iter = std.mem.tokenizeAny(u8, vb, " ,");
+                            _ = iter.next(); // skip minX
+                            _ = iter.next(); // skip minY
+                            if (iter.next()) |vb_w| {
+                                root.intrinsic_width = std.fmt.parseFloat(f32, vb_w) catch 300.0;
+                            }
+                            if (iter.next()) |vb_h| {
+                                root.intrinsic_height = std.fmt.parseFloat(f32, vb_h) catch 150.0;
+                            }
+                        }
                     }
                     root.svg_xml = sn.node.serialize(self.allocator) catch null;
                 }
             }
-            
+
             errdefer {
                 root.deinit(self.allocator);
                 self.allocator.destroy(root);
             }
 
-            for (sn.children) |child| {
-                if (self.build(child, depth + 1)) |child_box| {
-                    child_box.parent = root;
-                    try root.children.append(self.allocator, child_box);
-                } else |err| {
-                    if (err == error.SkipNode) continue;
-                    return err;
+            // SVG elements are rendered as opaque replaced elements via svg_xml.
+            // Skip building layout boxes for SVG children (path, circle, etc.)
+            // which would create zero-size ghost boxes in the layout tree.
+            const skip_children = sn.node.node_type == .element and sn.node.tag == .svg;
+            if (!skip_children) {
+                for (sn.children) |child| {
+                    if (self.build(child, depth + 1)) |child_box| {
+                        child_box.parent = root;
+                        try root.children.append(self.allocator, child_box);
+                    } else |err| {
+                        if (err == error.SkipNode) continue;
+                        return err;
+                    }
                 }
             }
 
-            if (root.box_type == .blockNode or root.box_type == .flexNode) {
+            if (root.box_type == .blockNode or root.box_type == .flexNode or root.box_type == .inlineBlockNode) {
                 try self.wrapAnonymousBlocks(root);
             }
 
@@ -185,11 +209,17 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
         }
 
         fn wrapAnonymousBlocks(self: *@This(), parent: *LayoutBox) !void {
+            const is_flex = parent.box_type == .flexNode;
             var has_block = false;
             var has_inline = false;
             for (parent.children.items) |child| {
                 if (child.box_type == .blockNode or child.box_type == .flexNode) has_block = true;
-                if (child.box_type == .inlineNode or child.box_type == .inlineBlockNode or child.box_type == .anonymousBlock) has_inline = true;
+                // In flex containers, inline-block children are flex items (block-level)
+                if (is_flex and child.box_type == .inlineBlockNode) {
+                    has_block = true;
+                } else if (child.box_type == .inlineNode or child.box_type == .inlineBlockNode or child.box_type == .anonymousBlock) {
+                    has_inline = true;
+                }
             }
 
             if (!has_inline) return;
@@ -222,7 +252,10 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
 
             var i: usize = 0;
             while (i < parent.children.items.len) {
-                if (parent.children.items[i].box_type == .blockNode or parent.children.items[i].box_type == .flexNode) {
+                const child_type = parent.children.items[i].box_type;
+                const is_block_level = child_type == .blockNode or child_type == .flexNode or
+                    (is_flex and child_type == .inlineBlockNode);
+                if (is_block_level) {
                     try new_children.append(self.allocator, parent.children.items[i]);
                     i += 1;
                 } else {
@@ -233,7 +266,11 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
                         anon.deinit(self.allocator);
                         self.allocator.destroy(anon);
                     }
-                    while (i < parent.children.items.len and parent.children.items[i].box_type != .blockNode and parent.children.items[i].box_type != .flexNode) {
+                    while (i < parent.children.items.len) {
+                        const inner_type = parent.children.items[i].box_type;
+                        const inner_is_block = inner_type == .blockNode or inner_type == .flexNode or
+                            (is_flex and inner_type == .inlineBlockNode);
+                        if (inner_is_block) break;
                         const child = parent.children.items[i];
                         child.parent = anon;
                         try anon.children.append(self.allocator, child);
