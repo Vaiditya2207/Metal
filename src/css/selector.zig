@@ -18,6 +18,9 @@ pub const SelectorPart = struct {
     attributes: []const AttributeSelector = &.{},
     universal: bool = false,
     is_root: bool = false,
+    is_first_of_type: bool = false,
+    is_last_of_type: bool = false,
+    has_pseudo_element: bool = false,
     not_selectors: []const SelectorPart = &.{},
     any_selectors: []const SelectorPart = &.{},
 };
@@ -126,7 +129,7 @@ pub const Selector = struct {
                     next_t.type == .whitespace or
                     next_t.type == .comma or
                     (next_t.type == .delim and
-                    (std.mem.eql(u8, next_t.value, ",") or std.mem.eql(u8, next_t.value, ">"))))
+                        (std.mem.eql(u8, next_t.value, ",") or std.mem.eql(u8, next_t.value, ">"))))
                 {
                     pushed = next_t;
                     break;
@@ -177,8 +180,43 @@ pub const Selector = struct {
     fn matchPart(part: SelectorPart, node: *const dom_node.Node) bool {
         if (node.node_type != .element) return false;
 
+        // Pseudo-element selectors (::before, ::after, etc.) never match real elements
+        if (part.has_pseudo_element) return false;
+
         if (part.is_root) {
             if (node.tag != .html) return false;
+        }
+
+        if (part.is_first_of_type) {
+            const parent = node.parent orelse return false;
+            // Check if this is the first sibling with the same tag
+            var found_earlier = false;
+            for (parent.children.items) |sibling| {
+                if (sibling == node) break; // Reached ourselves, no earlier match
+                if (sibling.node_type == .element and sibling.tag == node.tag) {
+                    found_earlier = true;
+                    break;
+                }
+            }
+            if (found_earlier) return false;
+        }
+
+        if (part.is_last_of_type) {
+            const parent = node.parent orelse return false;
+            // Check if this is the last sibling with the same tag
+            var found_later = false;
+            // Iterate in reverse from end
+            var idx: usize = parent.children.items.len;
+            while (idx > 0) {
+                idx -= 1;
+                const sibling = parent.children.items[idx];
+                if (sibling == node) break; // Reached ourselves from the end, no later match
+                if (sibling.node_type == .element and sibling.tag == node.tag) {
+                    found_later = true;
+                    break;
+                }
+            }
+            if (found_later) return false;
         }
 
         if (part.tag) |tag| {
@@ -262,6 +300,8 @@ pub const Selector = struct {
 fn isEmptyPart(part: SelectorPart) bool {
     return !part.universal and
         !part.is_root and
+        !part.is_first_of_type and
+        !part.is_last_of_type and
         part.tag == null and
         part.id == null and
         part.classes.len == 0 and
@@ -417,10 +457,12 @@ fn parsePseudo(
     } else try tokenizer.next();
 
     if (pseudo_tok.type == .colon) {
+        // This is a :: pseudo-element (e.g., ::before, ::after)
         _ = if (pushed.*) |pt| blk: {
             pushed.* = null;
             break :blk pt;
         } else try tokenizer.next();
+        part.has_pseudo_element = true;
         spec.c += 1;
         return;
     }
@@ -452,6 +494,10 @@ fn parsePseudo(
     pushed.* = next_tok;
     if (std.mem.eql(u8, name, "root")) {
         part.is_root = true;
+    } else if (std.mem.eql(u8, name, "first-of-type")) {
+        part.is_first_of_type = true;
+    } else if (std.mem.eql(u8, name, "last-of-type")) {
+        part.is_last_of_type = true;
     }
     spec.b += 1;
 }
@@ -514,4 +560,146 @@ fn parseAttributeSelector(
     }
     part.attributes = try attrs.toOwnedSlice(allocator);
     spec.b += 1;
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+test "pseudo-element selector .foo::before has has_pseudo_element set" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, ".foo::before");
+
+    try std.testing.expect(sel.components.len > 0);
+    const last = sel.components[sel.components.len - 1];
+    try std.testing.expect(last.part.has_pseudo_element == true);
+}
+
+test "plain selector .foo does not have has_pseudo_element set" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, ".foo");
+
+    try std.testing.expect(sel.components.len > 0);
+    const last = sel.components[sel.components.len - 1];
+    try std.testing.expect(last.part.has_pseudo_element == false);
+}
+
+test "pseudo-element selector .foo::after has has_pseudo_element set" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, ".foo::after");
+
+    try std.testing.expect(sel.components.len > 0);
+    const last = sel.components[sel.components.len - 1];
+    try std.testing.expect(last.part.has_pseudo_element == true);
+}
+
+test "pseudo-element selector .foo::before does not match real element" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, ".foo::before");
+
+    var node = dom_node.Node.init(allocator, .element);
+    node.tag = .div;
+    try node.attributes.append(allocator, .{ .name = "class", .value = "foo" });
+
+    try std.testing.expect(sel.matchesNode(&node) == false);
+}
+
+test "plain selector .foo matches real element with class foo" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, ".foo");
+
+    var node = dom_node.Node.init(allocator, .element);
+    node.tag = .div;
+    try node.attributes.append(allocator, .{ .name = "class", .value = "foo" });
+
+    try std.testing.expect(sel.matchesNode(&node) == true);
+}
+
+test "pseudo-element selector .foo::after does not match real element" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, ".foo::after");
+
+    var node = dom_node.Node.init(allocator, .element);
+    node.tag = .div;
+    try node.attributes.append(allocator, .{ .name = "class", .value = "foo" });
+
+    try std.testing.expect(sel.matchesNode(&node) == false);
+}
+
+test ":first-of-type selector parses and sets flag" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, "a:first-of-type");
+    try std.testing.expect(sel.components.len > 0);
+    const last = sel.components[sel.components.len - 1];
+    try std.testing.expect(last.part.is_first_of_type == true);
+    try std.testing.expect(last.part.is_last_of_type == false);
+}
+
+test ":last-of-type selector parses and sets flag" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, "div:last-of-type");
+    try std.testing.expect(sel.components.len > 0);
+    const last = sel.components[sel.components.len - 1];
+    try std.testing.expect(last.part.is_last_of_type == true);
+    try std.testing.expect(last.part.is_first_of_type == false);
+}
+
+test ":first-of-type matches first a among siblings" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, "a:first-of-type");
+
+    // Create parent with: div, a (first-of-type), a
+    var parent = dom_node.Node.init(allocator, .element);
+    parent.tag = .div;
+
+    var div_child = dom_node.Node.init(allocator, .element);
+    div_child.tag = .div;
+    div_child.parent = &parent;
+    try parent.children.append(allocator, &div_child);
+
+    var a1 = dom_node.Node.init(allocator, .element);
+    a1.tag = .a;
+    a1.tag_name_str = "a";
+    a1.parent = &parent;
+    try parent.children.append(allocator, &a1);
+
+    var a2 = dom_node.Node.init(allocator, .element);
+    a2.tag = .a;
+    a2.tag_name_str = "a";
+    a2.parent = &parent;
+    try parent.children.append(allocator, &a2);
+
+    try std.testing.expect(sel.matchesNode(&a1) == true);
+    try std.testing.expect(sel.matchesNode(&a2) == false);
+}
+
+test ":first-of-type does not match without parent" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const sel = try Selector.parse(allocator, "a:first-of-type");
+
+    var a = dom_node.Node.init(allocator, .element);
+    a.tag = .a;
+    a.tag_name_str = "a";
+    // No parent
+    try std.testing.expect(sel.matchesNode(&a) == false);
 }

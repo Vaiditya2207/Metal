@@ -51,20 +51,48 @@ pub const Parser = struct {
                 if (std.mem.eql(u8, p.current.value, "media")) {
                     p.current = try p.tokenizer.next();
                     var match_media = true;
-                    // Check conditions until opening brace
+                    // Collect tokens between @media and { to evaluate conditions
+                    var media_tokens: [32]css_tokenizer.CssToken = undefined;
+                    var media_token_count: usize = 0;
                     while (p.current.type != .left_brace and p.current.type != .eof) {
-                        if (p.current.type == .ident) {
-                            // If it's specifically for print, we ignore it. Screen & all are accepted.
-                            if (std.mem.eql(u8, p.current.value, "print")) {
+                        if (media_token_count < 32) {
+                            media_tokens[media_token_count] = p.current;
+                            media_token_count += 1;
+                        }
+                        p.current = try p.tokenizer.next();
+                    }
+                    // Evaluate media conditions
+                    for (media_tokens[0..media_token_count], 0..) |mtok, mi| {
+                        if (mtok.type == .ident) {
+                            if (std.mem.eql(u8, mtok.value, "print")) {
                                 match_media = false;
                             }
                         }
-                        p.current = try p.tokenizer.next();
+                        // Check for (max-width: Npx) or (min-width: Npx) patterns
+                        if (mtok.type == .ident and mi + 1 < media_token_count) {
+                            const is_max_w = std.mem.eql(u8, mtok.value, "max-width");
+                            const is_min_w = std.mem.eql(u8, mtok.value, "min-width");
+                            if (is_max_w or is_min_w) {
+                                // Find the next dimension/number token
+                                var j = mi + 1;
+                                while (j < media_token_count) : (j += 1) {
+                                    const ntok = media_tokens[j];
+                                    if (ntok.type == .dimension or ntok.type == .number) {
+                                        const val = ntok.number_value;
+                                        // Use 1200 as default viewport width
+                                        if (is_max_w and 1200.0 > val) match_media = false;
+                                        if (is_min_w and 1200.0 < val) match_media = false;
+                                        break;
+                                    }
+                                    if (ntok.type == .left_brace) break;
+                                }
+                            }
+                        }
                     }
                     if (p.current.type == .left_brace) {
                         p.current = try p.tokenizer.next();
                     }
-                    
+
                     if (match_media) {
                         // Parse the nested rules and flatten them into the main rules list
                         while (p.current.type != .right_brace and p.current.type != .eof) {
@@ -101,7 +129,7 @@ pub const Parser = struct {
                     // Skip other at-rules
                     var nest_level: usize = 0;
                     if (p.current.type == .left_brace) nest_level += 1;
-                    
+
                     while (p.current.type != .eof) {
                         if (p.current.type == .left_brace) nest_level += 1;
                         if (p.current.type == .right_brace) {
