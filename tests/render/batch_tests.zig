@@ -47,22 +47,23 @@ test "RectBatch appendRect produces correct triangle vertices" {
 
 test "RectBatch isFull returns true at capacity" {
     var b: batch.RectBatch = .{};
-    // Fill to capacity: 256 quads * 6 verts = 1536
-    for (0..256) |_| {
+    const max_quads = batch.max_rect_vertices / 6;
+    for (0..max_quads) |_| {
         b.appendRect(0, 0, 1, 1, 1, 1, 1, 1);
     }
-    try testing.expectEqual(@as(usize, 1536), b.vertexCount());
+    try testing.expectEqual(batch.max_rect_vertices, b.vertexCount());
     try testing.expect(b.isFull());
 }
 
 test "RectBatch appendRect silently drops when full" {
     var b: batch.RectBatch = .{};
-    for (0..256) |_| {
+    const max_quads = batch.max_rect_vertices / 6;
+    for (0..max_quads) |_| {
         b.appendRect(0, 0, 1, 1, 1, 1, 1, 1);
     }
     // One more should be silently dropped
     b.appendRect(99, 99, 99, 99, 0, 0, 0, 0);
-    try testing.expectEqual(@as(usize, 1536), b.vertexCount());
+    try testing.expectEqual(batch.max_rect_vertices, b.vertexCount());
 }
 
 test "RectBatch clear resets count" {
@@ -114,10 +115,11 @@ test "TextBatch appendQuad adds 6 vertices with correct UV mapping" {
 
 test "TextBatch isFull returns true at capacity" {
     var b: batch.TextBatch = .{};
-    for (0..256) |_| {
+    const max_quads = batch.max_text_vertices / 6;
+    for (0..max_quads) |_| {
         b.appendQuad(0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1);
     }
-    try testing.expectEqual(@as(usize, 1536), b.vertexCount());
+    try testing.expectEqual(batch.max_text_vertices, b.vertexCount());
     try testing.expect(b.isFull());
 }
 

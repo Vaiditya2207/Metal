@@ -53,6 +53,7 @@ pub const Renderer = struct {
     device: *anyopaque,
     command_queue: *anyopaque,
     pipeline_state: ?*anyopaque = null,
+    image_pipeline: ?*anyopaque = null,
     text_renderer: ?text.TextRenderer = null,
     view: ?*anyopaque = null,
     clear_color: [4]f32 = .{ 1.0, 1.0, 1.0, 1.0 },
@@ -104,7 +105,7 @@ pub const Renderer = struct {
             alloc.free(entry.key_ptr.*);
         }
         self.image_cache.deinit(alloc);
-        
+
         var it = self.svg_cache.iterator();
         while (it.next()) |entry| {
             alloc.free(entry.key_ptr.*);
@@ -171,6 +172,9 @@ pub const Renderer = struct {
 
         const pipeline = objc.create_render_pipeline(device) orelse return error.PipelineCreationFailed;
 
+        // R-1 FIX: Create image pipeline once at init instead of per-frame.
+        const img_pipeline = objc.create_image_pipeline(device);
+
         const scale_factor = objc.get_screen_scale_factor();
         const text_renderer = try text.TextRenderer.init(device, queue, 64.0, scale_factor);
 
@@ -178,6 +182,7 @@ pub const Renderer = struct {
             .device = device,
             .command_queue = queue,
             .pipeline_state = pipeline,
+            .image_pipeline = img_pipeline,
             .text_renderer = text_renderer,
             .interaction = .{},
             .input_manager = ui.input.InputManager.init(),
@@ -432,13 +437,15 @@ pub const Renderer = struct {
                 },
                 .mouse_down => {
                     if (event.y < toolbar_height) {
-                        if (event.x < 35) {
+                        // I-1 FIX: Hit zones match drawn button positions
+                        // Back: x=[10,35), Forward: x=[45,70), Reload: x=[80,105)
+                        if (event.x >= 10 and event.x < 35) {
                             self.goBack();
-                        } else if (event.x < 70) {
+                        } else if (event.x >= 45 and event.x < 70) {
                             self.goForward();
-                        } else if (event.x < 105) {
+                        } else if (event.x >= 80 and event.x < 105) {
                             self.reload();
-                        } else {
+                        } else if (event.x >= 105) {
                             self.url_bar_focused = true;
                             self.input_manager.blur();
                             set_cursor_style(2);
@@ -451,7 +458,7 @@ pub const Renderer = struct {
                                 if (target.node_type == .element and (target.tag == .input or target.tag == .textarea)) {
                                     // Focus input — do NOT navigate
                                     var focus_node: *dom.Node = @constCast(target);
-                                    
+
                                     // If we clicked a non-text input (like a button), try to find a companion text input in the same form
                                     if (target.tag == .input) {
                                         const t_type = target.getAttribute("type") orelse "text";
@@ -462,7 +469,7 @@ pub const Renderer = struct {
                                                 if (fr.tag == .form) break;
                                                 form_root = fr.parent;
                                             }
-                                            
+
                                             if (form_root) |fr| {
                                                 const Helper = struct {
                                                     fn findTextInput(n: *dom.Node) ?*dom.Node {
@@ -485,7 +492,7 @@ pub const Renderer = struct {
                                     self.input_manager.focus(focus_node);
                                 } else {
                                     self.input_manager.blur();
-                                    
+
                                     // Task 5: If we hit a container inside a form (and not a link), try to find the primary input
                                     if (click.href == null) {
                                         var form_root: ?*dom.Node = @constCast(target).parent;
@@ -725,7 +732,7 @@ pub const Renderer = struct {
                         const comp = compositor.Compositor{
                             .rect_pipeline = ps,
                             .text_renderer = tr,
-                            .image_pipeline = objc.create_image_pipeline(self.device),
+                            .image_pipeline = self.image_pipeline,
                             .device = self.device,
                             .command_queue = self.command_queue,
                             .allocator = self.allocator,
@@ -761,7 +768,7 @@ pub const Renderer = struct {
                 objc.set_projection(fc, width, height);
                 // Outer bar bg
                 objc.draw_solid_rect(fc, 0, 0, width, toolbar_height, 0.95, 0.95, 0.95, 1.0);
-                
+
                 // Input box - reserved space for nav buttons (110px)
                 const buttons_width: f32 = 100.0;
                 const box_stroke = if (self.url_bar_focused) @as(f32, 0.6) else @as(f32, 0.8);
@@ -790,11 +797,11 @@ pub const Renderer = struct {
                 // Reload Button
                 const reload_bg = if (reload_hover and reload_enabled) @as(f32, 0.75) else 0.85;
                 objc.draw_solid_rect(fc, 80, btn_y, btn_w, btn_h, reload_bg, reload_bg, reload_bg, 1.0);
-                
+
                 if (self.text_renderer) |*tr| {
                     const app_mod = @import("../platform/app.zig");
                     app_mod.objc.set_pipeline(fc, tr.text_pipeline);
-                    
+
                     const enabled_col = 0.2;
                     const disabled_col = 0.6;
 
@@ -805,8 +812,7 @@ pub const Renderer = struct {
 
                     var url_x_offset: f32 = 18.0 + buttons_width;
                     if (self.favicon_texture) |fav_tex| {
-                        const image_pipeline = objc.create_image_pipeline(self.device);
-                        if (image_pipeline) |ip| {
+                        if (self.image_pipeline) |ip| {
                             objc.set_pipeline(fc, ip);
                             const fav_size: f32 = 16.0;
                             const fav_y: f32 = 12.0;
@@ -826,7 +832,7 @@ pub const Renderer = struct {
                     app_mod.objc.set_pipeline(fc, tr.text_pipeline);
                     const url_to_draw = if (self.url_bar_len > 0) self.url_bar_text[0..self.url_bar_len] else "Enter URL...";
                     tr.drawTextScaled(fc, url_to_draw, url_x_offset, 25, 16, 0.1, 0.1, 0.1, 1.0);
-                    
+
                     if (self.page_title_len > 0) {
                         const title_text = self.page_title[0..self.page_title_len];
                         // Draw title towards the right side of the address bar
@@ -847,7 +853,7 @@ pub const Renderer = struct {
                         self.loading_animation_time = 0.0;
                     }
                 }
-                
+
                 if (is_loading) {
                     objc.set_pipeline(fc, ps);
                     const sine_wave = (std.math.sin(self.loading_animation_time) + 1.0) / 2.0; // 0 to 1
@@ -864,7 +870,7 @@ pub const Renderer = struct {
                     const max_scroll = self.scroll.content_height - self.scroll.viewport_height;
                     const scroll_progress = if (max_scroll > 0) self.scroll.scroll_y / max_scroll else 0.0;
                     const thumb_y = toolbar_height + scroll_progress * (track_height - thumb_height);
-                    
+
                     objc.draw_solid_rect(fc, width - 12.0, toolbar_height, 12.0, track_height, 0.95, 0.95, 0.95, 0.8);
                     objc.draw_solid_rect(fc, width - 10.0, thumb_y, 8.0, thumb_height, 0.6, 0.6, 0.6, 0.9);
                 }
@@ -1072,7 +1078,7 @@ pub const Renderer = struct {
                         self.page_title[title_len] = 0;
                         self.page_title_len = title_len;
                         title_found = true;
-                        
+
                         const app_mod = @import("../platform/app.zig");
                         if (self.window) |w| {
                             app_mod.objc.set_window_title(w, @ptrCast(&self.page_title));
@@ -1081,13 +1087,13 @@ pub const Renderer = struct {
                 }
             }
         }
-        
+
         if (!title_found) {
             const fallback = "Metal Browser Engine";
             @memcpy(self.page_title[0..fallback.len], fallback);
             self.page_title[fallback.len] = 0;
             self.page_title_len = fallback.len;
-            
+
             const app_mod = @import("../platform/app.zig");
             if (self.window) |w| {
                 app_mod.objc.set_window_title(w, @ptrCast(&self.page_title));
@@ -1099,13 +1105,13 @@ pub const Renderer = struct {
             rl.deinit();
         }
         self.resource_loader = net.loader.ResourceLoader.init(alloc, nav.fetch_client, nav.base_url);
-        
+
         const refs = self.resource_loader.?.discoverResources(new_doc.root) catch &[_]net.loader.ResourceRef{};
-        
+
         // Cap async loading at 100 resources for now to prevent overwhelming
         const max_resources = @min(refs.len, 100);
         const limited_refs = refs[0..max_resources];
-        
+
         self.resource_loader.?.startLoading(limited_refs) catch |err| {
             std.debug.print("Failed to start loading resources: {}\n", .{err});
         };
@@ -1117,7 +1123,7 @@ pub const Renderer = struct {
         // 5. Build initial stylesheets (UA + inline)
         const ua_sheet = css.user_agent.getStylesheet(alloc) catch return;
         const page_sheets = css.style_extract.extractStylesheets(alloc, new_doc.root) catch &[_]css.Stylesheet{};
-        
+
         self.stylesheets.clearRetainingCapacity();
         self.stylesheets.append(alloc, ua_sheet) catch return;
         self.stylesheets.appendSlice(alloc, page_sheets) catch {};
@@ -1151,12 +1157,12 @@ pub const Renderer = struct {
             }
             current = node.parent;
         }
-        
+
         if (form_node == null) return;
-        
+
         const action = form_node.?.getAttribute("action") orelse "";
         const method = form_node.?.getAttribute("method") orelse "GET";
-        
+
         if (!std.mem.eql(u8, method, "GET") and !std.mem.eql(u8, method, "get")) {
             std.debug.print("Form method {s} not supported yet\n", .{method});
         }
@@ -1164,21 +1170,21 @@ pub const Renderer = struct {
         if (self.allocator) |alloc| {
             var query = std.ArrayListUnmanaged(u8){};
             defer query.deinit(alloc);
-            
+
             const Collect = struct {
                 fn collectInputs(alloc2: std.mem.Allocator, n: *@import("../dom/node.zig").Node, q: *std.ArrayListUnmanaged(u8)) !void {
                     if (n.node_type == .element and (n.tag == .input or n.tag == .textarea)) {
                         if (n.getAttribute("name")) |name| {
                             // Skip buttons and other non-data inputs
                             const i_type = n.getAttribute("type") orelse "text";
-                            if (std.mem.eql(u8, i_type, "submit") or 
-                                std.mem.eql(u8, i_type, "button") or 
-                                std.mem.eql(u8, i_type, "image") or 
+                            if (std.mem.eql(u8, i_type, "submit") or
+                                std.mem.eql(u8, i_type, "button") or
+                                std.mem.eql(u8, i_type, "image") or
                                 std.mem.eql(u8, i_type, "reset") or
                                 std.mem.eql(u8, i_type, "hidden") and n.attributes.items.len == 0 // placeholder check
                             ) {
-                                // For now skip hidden too if they look like artifacts, 
-                                // though real hidden inputs SHOULD be included. 
+                                // For now skip hidden too if they look like artifacts,
+                                // though real hidden inputs SHOULD be included.
                                 // But let's at least skip buttons.
                                 if (!std.mem.eql(u8, i_type, "hidden")) {
                                     for (n.children.items) |child| try collectInputs(alloc2, child, q);
@@ -1188,7 +1194,7 @@ pub const Renderer = struct {
 
                             const val = n.getAttribute("value") orelse "";
                             if (q.items.len > 0) try q.append(alloc2, '&');
-                            
+
                             try q.appendSlice(alloc2, name);
                             try q.append(alloc2, '=');
                             for (val) |c| {
@@ -1205,12 +1211,12 @@ pub const Renderer = struct {
                     }
                 }
             };
-            
+
             Collect.collectInputs(alloc, form_node.?, &query) catch return;
-            
+
             var url_str = std.ArrayListUnmanaged(u8){};
             defer url_str.deinit(alloc);
-            
+
             // Re-resolve action URL relative to current base URL if needed.
             const action_trimmed = std.mem.trim(u8, action, " \t\n\r");
             url_str.appendSlice(alloc, action_trimmed) catch return;
@@ -1222,7 +1228,7 @@ pub const Renderer = struct {
                 }
                 url_str.appendSlice(alloc, query.items) catch return;
             }
-            
+
             std.debug.print("Submitting form to: {s}\n", .{url_str.items});
             self.queueNavigation(url_str.items);
         }

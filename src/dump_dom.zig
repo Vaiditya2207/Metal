@@ -39,7 +39,7 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
         for (box.children.items) |child| {
             try collectNodesJson(allocator, child, &child_list);
         }
-        
+
         var out = std.ArrayListUnmanaged(u8){};
         try out.writer(allocator).print("{{\"type\":\"document\",\"children\":[", .{});
         for (child_list.items, 0..) |cs, i| {
@@ -57,12 +57,12 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
             if (trimmed.len == 0) return;
             const preview_len = @min(trimmed.len, 50);
             const preview = trimmed[0..preview_len];
-            
+
             const escaped = try escapeJsonString(allocator, preview);
             defer allocator.free(escaped);
-            
+
             var out = std.ArrayListUnmanaged(u8){};
-            try out.writer(allocator).print("{{\"type\":\"text\",\"text\":\"{s}{s}\"}}", .{escaped, if (trimmed.len > 50) "..." else ""});
+            try out.writer(allocator).print("{{\"type\":\"text\",\"text\":\"{s}{s}\"}}", .{ escaped, if (trimmed.len > 50) "..." else "" });
             try list.append(allocator, try out.toOwnedSlice(allocator));
         }
         return;
@@ -98,11 +98,11 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
 
     var out = std.ArrayListUnmanaged(u8){};
     var writer = out.writer(allocator);
-    
+
     try writer.print("{{\"type\":\"element\",\"tag\":\"{s}\"", .{tag_str});
     if (has_id) try writer.print(",\"id\":\"{s}\"", .{try escapeJsonString(allocator, id_val)});
     if (has_class) try writer.print(",\"className\":\"{s}\"", .{try escapeJsonString(allocator, class_val)});
-    
+
     try writer.print(",\"rect\":{{\"x\":{d},\"y\":{d},\"width\":{d},\"height\":{d}}}", .{
         @as(i32, @intFromFloat(@round(b.x))),
         @as(i32, @intFromFloat(@round(b.y))),
@@ -113,15 +113,29 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
     try writer.print(",\"style\":{{", .{});
     const display_str = @tagName(sn.style.display);
     try writer.print("\"display\":\"{s}\"", .{display_str});
+    // Font size
+    try writer.print(",\"fontSize\":\"{d:.0}px\"", .{sn.style.font_size.value});
+    // Font weight
+    try writer.print(",\"fontWeight\":\"{d:.0}\"", .{sn.style.font_weight});
+    // Font style
+    const font_style_str = @tagName(sn.style.font_style);
+    try writer.print(",\"fontStyle\":\"{s}\"", .{font_style_str});
+    // Visibility
+    const vis_str = @tagName(sn.style.visibility);
+    try writer.print(",\"visibility\":\"{s}\"", .{vis_str});
+    // Color (as rgb string)
+    try writer.print(",\"color\":\"rgb({d}, {d}, {d})\"", .{ sn.style.color.r, sn.style.color.g, sn.style.color.b });
+    // Background color
+    try writer.print(",\"backgroundColor\":\"rgb({d}, {d}, {d})\"", .{ sn.style.background_color.r, sn.style.background_color.g, sn.style.background_color.b });
     try writer.print("}}", .{});
-    
+
     try writer.print(",\"children\":[", .{});
     for (child_list.items, 0..) |cs, i| {
         if (i > 0) try out.append(allocator, ',');
         try out.appendSlice(allocator, cs);
     }
     try writer.print("]}}", .{});
-    
+
     try list.append(allocator, try out.toOwnedSlice(allocator));
 }
 
@@ -132,7 +146,7 @@ pub fn main() !void {
 
     var args = std.process.args();
     _ = args.skip();
-    
+
     const file_path = args.next() orelse {
         std.debug.print("Usage: dump_dom <html_file>\n", .{});
         return;
@@ -145,19 +159,30 @@ pub fn main() !void {
 
     const file = try std.fs.cwd().openFile(file_path, .{});
     defer file.close();
-    
+
     const max_size = 10 * 1024 * 1024;
     const html = try file.readToEndAlloc(allocator, max_size);
 
     const document = try dom.parseHTML(allocator, html);
 
-    // Default UA stylesheet for testing
-    const ua_css = "html, body, div, p { display: block; }";
-    var resolver = css.StyleResolver.init(allocator);
-    const ua_sheet = try css.Parser.parse(allocator, ua_css);
-    const stylesheets = [_]css.Stylesheet{ua_sheet};
+    // Use the REAL pipeline: UA stylesheet + page <style> tags + inline styles
+    // (same wiring as src/main.zig and src/render/renderer.zig)
+    const ua_sheet = try css.user_agent.getStylesheet(allocator);
+    const page_sheets = try css.extractStylesheets(allocator, document.root);
 
-    const styled_root = try resolver.resolve(document.root, &stylesheets);
+    var all_sheets = std.ArrayListUnmanaged(css.Stylesheet){};
+    try all_sheets.append(allocator, ua_sheet);
+    for (page_sheets) |s| try all_sheets.append(allocator, s);
+
+    std.debug.print("[dump_dom] HTML: {d} bytes | Stylesheets: 1 UA + {d} page = {d} total\n", .{ html.len, page_sheets.len, all_sheets.items.len });
+
+    // Count UA rules
+    var total_rules: usize = 0;
+    for (all_sheets.items) |sheet| total_rules += sheet.rules.len;
+    std.debug.print("[dump_dom] Total CSS rules: {d}\n", .{total_rules});
+
+    var resolver = css.StyleResolver.init(allocator);
+    const styled_root = try resolver.resolve(document.root, all_sheets.items);
 
     if (styled_root) |sr| {
         const layout_root = try layout.buildLayoutTree(allocator, sr);
@@ -168,24 +193,39 @@ pub fn main() !void {
             .viewport_height = 800.0,
         };
         layout.layoutTree(layout_root, lctx);
-        
+
+        // Count layout nodes for diagnostics
+        var node_count: usize = 0;
+        var zero_size_count: usize = 0;
+        countNodes(layout_root, &node_count, &zero_size_count);
+        std.debug.print("[dump_dom] Layout nodes: {d} | Zero-size: {d}\n", .{ node_count, zero_size_count });
+
         var json_out = std.ArrayListUnmanaged([]const u8){};
         defer {
             for (json_out.items) |s| allocator.free(s);
             json_out.deinit(allocator);
         }
-        
+
         try collectNodesJson(allocator, layout_root, &json_out);
-        
+
         var out_file = try std.fs.cwd().createFile(out_path, .{});
         defer out_file.close();
-        
+
         if (json_out.items.len > 0) {
             try out_file.writeAll(json_out.items[0]);
+            std.debug.print("[dump_dom] JSON output: {d} bytes\n", .{json_out.items[0].len});
         } else {
             try out_file.writeAll("{}");
+            std.debug.print("[dump_dom] WARNING: empty JSON output\n", .{});
         }
     } else {
-        std.debug.print("Could not style root.\n", .{});
+        std.debug.print("[dump_dom] ERROR: Could not style root.\n", .{});
     }
+}
+
+fn countNodes(box: *const layout.LayoutBox, count: *usize, zero_count: *usize) void {
+    count.* += 1;
+    const b = box.dimensions.borderBox();
+    if (b.width == 0 and b.height == 0) zero_count.* += 1;
+    for (box.children.items) |child| countNodes(child, count, zero_count);
 }

@@ -68,7 +68,7 @@ pub const Compositor = struct {
         const Scissor = struct { x: f32, y: f32, w: f32, h: f32 };
         var scissor_stack: [16]Scissor = undefined;
         var scissor_depth: usize = 0;
-        
+
         var width: f32 = 0;
         var height: f32 = 0;
         objc.get_drawable_size(view, &width, &height);
@@ -77,11 +77,11 @@ pub const Compositor = struct {
         const scale = objc.get_content_scale(view);
 
         objc.set_projection(fc, width, height);
-        
+
         // Clip everything to avoid content bleeding into the fixed toolbar (top 40px)
         const toolbar_scissor = Scissor{ .x = 0, .y = content_top_offset * scale, .w = width * scale, .h = content_height * scale };
         objc.set_scissor_rect(fc, toolbar_scissor.x, toolbar_scissor.y, toolbar_scissor.w, toolbar_scissor.h, height * scale);
-        
+
         var current_scissor = toolbar_scissor;
 
         var rect_batch: batch_mod.RectBatch = .{};
@@ -145,7 +145,7 @@ pub const Compositor = struct {
                 .push_clip => |rect| {
                     flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
                     current = .none;
-                    
+
                     if (scissor_depth < 16) {
                         scissor_stack[scissor_depth] = current_scissor;
                         scissor_depth += 1;
@@ -156,7 +156,7 @@ pub const Compositor = struct {
                     const new_y = @max(current_scissor.y, (rect.y - scroll_y + content_top_offset) * scale);
                     const new_right = @min(current_scissor.x + current_scissor.w, (rect.x + rect.width) * scale);
                     const new_bottom = @min(current_scissor.y + current_scissor.h, (rect.y + rect.height - scroll_y + content_top_offset) * scale);
-                    
+
                     current_scissor = .{
                         .x = new_x,
                         .y = new_y,
@@ -191,14 +191,20 @@ pub const Compositor = struct {
                 },
                 .draw_svg => |svg| {
                     if (!isVisible(svg.rect.y, svg.rect.height, scroll_y, content_height)) continue;
-                    
+
                     var texture: ?*anyopaque = null;
                     if (self.svg_cache) |cache| {
                         if (cache.get(svg.xml)) |tex| {
                             texture = tex;
                         } else if (self.allocator) |alloc| {
                             if (app.objc.rasterize_svg(self.device, self.command_queue, @ptrCast(svg.xml), svg.rect.width, svg.rect.height)) |tex| {
-                                cache.put(alloc, alloc.dupe(u8, svg.xml) catch svg.xml, tex) catch {};
+                                // R-2 FIX: Only cache if we can dupe the key.
+                                // Previously, failed dupe fell back to svg.xml (display-list owned),
+                                // causing use-after-free when the display list was rebuilt.
+                                const owned_key = alloc.dupe(u8, svg.xml) catch null;
+                                if (owned_key) |key| {
+                                    cache.put(alloc, key, tex) catch {};
+                                }
                                 texture = tex;
                             }
                         }
@@ -228,7 +234,7 @@ pub const Compositor = struct {
                 .pop_clip => {
                     flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
                     current = .none;
-                    
+
                     if (scissor_depth > 0) {
                         scissor_depth -= 1;
                         current_scissor = scissor_stack[scissor_depth];

@@ -3,6 +3,36 @@ const app = @import("../platform/app.zig");
 const objc = app.objc;
 const batch_mod = @import("batch.zig");
 
+// R-8 FIX: UTF-8 aware character iteration.
+// Returns the glyph index (0-94) for printable ASCII, or maps non-ASCII codepoints
+// to '?' (index 31) as a visible fallback instead of silently dropping them.
+// Also returns the byte length consumed so callers can skip multi-byte sequences.
+const GlyphResult = struct {
+    index: ?u7, // null for control chars (skip), 0-94 for renderable
+    byte_len: u3, // 1-4 bytes consumed
+};
+
+fn resolveGlyph(bytes: []const u8) GlyphResult {
+    if (bytes.len == 0) return .{ .index = null, .byte_len = 1 };
+    const b0 = bytes[0];
+
+    // ASCII range
+    if (b0 < 128) {
+        if (b0 < 32 or b0 == 127) return .{ .index = null, .byte_len = 1 }; // Control chars: skip
+        return .{ .index = @intCast(b0 - 32), .byte_len = 1 }; // Normal ASCII
+    }
+
+    // Multi-byte UTF-8: determine sequence length, skip all continuation bytes,
+    // and render a single '?' replacement glyph.
+    const replacement_idx: u7 = '?' - 32; // index 31
+    if (b0 & 0xE0 == 0xC0) return .{ .index = replacement_idx, .byte_len = 2 };
+    if (b0 & 0xF0 == 0xE0) return .{ .index = replacement_idx, .byte_len = 3 };
+    if (b0 & 0xF8 == 0xF0) return .{ .index = replacement_idx, .byte_len = 4 };
+
+    // Invalid UTF-8 lead byte: skip one byte, render '?'
+    return .{ .index = replacement_idx, .byte_len = 1 };
+}
+
 pub const TextRenderer = struct {
     atlas_texture: *anyopaque,
     text_pipeline: *anyopaque,
@@ -77,10 +107,15 @@ pub const TextRenderer = struct {
 
         while (it.next()) |word| {
             var word_width: f32 = 0;
-            for (word) |c| {
-                if (c < 32 or c > 126) continue;
-                const idx = c - 32;
-                word_width += self.glyph_metrics[idx].advance * scale;
+            {
+                var wi: usize = 0;
+                while (wi < word.len) {
+                    const gr = resolveGlyph(word[wi..]);
+                    if (gr.index) |idx| {
+                        word_width += self.glyph_metrics[idx].advance * scale;
+                    }
+                    wi += gr.byte_len;
+                }
             }
 
             if (!first_word and cur_x + space_advance + word_width > x + max_width) {
@@ -90,21 +125,25 @@ pub const TextRenderer = struct {
                 cur_x += space_advance;
             }
 
-            for (word) |c| {
-                if (c < 32 or c > 126) continue;
-                const idx = c - 32;
-                const m = self.glyph_metrics[idx];
-                const sw = m.width * scale;
-                const sh = m.height * scale;
-                const scaled_ascent = self.font_ascent * scale;
-                const gx = cur_x + m.bearing_x * scale;
-                const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
+            {
+                var wi: usize = 0;
+                while (wi < word.len) {
+                    const gr = resolveGlyph(word[wi..]);
+                    wi += gr.byte_len;
+                    const idx = gr.index orelse continue;
+                    const m = self.glyph_metrics[idx];
+                    const sw = m.width * scale;
+                    const sh = m.height * scale;
+                    const scaled_ascent = self.font_ascent * scale;
+                    const gx = cur_x + m.bearing_x * scale;
+                    const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
 
-                const snapped_x = @round(gx * device_scale) / device_scale;
-                const snapped_y = @round(gy * device_scale) / device_scale;
+                    const snapped_x = @round(gx * device_scale) / device_scale;
+                    const snapped_y = @round(gy * device_scale) / device_scale;
 
-                batch.appendQuad(snapped_x, snapped_y, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
-                cur_x += m.advance * scale;
+                    batch.appendQuad(snapped_x, snapped_y, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
+                    cur_x += m.advance * scale;
+                }
             }
             first_word = false;
         }
@@ -137,10 +176,15 @@ pub const TextRenderer = struct {
 
         while (it.next()) |word| {
             var word_width: f32 = 0;
-            for (word) |c| {
-                if (c < 32 or c > 126) continue;
-                const idx = c - 32;
-                word_width += self.bold_glyph_metrics[idx].advance * scale;
+            {
+                var wi: usize = 0;
+                while (wi < word.len) {
+                    const gr = resolveGlyph(word[wi..]);
+                    if (gr.index) |idx| {
+                        word_width += self.bold_glyph_metrics[idx].advance * scale;
+                    }
+                    wi += gr.byte_len;
+                }
             }
 
             if (!first_word and cur_x + space_advance + word_width > x + max_width) {
@@ -150,21 +194,25 @@ pub const TextRenderer = struct {
                 cur_x += space_advance;
             }
 
-            for (word) |c| {
-                if (c < 32 or c > 126) continue;
-                const idx = c - 32;
-                const m = self.bold_glyph_metrics[idx];
-                const sw = m.width * scale;
-                const sh = m.height * scale;
-                const scaled_ascent = self.bold_font_ascent * scale;
-                const gx = cur_x + m.bearing_x * scale;
-                const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
+            {
+                var wi: usize = 0;
+                while (wi < word.len) {
+                    const gr = resolveGlyph(word[wi..]);
+                    wi += gr.byte_len;
+                    const idx = gr.index orelse continue;
+                    const m = self.bold_glyph_metrics[idx];
+                    const sw = m.width * scale;
+                    const sh = m.height * scale;
+                    const scaled_ascent = self.bold_font_ascent * scale;
+                    const gx = cur_x + m.bearing_x * scale;
+                    const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
 
-                const snapped_x = @round(gx * device_scale) / device_scale;
-                const snapped_y = @round(gy * device_scale) / device_scale;
+                    const snapped_x = @round(gx * device_scale) / device_scale;
+                    const snapped_y = @round(gy * device_scale) / device_scale;
 
-                batch.appendQuad(snapped_x, snapped_y, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
-                cur_x += m.advance * scale;
+                    batch.appendQuad(snapped_x, snapped_y, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
+                    cur_x += m.advance * scale;
+                }
             }
             first_word = false;
         }
@@ -197,10 +245,15 @@ pub const TextRenderer = struct {
 
         while (it.next()) |word| {
             var word_width: f32 = 0;
-            for (word) |c| {
-                if (c < 32 or c > 126) continue;
-                const idx = c - 32;
-                word_width += self.italic_glyph_metrics[idx].advance * scale;
+            {
+                var wi: usize = 0;
+                while (wi < word.len) {
+                    const gr = resolveGlyph(word[wi..]);
+                    if (gr.index) |idx| {
+                        word_width += self.italic_glyph_metrics[idx].advance * scale;
+                    }
+                    wi += gr.byte_len;
+                }
             }
 
             if (!first_word and cur_x + space_advance + word_width > x + max_width) {
@@ -210,21 +263,25 @@ pub const TextRenderer = struct {
                 cur_x += space_advance;
             }
 
-            for (word) |c| {
-                if (c < 32 or c > 126) continue;
-                const idx = c - 32;
-                const m = self.italic_glyph_metrics[idx];
-                const sw = m.width * scale;
-                const sh = m.height * scale;
-                const scaled_ascent = self.italic_font_ascent * scale;
-                const gx = cur_x + m.bearing_x * scale;
-                const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
+            {
+                var wi: usize = 0;
+                while (wi < word.len) {
+                    const gr = resolveGlyph(word[wi..]);
+                    wi += gr.byte_len;
+                    const idx = gr.index orelse continue;
+                    const m = self.italic_glyph_metrics[idx];
+                    const sw = m.width * scale;
+                    const sh = m.height * scale;
+                    const scaled_ascent = self.italic_font_ascent * scale;
+                    const gx = cur_x + m.bearing_x * scale;
+                    const gy = cur_y + scaled_ascent - m.bearing_y * scale - sh;
 
-                const snapped_x = @round(gx * device_scale) / device_scale;
-                const snapped_y = @round(gy * device_scale) / device_scale;
+                    const snapped_x = @round(gx * device_scale) / device_scale;
+                    const snapped_y = @round(gy * device_scale) / device_scale;
 
-                batch.appendQuad(snapped_x, snapped_y, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
-                cur_x += m.advance * scale;
+                    batch.appendQuad(snapped_x, snapped_y, sw, sh, m.uv_x, m.uv_y, m.uv_w, m.uv_h, r, g, b, a);
+                    cur_x += m.advance * scale;
+                }
             }
             first_word = false;
         }
@@ -233,9 +290,11 @@ pub const TextRenderer = struct {
         objc.set_pipeline(fc, self.text_pipeline);
 
         var cur_x = x;
-        for (text_str) |c| {
-            if (c < 32 or c > 126) continue;
-            const idx = c - 32;
+        var i: usize = 0;
+        while (i < text_str.len) {
+            const gr = resolveGlyph(text_str[i..]);
+            i += gr.byte_len;
+            const idx = gr.index orelse continue;
             const m = self.glyph_metrics[idx];
 
             const gx = cur_x + m.bearing_x;
@@ -253,9 +312,11 @@ pub const TextRenderer = struct {
 
         const scale = target_size / self.font_size;
         var cur_x = x;
-        for (text_str) |c| {
-            if (c < 32 or c > 126) continue;
-            const idx = c - 32;
+        var i: usize = 0;
+        while (i < text_str.len) {
+            const gr = resolveGlyph(text_str[i..]);
+            i += gr.byte_len;
+            const idx = gr.index orelse continue;
             const m = self.glyph_metrics[idx];
 
             const sw = m.width * scale;

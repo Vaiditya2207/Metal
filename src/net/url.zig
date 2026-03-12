@@ -80,6 +80,7 @@ pub const Url = struct {
         }
 
         var new_path: []const u8 = undefined;
+        var needs_free = false;
 
         if (std.mem.startsWith(u8, relative, "/")) {
             // Absolute path
@@ -93,11 +94,13 @@ pub const Url = struct {
                 base_dir = "/";
             }
             new_path = try std.fmt.allocPrint(allocator, "{s}{s}", .{ base_dir, relative });
-            // In a real implementation we'd normalize ../ and ./ here
-            // But doing that cleanly requires more memory allocations.
+            needs_free = true;
         }
 
-        defer if (!std.mem.startsWith(u8, relative, "/") and new_path.len > 0) allocator.free(new_path);
+        // N-1 FIX: Normalize path segments (resolve . and ..)
+        const normalized = try normalizePath(allocator, new_path);
+        if (needs_free) allocator.free(new_path);
+        defer allocator.free(normalized);
 
         const port_str = if ((std.mem.eql(u8, base.scheme, "http") and base.port == 80) or
             (std.mem.eql(u8, base.scheme, "https") and base.port == 443))
@@ -110,7 +113,7 @@ pub const Url = struct {
             base.scheme,
             base.host,
             port_str,
-            new_path,
+            normalized,
         });
     }
 
@@ -136,5 +139,52 @@ pub const Url = struct {
             self.path,
             query_str,
         });
+    }
+
+    /// Normalize a URL path by resolving `.` and `..` segments.
+    /// e.g. "/a/b/../c/./d" → "/a/c/d"
+    fn normalizePath(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+        // Stack of path segments (pointers into `path` or empty)
+        var stack = std.ArrayListUnmanaged([]const u8){};
+        defer stack.deinit(allocator);
+
+        var it = std.mem.splitScalar(u8, path, '/');
+        while (it.next()) |segment| {
+            if (segment.len == 0 or std.mem.eql(u8, segment, ".")) {
+                // Skip empty segments (from leading/consecutive slashes) and "."
+                continue;
+            } else if (std.mem.eql(u8, segment, "..")) {
+                // Pop one level (can't go above root)
+                if (stack.items.len > 0) {
+                    _ = stack.pop();
+                }
+            } else {
+                try stack.append(allocator, segment);
+            }
+        }
+
+        // Build result: always starts with /
+        if (stack.items.len == 0) {
+            const result = try allocator.alloc(u8, 1);
+            result[0] = '/';
+            return result;
+        }
+
+        // Calculate total length: leading / + each segment preceded by /
+        var total_len: usize = 0;
+        for (stack.items) |seg| {
+            total_len += 1 + seg.len; // "/" + segment
+        }
+
+        const result = try allocator.alloc(u8, total_len);
+        var pos: usize = 0;
+        for (stack.items) |seg| {
+            result[pos] = '/';
+            pos += 1;
+            @memcpy(result[pos .. pos + seg.len], seg);
+            pos += seg.len;
+        }
+
+        return result;
     }
 };
