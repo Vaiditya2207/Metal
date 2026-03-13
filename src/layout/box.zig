@@ -1,6 +1,7 @@
 const std = @import("std");
 const resolver = @import("../css/resolver.zig");
 const config = @import("../config.zig");
+const text_measure = @import("text_measure.zig");
 
 pub const Rect = struct {
     x: f32 = 0,
@@ -147,8 +148,31 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
             // Set intrinsic size for replaced elements like <input> and <textarea>
             if (sn.node.node_type == .element) {
                 if (sn.node.tag == .input or sn.node.tag == .textarea) {
-                    root.intrinsic_width = 140.0;
                     root.intrinsic_height = sn.style.font_size.value * 1.2;
+
+                    // Submit/button/reset inputs size based on their value text;
+                    // text/search/password/etc inputs and textareas use fixed 140px.
+                    if (sn.node.tag == .input) {
+                        const input_type = sn.node.getAttribute("type") orelse "text";
+                        if (std.mem.eql(u8, input_type, "submit") or
+                            std.mem.eql(u8, input_type, "button") or
+                            std.mem.eql(u8, input_type, "reset"))
+                        {
+                            if (sn.node.getAttribute("value")) |value| {
+                                root.intrinsic_width = text_measure.measureTextWidth(
+                                    value,
+                                    sn.style.font_size.value,
+                                    sn.style.font_weight,
+                                );
+                            } else {
+                                root.intrinsic_width = 140.0;
+                            }
+                        } else {
+                            root.intrinsic_width = 140.0;
+                        }
+                    } else {
+                        root.intrinsic_width = 140.0;
+                    }
                 } else if (sn.node.tag == .svg) {
                     root.intrinsic_width = 300.0;
                     root.intrinsic_height = 150.0;
@@ -293,4 +317,110 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
         if (err == error.SkipNode) return error.RootNodeSkipped;
         return err;
     };
+}
+
+// ── Tests ───────────────────────────────────────────────────────────────
+
+const dom = @import("../dom/mod.zig");
+const properties = @import("../css/properties.zig");
+
+test "RC-47: input type=submit intrinsic_width based on value text" {
+    const allocator = std.testing.allocator;
+
+    // Use arena for DOM node so setAttribute's duped strings are freed.
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const node_alloc = arena.allocator();
+
+    var node = dom.Node.init(node_alloc, .element);
+    node.tag = .input;
+    try node.setAttribute("type", "submit");
+    try node.setAttribute("value", "Google Search");
+
+    var sn = resolver.StyledNode{
+        .node = &node,
+        .style = properties.ComputedStyle{},
+        .children = &.{},
+    };
+
+    const box = try buildLayoutTree(allocator, &sn);
+    defer {
+        @constCast(box).deinit(allocator);
+        allocator.destroy(@constCast(box));
+    }
+
+    const expected_width = text_measure.measureTextWidth("Google Search", 16.0, 400.0);
+    try std.testing.expectApproxEqAbs(expected_width, box.intrinsic_width, 0.01);
+    // Must NOT be the default 140
+    try std.testing.expect(box.intrinsic_width != 140.0);
+}
+
+test "RC-47: input type=text gets intrinsic_width 140" {
+    const allocator = std.testing.allocator;
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const node_alloc = arena.allocator();
+
+    var node = dom.Node.init(node_alloc, .element);
+    node.tag = .input;
+    try node.setAttribute("type", "text");
+
+    var sn = resolver.StyledNode{
+        .node = &node,
+        .style = properties.ComputedStyle{},
+        .children = &.{},
+    };
+
+    const box = try buildLayoutTree(allocator, &sn);
+    defer {
+        @constCast(box).deinit(allocator);
+        allocator.destroy(@constCast(box));
+    }
+
+    try std.testing.expectApproxEqAbs(@as(f32, 140.0), box.intrinsic_width, 0.01);
+}
+
+test "RC-47: input with no type gets intrinsic_width 140" {
+    const allocator = std.testing.allocator;
+
+    var node = dom.Node.init(allocator, .element);
+    defer node.deinit(allocator);
+    node.tag = .input;
+
+    var sn = resolver.StyledNode{
+        .node = &node,
+        .style = properties.ComputedStyle{},
+        .children = &.{},
+    };
+
+    const box = try buildLayoutTree(allocator, &sn);
+    defer {
+        @constCast(box).deinit(allocator);
+        allocator.destroy(@constCast(box));
+    }
+
+    try std.testing.expectApproxEqAbs(@as(f32, 140.0), box.intrinsic_width, 0.01);
+}
+
+test "RC-47: textarea gets intrinsic_width 140" {
+    const allocator = std.testing.allocator;
+
+    var node = dom.Node.init(allocator, .element);
+    defer node.deinit(allocator);
+    node.tag = .textarea;
+
+    var sn = resolver.StyledNode{
+        .node = &node,
+        .style = properties.ComputedStyle{},
+        .children = &.{},
+    };
+
+    const box = try buildLayoutTree(allocator, &sn);
+    defer {
+        @constCast(box).deinit(allocator);
+        allocator.destroy(@constCast(box));
+    }
+
+    try std.testing.expectApproxEqAbs(@as(f32, 140.0), box.intrinsic_width, 0.01);
 }
