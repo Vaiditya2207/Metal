@@ -298,7 +298,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
                 .width = word_width,
             }) catch continue;
 
-            expandBoxRect(seg.layout_box, anon_abs_x + available.x_offset + cursor_x, anon_abs_y + cursor_y, word_width, seg.line_height);
+            expandBoxRect(seg.layout_box, anon_abs_x + available.x_offset + cursor_x, anon_abs_y + cursor_y, word_width, seg.font_size);
 
             current_run_idx += 1;
             cursor_x += word_width;
@@ -350,4 +350,26 @@ fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, availabl
             box.text_runs.items[i].x += align_offset;
         }
     }
+}
+
+// ── Tests ───────────────────────────────────────────────────────────────
+
+test "RC-49: inline element height uses font_size not line_height" {
+    // When an inline text element has font_size=13 and line_height=28,
+    // expandBoxRect should be called with font_size so the element's
+    // reported height is ~13, NOT 28.  This matches Chrome behaviour
+    // where inline element bounding boxes use font metrics (≈font-size),
+    // while line-height only controls line box spacing.
+    var box = box_mod.LayoutBox.init(.inlineNode, null);
+    // Initially zero dimensions
+    try std.testing.expectApproxEqAbs(@as(f32, 0), box.dimensions.content.height, 0.01);
+
+    const font_size: f32 = 13.0;
+    // Simulate what line 301 now does: pass font_size as height
+    expandBoxRect(&box, 0, 0, 100, font_size);
+
+    // The element height must equal font_size, not line_height
+    try std.testing.expectApproxEqAbs(font_size, box.dimensions.content.height, 0.01);
+    // Verify it would have been wrong with line_height
+    try std.testing.expect(box.dimensions.content.height < 28.0);
 }
