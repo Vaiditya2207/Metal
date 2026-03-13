@@ -7,17 +7,17 @@ const block = @import("block.zig");
 pub fn layoutTable(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: LayoutContext) void {
     // 1. Determine table width
     const cb_width = if (containing_block) |cb| cb.dimensions.content.width else box.dimensions.content.width;
-    
+
     // For now, tables are basically block level wrappers
     // Apply padding/border/margin logic roughly (we should use calculateWidth but we'll do it manually)
     var style_padding = box_mod.EdgeSizes{};
     var style_margin = box_mod.EdgeSizes{};
     var style_border = box_mod.EdgeSizes{};
-    
+
     if (box.styled_node) |sn| {
         const font_size = sn.style.font_size.value;
         const layout = @import("layout.zig");
-        
+
         style_padding.left = layout.resolveLength(sn.style.padding_left, cb_width, ctx, font_size);
         style_padding.right = layout.resolveLength(sn.style.padding_right, cb_width, ctx, font_size);
         style_padding.top = layout.resolveLength(sn.style.padding_top, cb_width, ctx, font_size);
@@ -33,11 +33,11 @@ pub fn layoutTable(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: LayoutCo
         style_border.top = layout.resolveLength(sn.style.border_width, cb_width, ctx, font_size);
         style_border.bottom = layout.resolveLength(sn.style.border_width, cb_width, ctx, font_size);
     }
-    
+
     box.dimensions.padding = style_padding;
     box.dimensions.margin = style_margin;
     box.dimensions.border = style_border;
-    
+
     // Content width
     const h_extras = style_padding.left + style_padding.right + style_border.left + style_border.right;
     const specified_w = if (box.styled_node) |sn| (if (sn.style.width) |w| @import("layout.zig").resolveLength(w, cb_width, ctx, sn.style.font_size.value) else cb_width) else cb_width;
@@ -98,7 +98,7 @@ pub fn layoutTable(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: LayoutCo
                         fake_cb.dimensions.content.width = c_w;
                         fake_cb.dimensions.content.x = child.dimensions.content.x + current_x;
                         fake_cb.dimensions.content.y = child.dimensions.content.y;
-                        
+
                         block.layoutBlock(cell, &fake_cb, c_ctx);
 
                         const cell_h = cell.dimensions.marginBox().height;
@@ -127,9 +127,8 @@ pub fn layoutTable(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: LayoutCo
     LayoutHelper.layoutRows(box, box, &current_y, col_w, ctx);
 
     box.dimensions.content.height = current_y;
-    
-    // Apply layout accumulation to parent
-    if (containing_block) |cb| {
-        cb.dimensions.content.height += box.dimensions.marginBox().height;
-    }
+
+    // L-9 FIX: Removed direct parent height accumulation.
+    // The parent's layoutChildren (block.zig) already accumulates
+    // child heights including tables, so adding here double-counts.
 }

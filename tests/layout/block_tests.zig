@@ -166,3 +166,105 @@ test "percent unit resolves relative to containing block" {
 
     try std.testing.expectEqual(@as(f32, 400), root.dimensions.content.width);
 }
+
+test "floated block with auto width shrinks to fit content" {
+    // CSS 2.1 §10.3.5: A floated block with auto width should shrink-to-fit,
+    // not fill the containing block.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // Grandchild: explicit 200px x 50px block
+    var grandchild_style = properties.ComputedStyle{};
+    try grandchild_style.applyProperty("width", "200px", allocator);
+    try grandchild_style.applyProperty("height", "50px", allocator);
+
+    const sn_grandchild = try allocator.create(resolver.StyledNode);
+    sn_grandchild.* = .{
+        .node = &dummy_node,
+        .style = grandchild_style,
+        .children = &[_]*resolver.StyledNode{},
+    };
+
+    // Child: floated left block with auto width
+    var child_style = properties.ComputedStyle{};
+    child_style.float = .left;
+    // width is null (auto) — should shrink to content
+
+    const child_children = [_]*resolver.StyledNode{sn_grandchild};
+    const sn_child = try allocator.create(resolver.StyledNode);
+    sn_child.* = .{
+        .node = &dummy_node,
+        .style = child_style,
+        .children = &child_children,
+    };
+
+    // Build layout boxes manually (floated child is still a blockNode)
+    var root = layout.LayoutBox.init(.blockNode, null);
+
+    const child_box = try allocator.create(layout.LayoutBox);
+    child_box.* = layout.LayoutBox.init(.blockNode, sn_child);
+
+    const grandchild_box = try allocator.create(layout.LayoutBox);
+    grandchild_box.* = layout.LayoutBox.init(.blockNode, sn_grandchild);
+
+    try child_box.children.append(allocator, grandchild_box);
+    try root.children.append(allocator, child_box);
+
+    layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 1000, .viewport_height = 600 });
+
+    // The root should be 1000px (full viewport)
+    try std.testing.expectEqual(@as(f32, 1000), root.dimensions.content.width);
+
+    // The floated child should shrink to fit its content (200px), NOT fill 1000px
+    try std.testing.expect(child_box.dimensions.content.width <= 200.0);
+    try std.testing.expect(child_box.dimensions.content.width > 0.0);
+}
+
+test "floated block with explicit width does not shrink" {
+    // A floated block with an explicit width should keep that width.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // Grandchild: explicit 100px x 50px block
+    var grandchild_style = properties.ComputedStyle{};
+    try grandchild_style.applyProperty("width", "100px", allocator);
+    try grandchild_style.applyProperty("height", "50px", allocator);
+
+    const sn_grandchild = try allocator.create(resolver.StyledNode);
+    sn_grandchild.* = .{
+        .node = &dummy_node,
+        .style = grandchild_style,
+        .children = &[_]*resolver.StyledNode{},
+    };
+
+    // Child: floated left block with explicit 500px width
+    var child_style = properties.ComputedStyle{};
+    child_style.float = .left;
+    try child_style.applyProperty("width", "500px", allocator);
+
+    const child_children = [_]*resolver.StyledNode{sn_grandchild};
+    const sn_child = try allocator.create(resolver.StyledNode);
+    sn_child.* = .{
+        .node = &dummy_node,
+        .style = child_style,
+        .children = &child_children,
+    };
+
+    var root = layout.LayoutBox.init(.blockNode, null);
+
+    const child_box = try allocator.create(layout.LayoutBox);
+    child_box.* = layout.LayoutBox.init(.blockNode, sn_child);
+
+    const grandchild_box = try allocator.create(layout.LayoutBox);
+    grandchild_box.* = layout.LayoutBox.init(.blockNode, sn_grandchild);
+
+    try child_box.children.append(allocator, grandchild_box);
+    try root.children.append(allocator, child_box);
+
+    layout.layoutTree(&root, .{ .allocator = allocator, .viewport_width = 1000, .viewport_height = 600 });
+
+    // The floated child has explicit width=500px, so it should stay at 500px
+    try std.testing.expectEqual(@as(f32, 500), child_box.dimensions.content.width);
+}

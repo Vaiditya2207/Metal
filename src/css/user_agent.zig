@@ -14,14 +14,18 @@ const ua_css =
     \\li { display: block }
     \\strong { font-weight: 700 }
     \\b { font-weight: 700 }
-    \\em { font-weight: 400 }
+    \\em { font-style: italic }
+    \\i { font-style: italic }
+    \\cite { font-style: italic }
+    \\var { font-style: italic }
+    \\dfn { font-style: italic }
     \\a { color: #0000ee; text-decoration: underline }
     \\code { font-family: monospace }
     \\pre { display: block; font-family: monospace; margin-top: 1em; margin-bottom: 1em; white-space: pre }
     \\blockquote { display: block; margin-top: 1em; margin-bottom: 1em; margin-left: 40px; margin-right: 40px }
     \\div { display: block }
     \\body { display: block; background-color: #ffffff; color: #000000; margin: 8px }
-    \\html { display: block; background-color: #ffffff }
+    \\html { display: block; background-color: #ffffff; min-height: 100vh }
     \\head { display: none }
     \\title { display: none }
     \\style { display: none }
@@ -31,6 +35,9 @@ const ua_css =
     \\noscript { display: none }
     \\span { display: inline }
     \\img { display: inline-block; max-width: 100% }
+    \\svg { display: inline-block }
+    \\video { display: inline-block }
+    \\canvas { display: inline-block }
     \\br { display: block }
     \\input { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }
     \\button { display: inline-block; padding-left: 4px; padding-right: 4px; padding-top: 2px; padding-bottom: 2px; border-width: 1px }
@@ -59,6 +66,7 @@ const ua_css =
     \\address { display: block }
     \\details { display: block }
     \\summary { display: block }
+    \\dialog { display: none }
 ;
 
 pub fn getStylesheet(allocator: std.mem.Allocator) !parser.Stylesheet {

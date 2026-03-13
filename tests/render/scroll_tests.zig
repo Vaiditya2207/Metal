@@ -150,8 +150,11 @@ test "momentum continues after input frame" {
         .friction = 1.0, // No friction for easy math
     };
     sc.scrollBy(10); // scroll_y = 10, velocity_y = 10, input_this_frame = true
+    // Simulate a proper 60Hz frame gap so dt_ratio ≈ 1.0 (I-5 frame-rate independence)
+    sc.last_tick_ns = std.time.nanoTimestamp() - sc.reference_dt_ns;
     sc.tick(); // input frame: scroll_y stays 10, velocity_y stays 10, input_this_frame = false
     try expectEqual(@as(f32, 10), sc.scroll_y);
+    sc.last_tick_ns = std.time.nanoTimestamp() - sc.reference_dt_ns;
     sc.tick(); // momentum frame: scroll_y += 10 -> 20
-    try expectEqual(@as(f32, 20), sc.scroll_y);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), sc.scroll_y, 0.01);
 }

@@ -25,16 +25,21 @@ pub fn applyPositioning(box: *LayoutBox, ctx: layout.LayoutContext) void {
     switch (style.position) {
         .static_val => {},
         .relative => {
+            // L-5 FIX: Relative positioning percentages resolve against
+            // containing block, not viewport. Walk up to find parent dimensions.
+            const cb_height = if (box.parent) |p| p.dimensions.content.height else ctx.viewport_height;
+            const cb_width = if (box.parent) |p| p.dimensions.content.width else ctx.viewport_width;
+
             if (style.top) |t| {
-                box.dimensions.content.y += layout.resolveLength(t, ctx.viewport_height, ctx, style.font_size.value);
+                box.dimensions.content.y += layout.resolveLength(t, cb_height, ctx, style.font_size.value);
             } else if (style.bottom) |b| {
-                box.dimensions.content.y -= layout.resolveLength(b, ctx.viewport_height, ctx, style.font_size.value);
+                box.dimensions.content.y -= layout.resolveLength(b, cb_height, ctx, style.font_size.value);
             }
 
             if (style.left_pos) |l| {
-                box.dimensions.content.x += layout.resolveLength(l, ctx.viewport_width, ctx, style.font_size.value);
+                box.dimensions.content.x += layout.resolveLength(l, cb_width, ctx, style.font_size.value);
             } else if (style.right_pos) |r| {
-                box.dimensions.content.x -= layout.resolveLength(r, ctx.viewport_width, ctx, style.font_size.value);
+                box.dimensions.content.x -= layout.resolveLength(r, cb_width, ctx, style.font_size.value);
             }
         },
         .absolute => {
@@ -51,6 +56,20 @@ pub fn applyPositioning(box: *LayoutBox, ctx: layout.LayoutContext) void {
                 box.dimensions.content.y = cb_rect.y + layout.resolveLength(t, cb_rect.height, ctx, style.font_size.value) + box.dimensions.margin.top + box.dimensions.border.top + box.dimensions.padding.top;
             } else if (style.bottom) |b| {
                 box.dimensions.content.y = cb_rect.y + cb_rect.height - layout.resolveLength(b, cb_rect.height, ctx, style.font_size.value) - box.dimensions.content.height - box.dimensions.margin.bottom - box.dimensions.border.bottom - box.dimensions.padding.bottom;
+            }
+
+            // CSS 2.1 §10.3.7: For abs-pos elements, when both left and right
+            // are specified and width is auto, compute width from containing block.
+            const has_explicit_width = style.width != null and style.width.?.unit != .auto;
+            if (style.left_pos != null and style.right_pos != null and !has_explicit_width) {
+                const l_val = layout.resolveLength(style.left_pos.?, cb_rect.width, ctx, style.font_size.value);
+                const r_val = layout.resolveLength(style.right_pos.?, cb_rect.width, ctx, style.font_size.value);
+                const h_extras = box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left +
+                    box.dimensions.margin.right + box.dimensions.border.right + box.dimensions.padding.right;
+                const computed_w = cb_rect.width - l_val - r_val - h_extras;
+                if (computed_w > 0) {
+                    box.dimensions.content.width = computed_w;
+                }
             }
 
             if (style.left_pos) |l| {

@@ -1,24 +1,84 @@
 #!/usr/bin/env bash
 set -e
 
-URL="${1:-https://www.google.com}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PAGES_DIR="$SCRIPT_DIR/pages"
+RESULTS_DIR="$SCRIPT_DIR/results"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-echo "[Fidelity Test] Target URL: $URL"
+mkdir -p "$RESULTS_DIR"
 
-# 1. Fetch reference using Chrome/Puppeteer
-pushd tests/fidelity > /dev/null
-node chrome_dump.js "$URL"
-popd > /dev/null
+# Single page mode: run_test.sh <url_or_file>
+# Multi page mode: run_test.sh --all
+# Report mode: add --report flag
 
-# 2. Build our DOM dumper
-echo "[Fidelity Test] Building tools/dump_dom..."
-zig build dump_dom
+REPORT_FLAG=""
+if [[ " $* " == *" --report "* ]]; then
+    REPORT_FLAG="--report"
+fi
 
-# 3. Process with Metal
-echo "[Fidelity Test] Generating layout for Metal..."
-./zig-out/bin/dump_dom tests/fidelity/google_snapshot.html tests/fidelity/metal_dump.json
+run_single() {
+    local input="$1"
+    local base_name
+
+    if [[ "$input" == http* ]]; then
+        base_name="$(echo "$input" | sed 's|https\?://||; s|/.*||; s|\.|-|g')"
+    else
+        base_name="$(basename "$input" .html)"
+    fi
+
+    echo ""
+    echo "========================================"
+    echo "  Testing: $base_name"
+    echo "========================================"
+
+    # 1. Chrome reference
+    echo "[Step 1] Chrome dump..."
+    node "$SCRIPT_DIR/chrome_dump.js" "$input" "$RESULTS_DIR"
+
+    # 2. Build dump_dom
+    echo "[Step 2] Building dump_dom..."
+    (cd "$PROJECT_ROOT" && zig build dump_dom)
+
+    # 3. Metal layout
+    local snapshot="$RESULTS_DIR/${base_name}_snapshot.html"
+    local metal_out="$RESULTS_DIR/${base_name}_metal.json"
+
+    if [ -f "$snapshot" ]; then
+        echo "[Step 3] Metal layout for $snapshot..."
+        "$PROJECT_ROOT/zig-out/bin/dump_dom" "$snapshot" "$metal_out"
+    else
+        echo "[Step 3] SKIP — no snapshot found at $snapshot"
+    fi
+}
+
+if [[ "$1" == "--all" ]]; then
+    echo "[Fidelity Suite] Running all test pages..."
+    for page in "$PAGES_DIR"/*.html; do
+        [ -f "$page" ] || continue
+        run_single "$page"
+    done
+elif [[ -n "$1" && "$1" != "--report" ]]; then
+    run_single "$1"
+else
+    echo "Usage:"
+    echo "  ./run_test.sh <html_file_or_url>     Run single test"
+    echo "  ./run_test.sh --all                   Run all test pages"
+    echo "  ./run_test.sh --all --report          Run all + generate HTML report"
+    echo ""
+    echo "Available test pages:"
+    ls "$PAGES_DIR"/*.html 2>/dev/null || echo "  (none)"
+    exit 0
+fi
 
 # 4. Compare
-pushd tests/fidelity > /dev/null
-node compare.js
-popd > /dev/null
+echo ""
+echo "========================================"
+echo "  Comparing Results"
+echo "========================================"
+node "$SCRIPT_DIR/compare.js" "$RESULTS_DIR" $REPORT_FLAG
+
+if [ -f "$RESULTS_DIR/fidelity_report.html" ]; then
+    echo ""
+    echo "Report: $RESULTS_DIR/fidelity_report.html"
+fi

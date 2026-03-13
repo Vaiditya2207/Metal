@@ -13,7 +13,7 @@ test "fallback returns length times eight" {
 
 test "fallback single character" {
     const result = text_measure.measureTextWidth("x", 14.0, 400.0);
-    try std.testing.expectEqual(@as(f32, 8.0), result);
+    try std.testing.expectEqual(@as(f32, 7.0), result);
 }
 
 test "setMeasureFn overrides measurement" {

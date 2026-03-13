@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fidelity Test 05: Images &amp; Relative Position</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Helvetica, sans-serif; font-size: 16px; color: #1a1a1a; background: #ffffff; }
+    h2 { font-size: 24px; font-weight: 700; margin: 0 0 12px 0; }
+    .gallery { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .gallery-item { width: 200px; }
+    .gallery-item img { width: 100%; height: 150px; background: #cccccc; border: 1px solid #999999; display: block; }
+    .gallery-item p { margin: 4px 0 0 0; font-size: 14px; }
+
+    /* Relative position test (L-5) */
+    .positioned-box {
+      position: relative;
+      width: 400px;
+      height: 200px;
+      background: #f0f0f0;
+      border: 1px solid #999999;
+      margin-top: 20px;
+    }
+    .offset-child {
+      position: relative;
+      top: 20px;
+      left: 30px;
+      width: 100px;
+      height: 60px;
+      background: #aa3333;
+      color: #ffffff;
+      padding: 8px;
+      font-size: 12px;
+    }
+
+    /* List test (CSS inheritance S-1) */
+    ul { margin: 16px 0; padding-left: 40px; }
+    li { margin-bottom: 4px; }
+    li em { font-style: italic; }
+  </style>
+</head>
+<body>
+  <h2>Image Gallery</h2>
+  <div class="gallery">
+    <div class="gallery-item">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23667788' width='200' height='150'/%3E%3Ctext x='50%25' y='50%25' fill='white' text-anchor='middle' dy='.3em'%3EImage 1%3C/text%3E%3C/svg%3E" alt="Image 1">
+      <p>Image 1 caption</p>
+    </div>
+    <div class="gallery-item">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23887766' width='200' height='150'/%3E%3Ctext x='50%25' y='50%25' fill='white' text-anchor='middle' dy='.3em'%3EImage 2%3C/text%3E%3C/svg%3E" alt="Image 2">
+      <p>Image 2 caption</p>
+    </div>
+    <div class="gallery-item">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150'%3E%3Crect fill='%23668866' width='200' height='150'/%3E%3Ctext x='50%25' y='50%25' fill='white' text-anchor='middle' dy='.3em'%3EImage 3%3C/text%3E%3C/svg%3E" alt="Image 3">
+      <p>Image 3 caption</p>
+    </div>
+  </div>
+
+  <h2>Relative Positioning (L-5)</h2>
+  <div class="positioned-box">
+    <div class="offset-child">top: 20px, left: 30px</div>
+  </div>
+
+  <h2>Inherited Styles (S-1)</h2>
+  <ul>
+    <li>List item with <em>inherited italic</em></li>
+    <li>Second item inheriting <strong>font-weight</strong></li>
+    <li>Third item testing list bullet rendering</li>
+  </ul>
+</body>
+</html>

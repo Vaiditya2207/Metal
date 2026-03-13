@@ -1,138 +1,72 @@
-const fs = require('fs');
+const chrome = require('./results/chrome_dump.json').tree;
+const metal = require('./results/metal_dump.json').children[0];
+const TOL = 5;
+const SVG_CHILD_TAGS = new Set(['path','image','circle','rect','line','g','polygon','polyline','ellipse','text','use','defs','clipPath','mask','filter','linearGradient','radialGradient','stop','symbol','marker','pattern','foreignObject']);
 
-function loadJSON(path) {
-    try {
-        return JSON.parse(fs.readFileSync(path, 'utf8'));
-    } catch (e) {
-        console.error(`Error reading ${path}: ${e.message}`);
-        process.exit(1);
-    }
+function flatten(node, list, depth, isChrome, insideSvg) {
+  list = list || []; depth = depth || 0; insideSvg = insideSvg || false;
+  const r = node.rect || {};
+  const w = isChrome ? r.w : r.width;
+  const h = isChrome ? r.h : r.height;
+  const id = isChrome ? (node.elId || '') : (node.id || '');
+  // Use sorted class string for matching. Chrome's diagnose.js truncates to first 3 classes
+  // (unsorted) then compare.js sorts. Mirror this: take first 3 unsorted, then sort.
+  const rawCls = isChrome ? (node.cls || '') : (node.className || '');
+  // Chrome reports SVG className as "[object SVGAnimatedString]" — normalize to empty
+  let clsParts = rawCls.split(' ').filter(Boolean);
+  if (clsParts.some(c => c.includes('SVGAnimatedString'))) clsParts = [];
+  // Truncate to first 3 classes (unsorted) to match Chrome dump format, then sort
+  let cls = clsParts.slice(0, 3).sort().join(' ');
+  const tag = node.tag || '';
+
+  // Skip SVG children on Chrome side (Metal treats SVG as opaque replaced elements)
+  const isSvgChild = isChrome && insideSvg && SVG_CHILD_TAGS.has(tag);
+  if (!isSvgChild) {
+    list.push({ tag, id, cls, x: r.x||0, y: r.y||0, w: w||0, h: h||0, depth });
+  }
+
+  const childInsideSvg = insideSvg || (tag === 'svg');
+  (node.children || []).forEach(c => flatten(c, list, depth+1, isChrome, childInsideSvg));
+  return list;
 }
-
-const chromeData = loadJSON('chrome_dump.json');
-const metalData = loadJSON('metal_dump.json');
-
-let totalElementsChecked = 0;
-let layoutMatchCount = 0;
-let styleMatchCount = 0;
-
-const issues = {
-    layout: [],
-    style: []
-};
-
-// Threshold in pixels for treating bounds as matching
-const TOLERANCE_PX = 5;
-
-// Normalize color (rgba to rgb, drops alpha for simplicity if it's opaque)
-function normalizeColor(c) {
-    if (!c) return '';
-    c = c.replace(/\s+/g, '').toLowerCase();
-    return c;
+const cn = flatten(chrome, null, 0, true);
+const mn = flatten(metal, null, 0, false);
+let match = 0, total = 0, mismatches = [];
+// Track used Metal indices to prevent double-matching
+const usedMetal = new Set();
+for (const c of cn) {
+  if (!c.tag || c.tag === '#text') continue;
+  if (c.w === 0 && c.h === 0) continue;
+  total++;
+  const ckey = c.id + '|' + c.cls + '|' + c.tag;
+  // Find first unused Metal element matching this key
+  const mIdx = mn.findIndex((n, idx) => !usedMetal.has(idx) && (n.id+'|'+n.cls+'|'+n.tag) === ckey);
+  const m = mIdx >= 0 ? mn[mIdx] : null;
+  if (m) usedMetal.add(mIdx);
+  if (m && Math.abs(c.x-m.x)<=TOL && Math.abs(c.y-m.y)<=TOL && Math.abs(c.w-m.w)<=TOL && Math.abs(c.h-m.h)<=TOL) {
+    match++;
+  } else if (m) {
+    mismatches.push({key:ckey,chrome:{x:c.x,y:c.y,w:c.w,h:c.h},metal:{x:m.x,y:m.y,w:m.w,h:m.h}});
+  } else {
+    mismatches.push({key:ckey,chrome:{x:c.x,y:c.y,w:c.w,h:c.h},metal:'NOT FOUND'});
+  }
 }
-
-function compareNodes(chromeNode, metalNode, path = "") {
-    if (!chromeNode || !metalNode) return;
-
-    if (chromeNode.type === 'text') {
-        // We aren't comparing text bounds directly right now due to CoreText metrics differences,
-        // but we verify existence in both trees.
-        return;
-    }
-
-    const currentPath = path + `/${chromeNode.tag}${chromeNode.id ? '#' + chromeNode.id : ''}`;
-
-    totalElementsChecked++;
-
-    // 1. Layout Compare
-    const cr = chromeNode.rect;
-    const mr = metalNode.rect;
-
-    const xDiff = Math.abs(cr.x - mr.x);
-    const yDiff = Math.abs(cr.y - mr.y);
-    const wDiff = Math.abs(cr.width - mr.width);
-    const hDiff = Math.abs(cr.height - mr.height);
-
-    if (xDiff <= TOLERANCE_PX && yDiff <= TOLERANCE_PX && wDiff <= TOLERANCE_PX && hDiff <= TOLERANCE_PX) {
-        layoutMatchCount++;
-    } else {
-        issues.layout.push(`[${currentPath}] Chrome: [${cr.x}, ${cr.y}, ${cr.width}x${cr.height}] | Metal: [${mr.x}, ${mr.y}, ${mr.width}x${mr.height}]`);
-    }
-
-    // 2. Style Compare
-    const cs = chromeNode.style;
-    const ms = metalNode.style;
-
-    let styleMatched = true;
-
-    if (cs.display !== ms.display && !(cs.display === 'block' && ms.display === 'flex')) {
-        // rough tolerance for differing defaults if not directly conflicting
-        if (cs.display && ms.display) {
-            styleMatched = false;
-            issues.style.push(`[${currentPath}] Display mismatch. Chrome: ${cs.display}, Metal: ${ms.display}`);
-        }
-    }
-
-    // Very rough font size check
-    if (cs.fontSize && ms.fontSize) {
-        const cfs = parseFloat(cs.fontSize);
-        const mfs = parseFloat(ms.fontSize);
-        if (Math.abs(cfs - mfs) > 2) {
-            styleMatched = false;
-            issues.style.push(`[${currentPath}] FontSize mismatch. Chrome: ${cs.fontSize}, Metal: ${ms.fontSize}`);
-        }
-    }
-
-    if (styleMatched) {
-        styleMatchCount++;
-    }
-
-    // Recurse heavily simplified. We just attempt a 1-to-1 match by index.
-    // In reality, DOM trees might diverge.
-    const cc = chromeNode.children || [];
-    const mc = metalNode.children || [];
-
-    // We only compare elements, not text nodes for tree structure iteration
-    const ce = cc.filter(n => n.type === 'element');
-    const me = mc.filter(n => n.type === 'element');
-
-    const len = Math.min(ce.length, me.length);
-    for (let i = 0; i < len; i++) {
-        compareNodes(ce[i], me[i], currentPath);
-    }
+console.log('Accuracy: '+(match/total*100).toFixed(1)+'% ('+match+'/'+total+')');
+console.log('\nMATCHES:');
+const usedMetal2 = new Set();
+for (const c of cn) {
+  if (!c.tag || c.tag === '#text') continue;
+  if (c.w === 0 && c.h === 0) continue;
+  const ckey = c.id + '|' + c.cls + '|' + c.tag;
+  const mIdx = mn.findIndex((n, idx) => !usedMetal2.has(idx) && (n.id+'|'+n.cls+'|'+n.tag) === ckey);
+  const m = mIdx >= 0 ? mn[mIdx] : null;
+  if (m) usedMetal2.add(mIdx);
+  if (m && Math.abs(c.x-m.x)<=TOL && Math.abs(c.y-m.y)<=TOL && Math.abs(c.w-m.w)<=TOL && Math.abs(c.h-m.h)<=TOL) {
+    console.log('  OK '+ckey+' C:'+JSON.stringify({x:c.x,y:c.y,w:c.w,h:c.h})+' M:'+JSON.stringify({x:m.x,y:m.y,w:m.w,h:m.h}));
+  }
 }
-
-console.log("\n=================================");
-console.log("  Metal vs Chrome Fidelity Test  ");
-console.log("=================================\n");
-
-let mRoot = metalData;
-if (mRoot && mRoot.type === 'document' && mRoot.children && mRoot.children.length > 0) {
-    // Metal outputs 'document' as root, Chrome outputs 'html' as root. Unwrap to match.
-    mRoot = mRoot.children.find(c => c.type === 'element' && c.tag === 'html') || mRoot.children[0];
-}
-
-compareNodes(chromeData, mRoot);
-
-const layoutAcc = ((layoutMatchCount / totalElementsChecked) * 100).toFixed(2);
-const styleAcc = ((styleMatchCount / totalElementsChecked) * 100).toFixed(2);
-
-console.log(`Total Elements Compared: ${totalElementsChecked}`);
-console.log(`Layout Accuracy (±${TOLERANCE_PX}px): ${layoutAcc}%`);
-console.log(`Style Accuracy: ${styleAcc}%\n`);
-
-const MAX_ISSUES = 10;
-
-console.log(`--- Major Layout Issues (showing up to ${MAX_ISSUES}) ---`);
-for (let i = 0; i < Math.min(issues.layout.length, MAX_ISSUES); i++) {
-    console.log(`❌ ${issues.layout[i]}`);
-}
-if (issues.layout.length > MAX_ISSUES) console.log(`   ... and ${issues.layout.length - MAX_ISSUES} more`);
-
-console.log(`\n--- Major Style Issues (showing up to ${MAX_ISSUES}) ---`);
-for (let i = 0; i < Math.min(issues.style.length, MAX_ISSUES); i++) {
-    console.log(`❌ ${issues.style[i]}`);
-}
-if (issues.style.length > MAX_ISSUES) console.log(`   ... and ${issues.style.length - MAX_ISSUES} more`);
-
-console.log("\n");
+console.log('\nMISMATCHES (top 35):');
+mismatches.slice(0,35).forEach(m => {
+  if (m.metal==='NOT FOUND') console.log('  MISSING: '+m.key+' C:'+JSON.stringify(m.chrome));
+  else console.log('  '+m.key+': dx='+(m.metal.x-m.chrome.x)+' dy='+(m.metal.y-m.chrome.y)+' dw='+(m.metal.w-m.chrome.w)+' dh='+(m.metal.h-m.chrome.h)+'  C:'+JSON.stringify(m.chrome)+'  M:'+JSON.stringify(m.metal));
+});

@@ -9,11 +9,13 @@ pub const Unit = enum {
     vh,
     auto,
     none,
+    calc,
 };
 
 pub const Length = struct {
     value: f32,
     unit: Unit,
+    calc_offset: f32 = 0,
 };
 
 pub const CssColor = struct {
@@ -220,6 +222,11 @@ pub fn parseLength(value_str: []const u8) ?Length {
     if (std.mem.eql(u8, value_str, "auto")) return Length{ .value = 0, .unit = .auto };
     if (std.mem.eql(u8, value_str, "none")) return Length{ .value = 0, .unit = .none };
 
+    // Handle calc() expressions
+    if (value_str.len > 6 and std.mem.startsWith(u8, value_str, "calc(") and value_str[value_str.len - 1] == ')') {
+        return parseCalcExpression(value_str[5 .. value_str.len - 1]);
+    }
+
     if (value_str.len > 1 and value_str[value_str.len - 1] == '%') {
         const val = std.fmt.parseFloat(f32, value_str[0 .. value_str.len - 1]) catch return null;
         return Length{ .value = val, .unit = .percent };
@@ -253,6 +260,65 @@ pub fn parseLength(value_str: []const u8) ?Length {
 
     const num = std.fmt.parseFloat(f32, value_str) catch return null;
     if (num == 0) return Length{ .value = 0, .unit = .px };
+    return null;
+}
+
+fn parseCalcExpression(expr: []const u8) ?Length {
+    const trimmed = std.mem.trim(u8, expr, " \t\n\r");
+
+    // Look for " + " or " - " operator (with spaces around it per CSS spec)
+    // Try subtraction first, then addition
+    if (findCalcOperator(trimmed, '-')) |op_idx| {
+        const left = std.mem.trim(u8, trimmed[0..op_idx], " \t\n\r");
+        const right = std.mem.trim(u8, trimmed[op_idx + 1 ..], " \t\n\r");
+        const left_len = parseLength(left) orelse return null;
+        const right_len = parseLength(right) orelse return null;
+        return combineCalcTerms(left_len, right_len, false);
+    }
+    if (findCalcOperator(trimmed, '+')) |op_idx| {
+        const left = std.mem.trim(u8, trimmed[0..op_idx], " \t\n\r");
+        const right = std.mem.trim(u8, trimmed[op_idx + 1 ..], " \t\n\r");
+        const left_len = parseLength(left) orelse return null;
+        const right_len = parseLength(right) orelse return null;
+        return combineCalcTerms(left_len, right_len, true);
+    }
+
+    // Single value (no operator)
+    return parseLength(trimmed);
+}
+
+fn findCalcOperator(expr: []const u8, op: u8) ?usize {
+    // CSS calc requires spaces around + and - operators
+    // Search for ' + ' or ' - ' pattern
+    if (expr.len < 3) return null;
+    var i: usize = 1;
+    while (i + 1 < expr.len) : (i += 1) {
+        if (expr[i] == op and expr[i - 1] == ' ' and expr[i + 1] == ' ') {
+            return i;
+        }
+    }
+    return null;
+}
+
+fn combineCalcTerms(left: Length, right: Length, is_add: bool) ?Length {
+    const sign: f32 = if (is_add) 1.0 else -1.0;
+
+    // percent ± px → calc(percent, px_offset)
+    if (left.unit == .percent and right.unit == .px) {
+        return Length{ .value = left.value, .unit = .calc, .calc_offset = sign * right.value };
+    }
+    // px ± percent → calc(percent, px_base)
+    if (left.unit == .px and right.unit == .percent) {
+        return Length{ .value = sign * right.value, .unit = .calc, .calc_offset = left.value };
+    }
+    // px ± px → just px
+    if (left.unit == .px and right.unit == .px) {
+        return Length{ .value = left.value + sign * right.value, .unit = .px };
+    }
+    // percent ± percent → just percent
+    if (left.unit == .percent and right.unit == .percent) {
+        return Length{ .value = left.value + sign * right.value, .unit = .percent };
+    }
     return null;
 }
 
@@ -311,17 +377,29 @@ fn hslToRgb(h: f32, s: f32, l: f32) [3]u8 {
     var b: f32 = 0;
 
     if (h >= 0 and h < 60) {
-        r = c; g = x; b = 0;
+        r = c;
+        g = x;
+        b = 0;
     } else if (h >= 60 and h < 120) {
-        r = x; g = c; b = 0;
+        r = x;
+        g = c;
+        b = 0;
     } else if (h >= 120 and h < 180) {
-        r = 0; g = c; b = x;
+        r = 0;
+        g = c;
+        b = x;
     } else if (h >= 180 and h < 240) {
-        r = 0; g = x; b = c;
+        r = 0;
+        g = x;
+        b = c;
     } else if (h >= 240 and h < 300) {
-        r = x; g = 0; b = c;
+        r = x;
+        g = 0;
+        b = c;
     } else if (h >= 300 and h < 360) {
-        r = c; g = 0; b = x;
+        r = c;
+        g = 0;
+        b = x;
     }
 
     return [3]u8{
@@ -336,10 +414,10 @@ fn parseHslFunc(value_str: []const u8) ?CssColor {
     const close = std.mem.lastIndexOf(u8, value_str, ")") orelse return null;
     if (close <= open + 1) return null;
     const content = value_str[open + 1 .. close];
-    
+
     var parts: [4][]const u8 = undefined;
     var count: usize = 0;
-    
+
     // Split by comma or space
     var iter = std.mem.tokenizeAny(u8, content, ", \t\n\r");
     while (iter.next()) |part| {
@@ -354,9 +432,9 @@ fn parseHslFunc(value_str: []const u8) ?CssColor {
     // H can be deg, turn, rad, grad, or unitless
     var h_val: f32 = 0;
     if (std.mem.endsWith(u8, parts[0], "deg")) {
-        h_val = std.fmt.parseFloat(f32, parts[0][0..parts[0].len-3]) catch return null;
+        h_val = std.fmt.parseFloat(f32, parts[0][0 .. parts[0].len - 3]) catch return null;
     } else if (std.mem.endsWith(u8, parts[0], "turn")) {
-        h_val = (std.fmt.parseFloat(f32, parts[0][0..parts[0].len-4]) catch return null) * 360.0;
+        h_val = (std.fmt.parseFloat(f32, parts[0][0 .. parts[0].len - 4]) catch return null) * 360.0;
     } else {
         h_val = std.fmt.parseFloat(f32, parts[0]) catch return null;
     }
@@ -367,14 +445,14 @@ fn parseHslFunc(value_str: []const u8) ?CssColor {
     // Parse S, L (can be % or number 0-1)
     var s_val: f32 = 0;
     if (std.mem.endsWith(u8, parts[1], "%")) {
-        s_val = (std.fmt.parseFloat(f32, parts[1][0..parts[1].len-1]) catch return null) / 100.0;
+        s_val = (std.fmt.parseFloat(f32, parts[1][0 .. parts[1].len - 1]) catch return null) / 100.0;
     } else {
         s_val = std.fmt.parseFloat(f32, parts[1]) catch return null;
     }
 
     var l_val: f32 = 0;
     if (std.mem.endsWith(u8, parts[2], "%")) {
-        l_val = (std.fmt.parseFloat(f32, parts[2][0..parts[2].len-1]) catch return null) / 100.0;
+        l_val = (std.fmt.parseFloat(f32, parts[2][0 .. parts[2].len - 1]) catch return null) / 100.0;
     } else {
         l_val = std.fmt.parseFloat(f32, parts[2]) catch return null;
     }
@@ -386,7 +464,7 @@ fn parseHslFunc(value_str: []const u8) ?CssColor {
     var a: u8 = 255;
     if (count == 4) {
         if (std.mem.endsWith(u8, parts[3], "%")) {
-            const af = (std.fmt.parseFloat(f32, parts[3][0..parts[3].len-1]) catch return null) / 100.0;
+            const af = (std.fmt.parseFloat(f32, parts[3][0 .. parts[3].len - 1]) catch return null) / 100.0;
             a = @intFromFloat(std.math.clamp(af, 0.0, 1.0) * 255.0);
         } else if (std.mem.indexOf(u8, parts[3], ".")) |_| {
             const af = std.fmt.parseFloat(f32, parts[3]) catch return null;

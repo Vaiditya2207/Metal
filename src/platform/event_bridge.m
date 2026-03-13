@@ -22,8 +22,18 @@
 - (void)scrollWheel:(NSEvent *)event {
   BridgeEvent e = {0};
   e.type = EVENT_SCROLL;
-  e.x = (float)[event scrollingDeltaX];
-  e.y = (float)[event scrollingDeltaY];
+  // I-6 FIX: Distinguish trackpad (pixel-precise) from mouse wheel (line-based).
+  // Mouse wheel deltas are tiny (1-3 lines) and need scaling to match
+  // the pixel-precise deltas from trackpad gestures.
+  if ([event hasPreciseScrollingDeltas]) {
+    // Trackpad: already in pixel deltas, use directly
+    e.x = (float)[event scrollingDeltaX];
+    e.y = (float)[event scrollingDeltaY];
+  } else {
+    // Mouse wheel: line-based deltas, scale by a line height (~20px)
+    e.x = (float)([event scrollingDeltaX] * 20.0);
+    e.y = (float)([event scrollingDeltaY] * 20.0);
+  }
   [self sendEvent:e];
 }
 

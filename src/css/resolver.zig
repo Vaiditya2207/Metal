@@ -51,7 +51,14 @@ pub const StyleResolver = struct {
             style.font_size = ps.font_size;
             style.font_family = ps.font_family;
             style.font_weight = ps.font_weight;
-            
+            style.font_style = ps.font_style;
+            style.text_align = ps.text_align;
+            style.line_height = ps.line_height;
+            style.text_decoration = ps.text_decoration;
+            style.list_style_type = ps.list_style_type;
+            style.white_space = ps.white_space;
+            style.visibility = ps.visibility;
+
             // Inherit custom properties
             var it = ps.custom_properties.iterator();
             while (it.next()) |entry| {
@@ -74,7 +81,15 @@ pub const StyleResolver = struct {
             if (!std.mem.startsWith(u8, m.declaration.property, "--")) {
                 const substituted = try self.substituteVariables(m.declaration.value, &style);
                 defer self.allocator.free(substituted);
-                try style.applyProperty(m.declaration.property, substituted, self.allocator);
+                // CSS Cascading §3.1: handle `inherit` keyword
+                if (std.mem.eql(u8, substituted, "inherit")) {
+                    if (parent_style) |ps| {
+                        style.copyPropertyFromParent(m.declaration.property, ps);
+                    }
+                    // If no parent, treat as initial (keep default) — CSS spec behavior
+                } else {
+                    try style.applyProperty(m.declaration.property, substituted, self.allocator);
+                }
             }
         }
 
@@ -88,7 +103,15 @@ pub const StyleResolver = struct {
                 }
             }
         }
-        
+
+        // CSS 2.1 §9.7: Blockify floated elements
+        // If float is not none, the computed display becomes block
+        if (style.float != .none) {
+            if (style.display == .inline_val or style.display == .inline_block) {
+                style.display = .block;
+            }
+        }
+
         if (style.display == .none) return null;
 
         // Resolve font-size to absolute px values.
@@ -153,11 +176,11 @@ pub const StyleResolver = struct {
                     if (value[i] == '(') paren_depth += 1;
                     if (value[i] == ')') paren_depth -= 1;
                 }
-                
+
                 if (paren_depth == 0) {
                     const var_content = value[content_start .. i - 1];
                     var comma_idx: ?usize = null;
-                    
+
                     // Find top-level comma for fallback
                     var search_depth: usize = 0;
                     for (var_content, 0..) |c, idx| {
@@ -168,10 +191,10 @@ pub const StyleResolver = struct {
                             break;
                         }
                     }
-                    
+
                     const var_name = std.mem.trim(u8, if (comma_idx) |idx| var_content[0..idx] else var_content, " \t\n\r");
                     const fallback = if (comma_idx) |idx| std.mem.trim(u8, var_content[idx + 1 ..], " \t\n\r") else null;
-                    
+
                     if (style.custom_properties.get(var_name)) |resolved| {
                         // Variables themselves can contain var()
                         const sub_resolved = try self.substituteVariablesRecursive(resolved, style, depth + 1);
@@ -216,7 +239,7 @@ pub const StyleResolver = struct {
                 order += 1;
             }
         }
-        
+
         // Add inline styles as MatchedDeclarations
         if (node.node_type == .element) {
             for (node.attributes.items) |attr| {

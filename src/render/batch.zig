@@ -14,9 +14,11 @@ pub const TextVertex = extern struct {
     color: [4]f32,
 };
 
-// 256 quads * 6 vertices per quad = 1536 vertices
-pub const max_rect_vertices: usize = 256 * 6;
-pub const max_text_vertices: usize = 256 * 6;
+// R-10 FIX: Increased from 256 to 4096 quads to prevent mid-text truncation.
+// 256 was too small for typical page text content (>256 chars per draw_text command).
+// 4096 quads * 6 vertices = 24576 vertices * 32 bytes = ~768KB — acceptable for a browser.
+pub const max_rect_vertices: usize = 4096 * 6;
+pub const max_text_vertices: usize = 4096 * 6;
 
 pub const RectBatch = struct {
     vertices: [max_rect_vertices]RectVertex = undefined,

@@ -2,10 +2,10 @@ const std = @import("std");
 
 pub const MeasureFn = *const fn (text: []const u8, font_size: f32, font_weight: f32) f32;
 
-const fallback_char_width: f32 = 8.0;
-
-fn fallbackMeasure(text: []const u8, _: f32, _: f32) f32 {
-    return @as(f32, @floatFromInt(text.len)) * fallback_char_width;
+fn fallbackMeasure(text: []const u8, font_size: f32, _: f32) f32 {
+    const codepoint_count = std.unicode.utf8CountCodepoints(text) catch text.len;
+    const avg_char_width = font_size * 0.5;
+    return @as(f32, @floatFromInt(codepoint_count)) * avg_char_width;
 }
 
 var global_measure_fn: MeasureFn = fallbackMeasure;

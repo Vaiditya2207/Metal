@@ -15,6 +15,7 @@ pub const DisplayCommand = union(enum) {
         font_size: f32,
         font_weight: f32 = 400,
         font_style: properties.FontStyle = .normal,
+        text_owned: bool = false, // R-7 FIX: true when text was allocated and must be freed
     },
     draw_image: struct {
         rect: layout_box.Rect,
@@ -40,6 +41,17 @@ pub const DisplayList = struct {
     }
 
     pub fn deinit(self: *DisplayList) void {
+        // R-7 FIX: Free any owned text allocations before releasing the command list.
+        for (self.commands.items) |cmd| {
+            switch (cmd) {
+                .draw_text => |dt| {
+                    if (dt.text_owned) {
+                        self.allocator.free(dt.text);
+                    }
+                },
+                else => {},
+            }
+        }
         self.commands.deinit(self.allocator);
     }
 };
@@ -204,13 +216,13 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
             }
             if (bw > 0) {
                 // Top
-                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = b_box.width, .height = bw }, .color = bc }});
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = b_box.width, .height = bw }, .color = bc } });
                 // Bottom
-                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y + b_box.height - bw, .width = b_box.width, .height = bw }, .color = bc }});
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y + b_box.height - bw, .width = b_box.width, .height = bw }, .color = bc } });
                 // Left
-                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc }});
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc } });
                 // Right
-                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x + b_box.width - bw, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc }});
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x + b_box.width - bw, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc } });
             }
         }
 
@@ -223,12 +235,10 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
             var c = sn.style.color;
             const opacity = sn.style.opacity;
             if (opacity < 1.0) c.a = @intFromFloat(@as(f32, @floatFromInt(c.a)) * opacity);
-            try dl.commands.append(dl.allocator, .{
-                 .draw_rect = .{
-                     .rect = .{ .x = bullet_x, .y = bullet_y, .width = bullet_size, .height = bullet_size },
-                     .color = c,
-                 }
-            });
+            try dl.commands.append(dl.allocator, .{ .draw_rect = .{
+                .rect = .{ .x = bullet_x, .y = bullet_y, .width = bullet_size, .height = bullet_size },
+                .color = c,
+            } });
         }
     }
 
@@ -256,7 +266,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
     if (box.styled_node) |sn| {
         if (box_visible and sn.node.node_type == .element and (sn.node.tag == .input or sn.node.tag == .textarea)) {
             const val = sn.node.getAttribute("value") orelse sn.node.getAttribute("placeholder") orelse "";
-            
+
             var c = sn.style.color;
             if (sn.style.opacity < 1.0) c.a = @intFromFloat(@as(f32, @floatFromInt(c.a)) * sn.style.opacity);
             const rect = layout_box.Rect{
@@ -274,6 +284,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                         .color = c,
                         .font_size = sn.style.font_size.value,
                         .font_weight = sn.style.font_weight,
+                        .text_owned = true,
                     },
                 });
             }
@@ -304,37 +315,37 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
         var opacity: f32 = 1.0;
         var font_size: f32 = 16.0;
         var font_weight: f32 = 400.0;
-        
+
         {
             const sn = run.styled_node;
             color = sn.style.color;
             opacity = sn.style.opacity;
             font_size = sn.style.font_size.value;
             font_weight = sn.style.font_weight;
-            
+
             if (sn.style.text_decoration == .underline) {
-                 var ul_color = color;
-                 if (opacity < 1.0) {
-                     ul_color.a = @intFromFloat(@as(f32, @floatFromInt(ul_color.a)) * opacity);
-                 }
-                 try dl.commands.append(dl.allocator, .{
-                     .draw_rect = .{
-                         .rect = .{
-                             .x = run.x,
-                             .y = run.y + (sn.style.line_height * font_size) - 2.0,
-                             .width = run.width,
-                             .height = 1.0,
-                         },
-                         .color = ul_color,
-                     },
-                 });
+                var ul_color = color;
+                if (opacity < 1.0) {
+                    ul_color.a = @intFromFloat(@as(f32, @floatFromInt(ul_color.a)) * opacity);
+                }
+                try dl.commands.append(dl.allocator, .{
+                    .draw_rect = .{
+                        .rect = .{
+                            .x = run.x,
+                            .y = run.y + (sn.style.line_height * font_size) - 2.0,
+                            .width = run.width,
+                            .height = 1.0,
+                        },
+                        .color = ul_color,
+                    },
+                });
             }
         }
-        
+
         if (opacity < 1.0) {
             color.a = @intFromFloat(@as(f32, @floatFromInt(color.a)) * opacity);
         }
-        
+
         if (run.width > 0) {
             try dl.commands.append(dl.allocator, .{
                 .draw_text = .{
@@ -352,7 +363,6 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                 },
             });
         }
-
     }
 
     // Clip around children if overflow is hidden/scroll
