@@ -276,9 +276,10 @@ test "single word no wrap" {
 
     const anon = root.children.items[0];
     const child = anon.children.items[0];
+    // half-leading = (19.2 - 16) / 2 = 1.6 for default styles
     try std.testing.expectEqual(@as(f32, 24.0), child.dimensions.content.width);
     try std.testing.expectEqual(@as(f32, 0.0), child.dimensions.content.x);
-    try std.testing.expectEqual(@as(f32, 0.0), child.dimensions.content.y);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.6), child.dimensions.content.y, 0.01);
     try std.testing.expectEqual(@as(f32, 19.2), anon.dimensions.content.height);
 }
 

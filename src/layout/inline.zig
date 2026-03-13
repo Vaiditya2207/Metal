@@ -13,6 +13,10 @@ fn shiftBox(box: *box_mod.LayoutBox, dx: f32, dy: f32) void {
     }
 }
 
+const InlineBlockOnLine = struct {
+    box: *box_mod.LayoutBox,
+};
+
 const TextSegment = struct {
     text: []const u8,
     styled_node: *const resolver.StyledNode,
@@ -142,6 +146,10 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
 
     collectTextSegments(layout_box, &segments, fba.allocator());
 
+    var line_ibs = std.ArrayListUnmanaged(InlineBlockOnLine){};
+    // Use the same fixed-buffer allocator for the inline-block tracking list
+    const ib_alloc = fba.allocator();
+
     var line_start_idx: usize = 0;
     var current_run_idx: usize = 0;
     var last_styled_node: ?*const resolver.StyledNode = null;
@@ -207,7 +215,8 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
 
             // If it doesn't fit in the current shortened line box, shift down
             if (cursor_x + block_w > available.width and cursor_x > 0) {
-                alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
+                alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset, line_ibs.items);
+                line_ibs.clearRetainingCapacity();
                 line_start_idx = current_run_idx;
 
                 cursor_x = 0;
@@ -236,6 +245,7 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
             const dx = target_x - seg.layout_box.dimensions.content.x;
             const dy = target_y - seg.layout_box.dimensions.content.y;
             shiftBox(seg.layout_box, dx, dy);
+            line_ibs.append(ib_alloc, .{ .box = seg.layout_box }) catch {};
 
             cursor_x += block_w;
             current_line_height = @max(current_line_height, block_h);
@@ -243,7 +253,8 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
         }
 
         if (std.mem.eql(u8, seg.text, "\n")) {
-            alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
+            alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset, line_ibs.items);
+            line_ibs.clearRetainingCapacity();
             line_start_idx = current_run_idx;
 
             cursor_x = 0;
@@ -268,7 +279,8 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
 
             // If it doesn't fit, shift down
             if (cursor_x + word_width > available.width and cursor_x > 0 and seg.white_space != .nowrap and seg.white_space != .pre) {
-                alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset);
+                alignLine(layout_box, line_start_idx, current_run_idx, available.width, cursor_x, available.x_offset, line_ibs.items);
+                line_ibs.clearRetainingCapacity();
                 line_start_idx = current_run_idx;
 
                 cursor_x = 0;
@@ -290,15 +302,17 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
                 if (cursor_y - prev_y > 1000) break;
             }
 
+            const half_leading = @max(@as(f32, 0), (seg.line_height - seg.font_size) / 2.0);
+
             layout_box.text_runs.append(allocator, .{
                 .text = word,
                 .styled_node = seg.styled_node,
                 .x = anon_abs_x + available.x_offset + cursor_x,
-                .y = anon_abs_y + cursor_y,
+                .y = anon_abs_y + cursor_y + half_leading,
                 .width = word_width,
             }) catch continue;
 
-            expandBoxRect(seg.layout_box, anon_abs_x + available.x_offset + cursor_x, anon_abs_y + cursor_y, word_width, seg.font_size);
+            expandBoxRect(seg.layout_box, anon_abs_x + available.x_offset + cursor_x, anon_abs_y + cursor_y + half_leading, word_width, seg.font_size);
 
             current_run_idx += 1;
             cursor_x += word_width;
@@ -312,13 +326,14 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
         fc.getAvailableWidth(anon_abs_y + cursor_y, current_line_height, container_width, anon_abs_x)
     else
         @import("layout.zig").AvailableSpace{ .x_offset = 0, .width = container_width };
-    alignLine(layout_box, line_start_idx, current_run_idx, final_available.width, cursor_x, final_available.x_offset);
+    alignLine(layout_box, line_start_idx, current_run_idx, final_available.width, cursor_x, final_available.x_offset, line_ibs.items);
+    line_ibs.clearRetainingCapacity();
 
     layout_box.dimensions.content.height = if (segments.items.len == 0) 0 else cursor_y + current_line_height;
 }
 
-fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, available_width: f32, line_width: f32, x_offset: f32) void {
-    if (start_idx >= end_idx) return;
+fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, available_width: f32, line_width: f32, x_offset: f32, line_ibs: []const InlineBlockOnLine) void {
+    if (start_idx >= end_idx and line_ibs.len == 0) return;
 
     var text_align: properties.TextAlign = .left;
     if (box.parent) |p| {
@@ -349,6 +364,10 @@ fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, availabl
         while (i < end_idx) : (i += 1) {
             box.text_runs.items[i].x += align_offset;
         }
+        // Shift inline-block boxes on this line
+        for (line_ibs) |ib| {
+            shiftBox(ib.box, align_offset, 0);
+        }
     }
 }
 
@@ -372,4 +391,109 @@ test "RC-49: inline element height uses font_size not line_height" {
     try std.testing.expectApproxEqAbs(font_size, box.dimensions.content.height, 0.01);
     // Verify it would have been wrong with line_height
     try std.testing.expect(box.dimensions.content.height < 28.0);
+}
+
+test "RC-50: alignLine shifts inline-block boxes for text-align center" {
+    // Setup: an anonymous block with a parent that has text-align: center.
+    // Place an inline-block at x=0 with width=100 in a container of width=400.
+    // After alignLine, the inline-block should be shifted by (400-100)/2 = 150.
+
+    const allocator = std.testing.allocator;
+
+    // Create a minimal DOM node for the StyledNode
+    var node = @import("../dom/node.zig").Node.init(allocator, .element);
+
+    // Create a StyledNode with text-align: center
+    var style: properties.ComputedStyle = .{};
+    style.text_align = .center;
+    const styled_node = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    // Parent LayoutBox (block container with text-align: center)
+    var parent_box = box_mod.LayoutBox.init(.blockNode, &styled_node);
+
+    // Anonymous block (the box passed to alignLine)
+    var anon_box = box_mod.LayoutBox.init(.anonymousBlock, null);
+    anon_box.parent = &parent_box;
+
+    // Inline-block child box at x=0, width=100
+    var ib_box = box_mod.LayoutBox.init(.inlineBlockNode, null);
+    ib_box.dimensions.content.x = 0;
+    ib_box.dimensions.content.y = 0;
+    ib_box.dimensions.content.width = 100;
+    ib_box.dimensions.content.height = 20;
+
+    // Create the inline-block-on-line entry
+    const ibs = [_]InlineBlockOnLine{.{ .box = &ib_box }};
+
+    // Call alignLine: container width=400, line width=100 (the inline-block),
+    // x_offset=0, with one inline-block on the line.
+    // start_idx == end_idx (no text runs), but we have an inline-block.
+    alignLine(&anon_box, 0, 0, 400, 100, 0, &ibs);
+
+    // Expected offset: (400 - 100) / 2 = 150
+    try std.testing.expectApproxEqAbs(@as(f32, 150.0), ib_box.dimensions.content.x, 0.01);
+
+    // Also test text-align: right
+    ib_box.dimensions.content.x = 0; // reset
+    var right_style: properties.ComputedStyle = .{};
+    right_style.text_align = .right;
+    const right_styled_node = resolver.StyledNode{
+        .node = &node,
+        .style = right_style,
+        .children = &.{},
+    };
+    var right_parent = box_mod.LayoutBox.init(.blockNode, &right_styled_node);
+    anon_box.parent = &right_parent;
+
+    alignLine(&anon_box, 0, 0, 400, 100, 0, &ibs);
+
+    // Expected offset: 400 - 100 = 300
+    try std.testing.expectApproxEqAbs(@as(f32, 300.0), ib_box.dimensions.content.x, 0.01);
+
+    // Also verify text-align: left does NOT shift
+    ib_box.dimensions.content.x = 0; // reset
+    var left_style: properties.ComputedStyle = .{};
+    left_style.text_align = .left;
+    const left_styled_node = resolver.StyledNode{
+        .node = &node,
+        .style = left_style,
+        .children = &.{},
+    };
+    var left_parent = box_mod.LayoutBox.init(.blockNode, &left_styled_node);
+    anon_box.parent = &left_parent;
+
+    alignLine(&anon_box, 0, 0, 400, 100, 0, &ibs);
+
+    // text-align: left should not shift
+    try std.testing.expectApproxEqAbs(@as(f32, 0.0), ib_box.dimensions.content.x, 0.01);
+}
+
+test "RC-51: half-leading calculation for inline text y-position" {
+    // When line_height > font_size, half-leading = (line_height - font_size) / 2
+    // pushes text down inside the line box so it is vertically centred.
+    {
+        const font_size: f32 = 14.0;
+        const line_height: f32 = 28.0;
+        const half_leading = @max(@as(f32, 0), (line_height - font_size) / 2.0);
+        try std.testing.expectApproxEqAbs(@as(f32, 7.0), half_leading, 0.01);
+    }
+
+    // Zero leading: line_height == font_size → half_leading = 0
+    {
+        const font_size: f32 = 14.0;
+        const hl = @max(@as(f32, 0), (font_size - font_size) / 2.0);
+        try std.testing.expectApproxEqAbs(@as(f32, 0.0), hl, 0.01);
+    }
+
+    // Negative case: line_height < font_size → clamp to 0
+    {
+        const font_size: f32 = 14.0;
+        const line_height: f32 = 12.0;
+        const hl = @max(@as(f32, 0), (line_height - font_size) / 2.0);
+        try std.testing.expectApproxEqAbs(@as(f32, 0.0), hl, 0.01);
+    }
 }

@@ -56,16 +56,17 @@ test "inline layout side-by-side" {
     const box1 = anon.children.items[0];
     const box2 = anon.children.items[1];
 
+    // half-leading = (19.2 - 16) / 2 = 1.6 for default font_size=16, line_height=1.2
     try std.testing.expectEqual(@as(f32, 24.0), box1.dimensions.content.width);
     try std.testing.expectEqual(@as(f32, 0.0), box1.dimensions.content.x);
-    try std.testing.expectEqual(@as(f32, 0.0), box1.dimensions.content.y);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.6), box1.dimensions.content.y, 0.01);
 
     try std.testing.expectEqual(@as(f32, 32.0), box2.dimensions.content.width);
     try std.testing.expectEqual(@as(f32, 32.0), box2.dimensions.content.x);
-    try std.testing.expectEqual(@as(f32, 0.0), box2.dimensions.content.y);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.6), box2.dimensions.content.y, 0.01);
 
-    try std.testing.expectEqual(@as(f32, 19.2), anon.dimensions.content.height);
-    try std.testing.expectEqual(@as(f32, 19.2), root.dimensions.content.height);
+    try std.testing.expectApproxEqAbs(@as(f32, 19.2), anon.dimensions.content.height, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 19.2), root.dimensions.content.height, 0.01);
 }
 
 test "inline-block shrink-to-fit auto width" {
@@ -448,13 +449,14 @@ test "inline layout wrap" {
     const box1 = anon.children.items[0];
     const box2 = anon.children.items[1];
 
+    // half-leading = (19.2 - 16) / 2 = 1.6 for default styles
     try std.testing.expectEqual(@as(f32, 24.0), box1.dimensions.content.width);
     try std.testing.expectEqual(@as(f32, 0.0), box1.dimensions.content.x);
-    try std.testing.expectEqual(@as(f32, 0.0), box1.dimensions.content.y);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.6), box1.dimensions.content.y, 0.01);
 
     try std.testing.expectEqual(@as(f32, 32.0), box2.dimensions.content.width);
     try std.testing.expectEqual(@as(f32, 0.0), box2.dimensions.content.x);
-    try std.testing.expectEqual(@as(f32, 19.2), box2.dimensions.content.y);
+    try std.testing.expectApproxEqAbs(@as(f32, 20.8), box2.dimensions.content.y, 0.01);
 
     try std.testing.expectEqual(@as(f32, 38.4), anon.dimensions.content.height);
     try std.testing.expectEqual(@as(f32, 38.4), root.dimensions.content.height);
