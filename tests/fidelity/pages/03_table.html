@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fidelity Test 03: Table Layout</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Helvetica, sans-serif; font-size: 16px; color: #1a1a1a; background: #ffffff; }
+    h2 { font-size: 24px; font-weight: 700; margin: 0 0 12px 0; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+    th, td { border: 1px solid #999999; padding: 8px 12px; text-align: left; }
+    th { background: #e0e0e0; font-weight: 700; }
+    tr:nth-child(even) td { background: #f8f8f8; }
+    p { margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h2>Table Layout (L-9 double-counting fix)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Bug ID</th>
+        <th>File</th>
+        <th>Severity</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>L-3</td>
+        <td>block_position.zig</td>
+        <td>Critical</td>
+        <td>Anonymous block Y-positioning used container Y instead of accumulated height</td>
+      </tr>
+      <tr>
+        <td>R-10</td>
+        <td>batch.zig</td>
+        <td>High</td>
+        <td>Text batch overflow at 256 quads caused text truncation</td>
+      </tr>
+      <tr>
+        <td>L-9</td>
+        <td>table.zig</td>
+        <td>Medium</td>
+        <td>Table height double-counted in parent layout</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>Content below the table should not overlap with the table. This verifies the L-9 fix (table height no longer double-counted).</p>
+</body>
+</html>
