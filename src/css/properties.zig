@@ -36,6 +36,7 @@ pub const ComputedStyle = struct {
     flex_wrap: FlexWrap = .nowrap,
     justify_content: JustifyContent = .flex_start,
     align_items: AlignItems = .stretch,
+    align_self: ?AlignItems = null,
     row_gap: Length = .{ .value = 0, .unit = .px },
     column_gap: Length = .{ .value = 0, .unit = .px },
     flex_grow: f32 = 0.0,
@@ -94,9 +95,9 @@ pub const ComputedStyle = struct {
         // Note: font_family is usually a literal unless duped in applyProperty
         // We need a way to track if it's duped. For now, we'll assume it's duped if it's not the default.
         if (!std.mem.eql(u8, self.font_family, "sans-serif") and !std.mem.eql(u8, self.font_family, "serif") and !std.mem.eql(u8, self.font_family, "monospace")) {
-             // This is a bit risky but we'll try to free it. 
-             // Better: move font_family to a fixed-size buffer or handle ownership better.
-             // allocator.free(self.font_family);
+            // This is a bit risky but we'll try to free it.
+            // Better: move font_family to a fixed-size buffer or handle ownership better.
+            // allocator.free(self.font_family);
         }
     }
 
@@ -292,8 +293,7 @@ pub const ComputedStyle = struct {
                     self.font_family = try allocator.dupe(u8, token);
                 }
             }
-        }
- else if (std.mem.eql(u8, prop, "font-weight")) {
+        } else if (std.mem.eql(u8, prop, "font-weight")) {
             if (std.mem.eql(u8, val, "normal")) self.font_weight = 400 else if (std.mem.eql(u8, val, "bold")) self.font_weight = 700 else {
                 self.font_weight = std.fmt.parseFloat(f32, val) catch 400;
             }
@@ -376,6 +376,13 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "flex-end")) self.align_items = .flex_end;
             if (std.mem.eql(u8, val, "center")) self.align_items = .center;
             if (std.mem.eql(u8, val, "baseline")) self.align_items = .flex_start;
+        } else if (std.mem.eql(u8, prop, "align-self")) {
+            if (std.mem.eql(u8, val, "auto")) self.align_self = null;
+            if (std.mem.eql(u8, val, "stretch")) self.align_self = .stretch;
+            if (std.mem.eql(u8, val, "flex-start")) self.align_self = .flex_start;
+            if (std.mem.eql(u8, val, "flex-end")) self.align_self = .flex_end;
+            if (std.mem.eql(u8, val, "center")) self.align_self = .center;
+            if (std.mem.eql(u8, val, "baseline")) self.align_self = .flex_start;
         } else if (std.mem.eql(u8, prop, "flex-grow")) {
             self.flex_grow = std.fmt.parseFloat(f32, val) catch 0.0;
         } else if (std.mem.eql(u8, prop, "flex-shrink")) {
@@ -383,10 +390,60 @@ pub const ComputedStyle = struct {
         } else if (std.mem.eql(u8, prop, "flex-basis")) {
             self.flex_basis = values_mod.parseLength(val);
         } else if (std.mem.eql(u8, prop, "flex")) {
-            self.flex_grow = std.fmt.parseFloat(f32, val) catch 0.0;
-            if (self.flex_grow > 0) {
-                self.flex_shrink = 1.0;
-                self.flex_basis = .{ .value = 0, .unit = .px };
+            // flex shorthand: flex: <grow> [<shrink>] [<basis>]
+            // Also handles keywords: flex: none → 0 0 auto; flex: auto → 1 1 auto
+            if (std.mem.eql(u8, val, "none")) {
+                self.flex_grow = 0;
+                self.flex_shrink = 0;
+                self.flex_basis = .{ .value = 0, .unit = .auto };
+            } else if (std.mem.eql(u8, val, "auto")) {
+                self.flex_grow = 1;
+                self.flex_shrink = 1;
+                self.flex_basis = .{ .value = 0, .unit = .auto };
+            } else {
+                var iter = std.mem.tokenizeAny(u8, val, " \t");
+                var part_idx: usize = 0;
+                var found_basis = false;
+                while (iter.next()) |part| {
+                    if (part_idx == 0) {
+                        // First value: try as flex-grow (number), or as flex-basis (length/percentage)
+                        if (std.fmt.parseFloat(f32, part)) |grow| {
+                            self.flex_grow = grow;
+                        } else |_| {
+                            // Not a plain number — try as length/percentage (e.g. "100%", "200px")
+                            if (values_mod.parseLength(part)) |len| {
+                                self.flex_basis = len;
+                                self.flex_grow = 1;
+                                self.flex_shrink = 1;
+                                found_basis = true;
+                            } else {
+                                self.flex_grow = 0.0;
+                            }
+                        }
+                    } else if (part_idx == 1) {
+                        // Second value: could be flex-shrink (number) or flex-basis (with unit/keyword)
+                        if (std.fmt.parseFloat(f32, part)) |shrink| {
+                            self.flex_shrink = shrink;
+                        } else |_| {
+                            // Not a plain number — must be flex-basis
+                            self.flex_basis = values_mod.parseLength(part);
+                            found_basis = true;
+                        }
+                    } else if (part_idx == 2 and !found_basis) {
+                        // Third value is flex-basis
+                        self.flex_basis = values_mod.parseLength(part);
+                        found_basis = true;
+                    }
+                    part_idx += 1;
+                }
+                // Per CSS spec: when flex shorthand has a <number> but no basis,
+                // flex-basis defaults to 0 (not auto).
+                if (!found_basis and part_idx >= 1) {
+                    if (self.flex_grow > 0) {
+                        self.flex_shrink = if (part_idx == 1) 1.0 else self.flex_shrink;
+                        self.flex_basis = .{ .value = 0, .unit = .px };
+                    }
+                }
             }
         }
     }
@@ -467,11 +524,190 @@ pub const ComputedStyle = struct {
     }
 
     pub fn isInherited(p: []const u8) bool {
-        const inherited = [_][]const u8{
-            "color", "font-size", "font-family", "font-weight", "font-style",
-            "text-align", "line-height", "list-style-type", "white-space", "text-decoration"
-        };
+        const inherited = [_][]const u8{ "color", "font-size", "font-family", "font-weight", "font-style", "text-align", "line-height", "list-style-type", "white-space", "text-decoration" };
         for (inherited) |i| if (std.mem.eql(u8, i, p)) return true;
         return false;
     }
+
+    /// Copy a single property value from `parent` into `self`.
+    /// Used to implement the CSS `inherit` keyword (CSS Cascading §3.1).
+    pub fn copyPropertyFromParent(self: *ComputedStyle, prop: []const u8, parent: *const ComputedStyle) void {
+        if (std.mem.eql(u8, prop, "width")) {
+            self.width = parent.width;
+        } else if (std.mem.eql(u8, prop, "height")) {
+            self.height = parent.height;
+        } else if (std.mem.eql(u8, prop, "min-width")) {
+            self.min_width = parent.min_width;
+        } else if (std.mem.eql(u8, prop, "min-height")) {
+            self.min_height = parent.min_height;
+        } else if (std.mem.eql(u8, prop, "max-width")) {
+            self.max_width = parent.max_width;
+        } else if (std.mem.eql(u8, prop, "max-height")) {
+            self.max_height = parent.max_height;
+        } else if (std.mem.eql(u8, prop, "display")) {
+            self.display = parent.display;
+        } else if (std.mem.eql(u8, prop, "position")) {
+            self.position = parent.position;
+        } else if (std.mem.eql(u8, prop, "overflow") or std.mem.startsWith(u8, prop, "overflow-")) {
+            self.overflow = parent.overflow;
+        } else if (std.mem.eql(u8, prop, "visibility")) {
+            self.visibility = parent.visibility;
+        } else if (std.mem.eql(u8, prop, "box-sizing")) {
+            self.box_sizing = parent.box_sizing;
+        } else if (std.mem.eql(u8, prop, "float")) {
+            self.float = parent.float;
+        } else if (std.mem.eql(u8, prop, "clear")) {
+            self.clear = parent.clear;
+        } else if (std.mem.eql(u8, prop, "margin-top")) {
+            self.margin_top = parent.margin_top;
+        } else if (std.mem.eql(u8, prop, "margin-right")) {
+            self.margin_right = parent.margin_right;
+        } else if (std.mem.eql(u8, prop, "margin-bottom")) {
+            self.margin_bottom = parent.margin_bottom;
+        } else if (std.mem.eql(u8, prop, "margin-left")) {
+            self.margin_left = parent.margin_left;
+        } else if (std.mem.eql(u8, prop, "padding-top")) {
+            self.padding_top = parent.padding_top;
+        } else if (std.mem.eql(u8, prop, "padding-right")) {
+            self.padding_right = parent.padding_right;
+        } else if (std.mem.eql(u8, prop, "padding-bottom")) {
+            self.padding_bottom = parent.padding_bottom;
+        } else if (std.mem.eql(u8, prop, "padding-left")) {
+            self.padding_left = parent.padding_left;
+        } else if (std.mem.eql(u8, prop, "margin")) {
+            self.margin_top = parent.margin_top;
+            self.margin_right = parent.margin_right;
+            self.margin_bottom = parent.margin_bottom;
+            self.margin_left = parent.margin_left;
+        } else if (std.mem.eql(u8, prop, "padding")) {
+            self.padding_top = parent.padding_top;
+            self.padding_right = parent.padding_right;
+            self.padding_bottom = parent.padding_bottom;
+            self.padding_left = parent.padding_left;
+        } else if (std.mem.eql(u8, prop, "border-width")) {
+            self.border_width = parent.border_width;
+        } else if (std.mem.eql(u8, prop, "border-color")) {
+            self.border_color = parent.border_color;
+        } else if (std.mem.eql(u8, prop, "border-radius")) {
+            self.border_radius = parent.border_radius;
+        } else if (std.mem.eql(u8, prop, "color")) {
+            self.color = parent.color;
+        } else if (std.mem.eql(u8, prop, "background-color")) {
+            self.background_color = parent.background_color;
+        } else if (std.mem.eql(u8, prop, "font-size")) {
+            self.font_size = parent.font_size;
+        } else if (std.mem.eql(u8, prop, "font-family")) {
+            self.font_family = parent.font_family;
+        } else if (std.mem.eql(u8, prop, "font-weight")) {
+            self.font_weight = parent.font_weight;
+        } else if (std.mem.eql(u8, prop, "font-style")) {
+            self.font_style = parent.font_style;
+        } else if (std.mem.eql(u8, prop, "text-align")) {
+            self.text_align = parent.text_align;
+        } else if (std.mem.eql(u8, prop, "line-height")) {
+            self.line_height = parent.line_height;
+        } else if (std.mem.eql(u8, prop, "text-decoration")) {
+            self.text_decoration = parent.text_decoration;
+        } else if (std.mem.eql(u8, prop, "opacity")) {
+            self.opacity = parent.opacity;
+        } else if (std.mem.eql(u8, prop, "flex-direction")) {
+            self.flex_direction = parent.flex_direction;
+        } else if (std.mem.eql(u8, prop, "flex-wrap")) {
+            self.flex_wrap = parent.flex_wrap;
+        } else if (std.mem.eql(u8, prop, "flex-grow")) {
+            self.flex_grow = parent.flex_grow;
+        } else if (std.mem.eql(u8, prop, "flex-shrink")) {
+            self.flex_shrink = parent.flex_shrink;
+        } else if (std.mem.eql(u8, prop, "flex-basis")) {
+            self.flex_basis = parent.flex_basis;
+        } else if (std.mem.eql(u8, prop, "justify-content")) {
+            self.justify_content = parent.justify_content;
+        } else if (std.mem.eql(u8, prop, "align-items")) {
+            self.align_items = parent.align_items;
+        } else if (std.mem.eql(u8, prop, "align-self")) {
+            self.align_self = parent.align_self;
+        } else if (std.mem.eql(u8, prop, "top")) {
+            self.top = parent.top;
+        } else if (std.mem.eql(u8, prop, "right")) {
+            self.right_pos = parent.right_pos;
+        } else if (std.mem.eql(u8, prop, "bottom")) {
+            self.bottom = parent.bottom;
+        } else if (std.mem.eql(u8, prop, "left")) {
+            self.left_pos = parent.left_pos;
+        } else if (std.mem.eql(u8, prop, "z-index")) {
+            self.z_index = parent.z_index;
+        } else if (std.mem.eql(u8, prop, "white-space")) {
+            self.white_space = parent.white_space;
+        } else if (std.mem.eql(u8, prop, "list-style-type")) {
+            self.list_style_type = parent.list_style_type;
+        }
+    }
 };
+
+// ── Tests ───────────────────────────────────────────────────────────────
+
+test "RC-42: flex shorthand with percentage as sole value" {
+    const allocator = std.testing.allocator;
+
+    // flex: 100% → flex-grow:1, flex-shrink:1, flex-basis:100%
+    var style1 = ComputedStyle{};
+    try style1.applyProperty("flex", "100%", allocator);
+    try std.testing.expectEqual(@as(f32, 1.0), style1.flex_grow);
+    try std.testing.expectEqual(@as(f32, 1.0), style1.flex_shrink);
+    try std.testing.expect(style1.flex_basis != null);
+    try std.testing.expectEqual(@as(f32, 100.0), style1.flex_basis.?.value);
+    try std.testing.expectEqual(values_mod.Unit.percent, style1.flex_basis.?.unit);
+
+    // flex: 200px → flex-grow:1, flex-shrink:1, flex-basis:200px
+    var style2 = ComputedStyle{};
+    try style2.applyProperty("flex", "200px", allocator);
+    try std.testing.expectEqual(@as(f32, 1.0), style2.flex_grow);
+    try std.testing.expectEqual(@as(f32, 1.0), style2.flex_shrink);
+    try std.testing.expect(style2.flex_basis != null);
+    try std.testing.expectEqual(@as(f32, 200.0), style2.flex_basis.?.value);
+    try std.testing.expectEqual(values_mod.Unit.px, style2.flex_basis.?.unit);
+
+    // flex: 2 → flex-grow:2, flex-shrink:1, flex-basis:0px (existing behavior)
+    var style3 = ComputedStyle{};
+    try style3.applyProperty("flex", "2", allocator);
+    try std.testing.expectEqual(@as(f32, 2.0), style3.flex_grow);
+    try std.testing.expect(style3.flex_basis != null);
+    try std.testing.expectEqual(@as(f32, 0.0), style3.flex_basis.?.value);
+    try std.testing.expectEqual(values_mod.Unit.px, style3.flex_basis.?.unit);
+}
+
+test "RC-46: copyPropertyFromParent copies width, height, padding, margin" {
+    var parent = ComputedStyle{};
+    parent.width = .{ .value = 582, .unit = .px };
+    parent.height = .{ .value = 200, .unit = .px };
+    parent.padding_top = .{ .value = 10, .unit = .px };
+    parent.margin_left = .{ .value = 20, .unit = .px };
+    parent.opacity = 0.5;
+
+    var child = ComputedStyle{};
+    // width should be null by default
+    try std.testing.expect(child.width == null);
+
+    // After copying width from parent, child gets 582px
+    child.copyPropertyFromParent("width", &parent);
+    try std.testing.expect(child.width != null);
+    try std.testing.expectEqual(@as(f32, 582.0), child.width.?.value);
+    try std.testing.expectEqual(values_mod.Unit.px, child.width.?.unit);
+
+    // Copy height
+    child.copyPropertyFromParent("height", &parent);
+    try std.testing.expect(child.height != null);
+    try std.testing.expectEqual(@as(f32, 200.0), child.height.?.value);
+
+    // Copy padding-top
+    child.copyPropertyFromParent("padding-top", &parent);
+    try std.testing.expectEqual(@as(f32, 10.0), child.padding_top.value);
+
+    // Copy margin-left
+    child.copyPropertyFromParent("margin-left", &parent);
+    try std.testing.expectEqual(@as(f32, 20.0), child.margin_left.value);
+
+    // Copy opacity
+    child.copyPropertyFromParent("opacity", &parent);
+    try std.testing.expectEqual(@as(f32, 0.5), child.opacity);
+}
