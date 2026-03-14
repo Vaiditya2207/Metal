@@ -117,8 +117,11 @@ pub const StyleResolver = struct {
         // inline → block, inline-block → block. This prevents anonymous block
         // wrapping in the layout tree and ensures flex items participate correctly
         // in flex line computation.
+        // Note: Only element nodes are blockified. Text nodes must remain inline
+        // so they get wrapped in anonymous blocks and laid out via inline layout
+        // (which correctly computes line-height-based height).
         if (parent_style) |ps| {
-            if (ps.display == .flex) {
+            if (ps.display == .flex and node.node_type == .element) {
                 if (style.display == .inline_val or style.display == .inline_block) {
                     style.display = .block;
                 }
