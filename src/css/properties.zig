@@ -242,31 +242,42 @@ pub const ComputedStyle = struct {
                 self.background_repeat = .repeat;
             }
         } else if (std.mem.eql(u8, prop, "background")) {
-            // background shorthand — extract color if present
-            // Try parsing each token as a color
-            var iter = std.mem.tokenizeAny(u8, val, " \t");
-            while (iter.next()) |token| {
-                if (values_mod.parseColor(token)) |c| {
-                    self.background_color = c;
+            // CSS spec: background shorthand resets all sub-properties to initial values first
+            self.background_color = CssColor{ .r = 0, .g = 0, .b = 0, .a = 0 }; // transparent
+            if (self.background_image_url) |old| allocator.free(old);
+            self.background_image_url = null;
+            self.background_repeat = .repeat;
+            self.background_size = .auto;
+
+            // Handle "none" explicitly
+            const trimmed = std.mem.trim(u8, val, " \t");
+            if (std.mem.eql(u8, trimmed, "none") or std.mem.eql(u8, trimmed, "transparent")) {
+                // Already reset above — nothing more to do
+            } else {
+                // Try parsing each token as a color
+                var iter = std.mem.tokenizeAny(u8, val, " \t");
+                while (iter.next()) |token| {
+                    if (values_mod.parseColor(token)) |c| {
+                        self.background_color = c;
+                    }
                 }
-            }
-            if (parseCssUrl(val)) |url| {
-                if (self.background_image_url) |old| allocator.free(old);
-                self.background_image_url = try allocator.dupe(u8, url);
-            }
-            if (std.mem.indexOf(u8, val, "no-repeat") != null) {
-                self.background_repeat = .no_repeat;
-            } else if (std.mem.indexOf(u8, val, "repeat-x") != null) {
-                self.background_repeat = .repeat_x;
-            } else if (std.mem.indexOf(u8, val, "repeat-y") != null) {
-                self.background_repeat = .repeat_y;
-            } else if (std.mem.indexOf(u8, val, "repeat") != null) {
-                self.background_repeat = .repeat;
-            }
-            if (std.mem.indexOf(u8, val, "cover") != null) {
-                self.background_size = .cover;
-            } else if (std.mem.indexOf(u8, val, "contain") != null) {
-                self.background_size = .contain;
+                if (parseCssUrl(val)) |url| {
+                    self.background_image_url = try allocator.dupe(u8, url);
+                }
+                if (std.mem.indexOf(u8, val, "no-repeat") != null) {
+                    self.background_repeat = .no_repeat;
+                } else if (std.mem.indexOf(u8, val, "repeat-x") != null) {
+                    self.background_repeat = .repeat_x;
+                } else if (std.mem.indexOf(u8, val, "repeat-y") != null) {
+                    self.background_repeat = .repeat_y;
+                } else if (std.mem.indexOf(u8, val, "repeat") != null) {
+                    self.background_repeat = .repeat;
+                }
+                if (std.mem.indexOf(u8, val, "cover") != null) {
+                    self.background_size = .cover;
+                } else if (std.mem.indexOf(u8, val, "contain") != null) {
+                    self.background_size = .contain;
+                }
             }
         } else if (std.mem.eql(u8, prop, "margin")) {
             self.applyShorthand(val, true);

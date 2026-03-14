@@ -762,6 +762,9 @@ pub const Renderer = struct {
             var height: f32 = 0;
             objc.get_drawable_size(view, &width, &height);
 
+            // Reset scissor to full drawable before toolbar drawing
+            objc.reset_scissor_rect(fc, width, height);
+
             // Render URL Bar on top
             if (self.pipeline_state) |ps| {
                 objc.set_pipeline(fc, ps);

@@ -41,6 +41,11 @@ void *create_render_pipeline(void *device_ptr) {
     desc.vertexFunction = vertexFunc;
     desc.fragmentFunction = fragmentFunc;
     desc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+    desc.colorAttachments[0].blendingEnabled = YES;
+    desc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    desc.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    desc.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+    desc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
 
     MTLVertexDescriptor *vDesc = [MTLVertexDescriptor vertexDescriptor];
     vDesc.attributes[0].format = MTLVertexFormatFloat2;
