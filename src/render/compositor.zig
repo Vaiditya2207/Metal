@@ -249,4 +249,190 @@ pub const Compositor = struct {
 
         flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
     }
+
+    /// Offscreen variant of render() for headless screenshot capture.
+    /// Takes explicit dimensions/scale instead of querying a view, and uses
+    /// no toolbar offset (the full texture is content area).
+    pub fn renderOffscreen(
+        self: *const Compositor,
+        fc: *anyopaque,
+        width: f32,
+        height: f32,
+        scale: f32,
+        display_list: *const DisplayList,
+        scroll_y: f32,
+    ) void {
+        const Scissor = struct { x: f32, y: f32, w: f32, h: f32 };
+        var scissor_stack: [16]Scissor = undefined;
+        var scissor_depth: usize = 0;
+
+        const content_height = height;
+
+        objc.set_projection(fc, width, height);
+
+        // No toolbar — scissor covers the full texture
+        const toolbar_scissor = Scissor{ .x = 0, .y = 0, .w = width * scale, .h = height * scale };
+        objc.set_scissor_rect(fc, toolbar_scissor.x, toolbar_scissor.y, toolbar_scissor.w, toolbar_scissor.h, height * scale);
+
+        var current_scissor = toolbar_scissor;
+
+        var rect_batch: batch_mod.RectBatch = .{};
+        var text_batch: batch_mod.TextBatch = .{};
+        var current: PipelineKind = .none;
+        for (display_list.commands.items) |cmd| {
+            switch (cmd) {
+                .draw_rect => |r| {
+                    if (!isVisible(r.rect.y, r.rect.height, scroll_y, content_height)) continue;
+                    if (current != .rect) {
+                        flushText(fc, self.device, self.text_renderer, &text_batch);
+                        current = .rect;
+                    }
+                    if (rect_batch.isFull()) {
+                        flushRects(fc, self.device, self.rect_pipeline, &rect_batch);
+                    }
+                    const rf = @as(f32, @floatFromInt(r.color.r)) / 255.0;
+                    const gf = @as(f32, @floatFromInt(r.color.g)) / 255.0;
+                    const bf = @as(f32, @floatFromInt(r.color.b)) / 255.0;
+                    const af = @as(f32, @floatFromInt(r.color.a)) / 255.0;
+                    rect_batch.appendRect(r.rect.x, r.rect.y - scroll_y, r.rect.width, r.rect.height, rf, gf, bf, af);
+                },
+                .draw_text => |t| {
+                    if (!isVisible(t.rect.y, t.rect.height, scroll_y, content_height)) {
+                        continue;
+                    }
+                    if (current != .text) {
+                        flushRects(fc, self.device, self.rect_pipeline, &rect_batch);
+                        current = .text;
+                    }
+                    if (text_batch.isFull()) {
+                        flushText(fc, self.device, self.text_renderer, &text_batch);
+                    }
+                    const rf = @as(f32, @floatFromInt(t.color.r)) / 255.0;
+                    const gf = @as(f32, @floatFromInt(t.color.g)) / 255.0;
+                    const bf = @as(f32, @floatFromInt(t.color.b)) / 255.0;
+                    const af = @as(f32, @floatFromInt(t.color.a)) / 255.0;
+                    const is_bold = t.font_weight >= 700;
+                    const is_italic = t.font_style == .italic;
+
+                    if (is_bold and self.text_renderer.bold_atlas_texture != null) {
+                        flushText(fc, self.device, self.text_renderer, &text_batch);
+                        self.text_renderer.generateBoldVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size, t.rect.width, scale);
+                        if (text_batch.vertexCount() > 0) {
+                            objc.set_pipeline(fc, self.text_renderer.text_pipeline);
+                            objc.batch_text_quads(fc, self.device, self.text_renderer.bold_atlas_texture.?, @ptrCast(&text_batch.vertices), @intCast(text_batch.vertexCount()));
+                            text_batch.clear();
+                        }
+                    } else if (is_italic and self.text_renderer.italic_atlas_texture != null) {
+                        flushText(fc, self.device, self.text_renderer, &text_batch);
+                        self.text_renderer.generateItalicVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size, t.rect.width, scale);
+                        if (text_batch.vertexCount() > 0) {
+                            objc.set_pipeline(fc, self.text_renderer.text_pipeline);
+                            objc.batch_text_quads(fc, self.device, self.text_renderer.italic_atlas_texture.?, @ptrCast(&text_batch.vertices), @intCast(text_batch.vertexCount()));
+                            text_batch.clear();
+                        }
+                    } else {
+                        self.text_renderer.generateVertices(&text_batch, t.text, t.rect.x, t.rect.y - scroll_y, rf, gf, bf, af, t.font_size, t.rect.width, scale);
+                    }
+                },
+                .push_clip => |rect| {
+                    flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
+                    current = .none;
+
+                    if (scissor_depth < 16) {
+                        scissor_stack[scissor_depth] = current_scissor;
+                        scissor_depth += 1;
+                    }
+
+                    const new_x = @max(current_scissor.x, rect.x * scale);
+                    const new_y = @max(current_scissor.y, (rect.y - scroll_y) * scale);
+                    const new_right = @min(current_scissor.x + current_scissor.w, (rect.x + rect.width) * scale);
+                    const new_bottom = @min(current_scissor.y + current_scissor.h, (rect.y + rect.height - scroll_y) * scale);
+
+                    current_scissor = .{
+                        .x = new_x,
+                        .y = new_y,
+                        .w = @max(0, new_right - new_x),
+                        .h = @max(0, new_bottom - new_y),
+                    };
+
+                    objc.set_scissor_rect(fc, current_scissor.x, current_scissor.y, current_scissor.w, current_scissor.h, height * scale);
+                },
+                .draw_image => |img| {
+                    if (!isVisible(img.rect.y, img.rect.height, scroll_y, content_height)) continue;
+                    flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
+                    current = .image;
+
+                    if (self.image_pipeline) |img_pipeline| {
+                        const x = img.rect.x;
+                        const y = img.rect.y - scroll_y;
+                        const w = img.rect.width;
+                        const h = img.rect.height;
+                        const vertices = [6][8]f32{
+                            .{ x, y, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0 },
+                            .{ x + w, y, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0 },
+                            .{ x, y + h, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0 },
+                            .{ x + w, y, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0 },
+                            .{ x, y + h, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0 },
+                            .{ x + w, y + h, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 },
+                        };
+                        objc.set_pipeline(fc, img_pipeline);
+                        objc.batch_image_quads(fc, self.device, img.texture, @ptrCast(&vertices), 6);
+                    }
+                },
+                .draw_svg => |svg| {
+                    if (!isVisible(svg.rect.y, svg.rect.height, scroll_y, content_height)) continue;
+
+                    var texture: ?*anyopaque = null;
+                    if (self.svg_cache) |cache| {
+                        if (cache.get(svg.xml)) |tex| {
+                            texture = tex;
+                        } else if (self.allocator) |alloc| {
+                            if (app.objc.rasterize_svg(self.device, self.command_queue, @ptrCast(svg.xml), svg.rect.width, svg.rect.height)) |tex| {
+                                const owned_key = alloc.dupe(u8, svg.xml) catch null;
+                                if (owned_key) |key| {
+                                    cache.put(alloc, key, tex) catch {};
+                                }
+                                texture = tex;
+                            }
+                        }
+                    }
+
+                    if (texture) |tex| {
+                        flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
+                        current = .image;
+                        if (self.image_pipeline) |img_pipeline| {
+                            const x = svg.rect.x;
+                            const y = svg.rect.y - scroll_y;
+                            const w = svg.rect.width;
+                            const h = svg.rect.height;
+                            const vertices = [6][8]f32{
+                                .{ x, y, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0 },
+                                .{ x + w, y, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0 },
+                                .{ x, y + h, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0 },
+                                .{ x + w, y, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0 },
+                                .{ x, y + h, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0 },
+                                .{ x + w, y + h, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 },
+                            };
+                            objc.set_pipeline(fc, img_pipeline);
+                            objc.batch_image_quads(fc, self.device, tex, @ptrCast(&vertices), 6);
+                        }
+                    }
+                },
+                .pop_clip => {
+                    flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
+                    current = .none;
+
+                    if (scissor_depth > 0) {
+                        scissor_depth -= 1;
+                        current_scissor = scissor_stack[scissor_depth];
+                    } else {
+                        current_scissor = toolbar_scissor;
+                    }
+                    objc.set_scissor_rect(fc, current_scissor.x, current_scissor.y, current_scissor.w, current_scissor.h, height * scale);
+                },
+            }
+        }
+
+        flushAll(fc, self.device, self.rect_pipeline, self.text_renderer, &rect_batch, &text_batch);
+    }
 };

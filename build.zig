@@ -133,6 +133,36 @@ pub fn build(b: *std.Build) void {
     const dump_dom_step = b.step("dump_dom", "Build the DOM dumper for fidelity tests");
     dump_dom_step.dependOn(&b.addInstallArtifact(dump_dom, .{}).step);
 
+    // Screenshot renderer for visual regression testing
+    const render_screenshot = b.addExecutable(.{
+        .name = "render_screenshot",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/render_screenshot.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    render_screenshot.addCSourceFile(.{ .file = b.path("src/platform/objc_bridge.m"), .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" } });
+    render_screenshot.addCSourceFile(.{ .file = b.path("src/platform/metal_render.m"), .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" } });
+    render_screenshot.addCSourceFile(.{ .file = b.path("src/platform/text_atlas.m"), .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" } });
+    render_screenshot.addCSourceFile(.{ .file = b.path("src/platform/image_bridge.m"), .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" } });
+    render_screenshot.addCSourceFile(.{ .file = b.path("src/platform/svg_bridge.m"), .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" } });
+    render_screenshot.addCSourceFile(.{ .file = b.path("src/platform/screenshot_bridge.m"), .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" } });
+    render_screenshot.addIncludePath(b.path("src/platform"));
+    render_screenshot.linkFramework("AppKit");
+    render_screenshot.linkFramework("Foundation");
+    render_screenshot.linkFramework("Metal");
+    render_screenshot.linkFramework("MetalKit");
+    render_screenshot.linkFramework("QuartzCore");
+    render_screenshot.linkFramework("CoreText");
+    render_screenshot.linkFramework("CoreGraphics");
+    render_screenshot.linkFramework("ImageIO");
+    render_screenshot.linkLibC();
+    b.installArtifact(render_screenshot);
+
+    const render_screenshot_step = b.step("render-screenshot", "Build the screenshot renderer for visual testing");
+    render_screenshot_step.dependOn(&b.addInstallArtifact(render_screenshot, .{}).step);
+
     // Fidelity Test Master Step
     const fidelity_step = b.step("test-fidelity", "Run the cross-browser fidelity test");
     const run_fidelity_script = b.addSystemCommand(&.{ "bash", "tests/fidelity/run_test.sh" });

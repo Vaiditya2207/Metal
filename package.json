@@ -1,0 +1,25 @@
+{
+  "name": "metal",
+  "version": "1.0.0",
+  "description": "**Metal** is a high-performance, macOS-native web browser and engine built exclusively for Apple Silicon with the **Zig** programming language.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com-personal:Vaiditya2207/Metal.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "pixelmatch": "^7.1.0",
+    "pngjs": "^7.0.0"
+  }
+}
