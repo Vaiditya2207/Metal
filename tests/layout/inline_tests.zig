@@ -461,3 +461,99 @@ test "inline layout wrap" {
     try std.testing.expectEqual(@as(f32, 38.4), anon.dimensions.content.height);
     try std.testing.expectEqual(@as(f32, 38.4), root.dimensions.content.height);
 }
+
+test "RC-59: inline parent expands to contain inline-block child" {
+    // Structure:
+    //   <div style="display:block; width:200px;">   (container)
+    //     <span style="display:inline;">             (inlineNode)
+    //       <div style="display:inline-block; width:80px; height:30px;"></div>
+    //     </span>
+    //   </div>
+    //
+    // The inline span should expand to contain the inline-block child.
+    const allocator = std.testing.allocator;
+
+    // --- DOM nodes ---
+    var container_node = dom.Node.init(allocator, .element);
+    container_node.tag = .div;
+
+    var span_node = dom.Node.init(allocator, .element);
+    span_node.tag = .span;
+
+    var ib_child_node = dom.Node.init(allocator, .element);
+    ib_child_node.tag = .div;
+
+    const limits = dom.Limits{ .max_children = 100, .max_depth = 10, .max_total_nodes = 1000 };
+    try span_node.appendChild(&ib_child_node, limits);
+    try container_node.appendChild(&span_node, limits);
+
+    // --- Styles ---
+    var container_style = css.ComputedStyle{};
+    container_style.display = .block;
+    container_style.width = .{ .value = 200, .unit = .px };
+
+    var span_style = css.ComputedStyle{};
+    span_style.display = .inline_val;
+
+    var ib_child_style = css.ComputedStyle{};
+    ib_child_style.display = .inline_block;
+    ib_child_style.width = .{ .value = 80, .unit = .px };
+    ib_child_style.height = .{ .value = 30, .unit = .px };
+
+    // --- Styled tree ---
+    var sn_ib_child = css.StyledNode{
+        .node = &ib_child_node,
+        .style = ib_child_style,
+        .children = &[_]*css.StyledNode{},
+    };
+    const span_children = [_]*css.StyledNode{&sn_ib_child};
+    var sn_span = css.StyledNode{
+        .node = &span_node,
+        .style = span_style,
+        .children = &span_children,
+    };
+    const container_children = [_]*css.StyledNode{&sn_span};
+    var sn_container = css.StyledNode{
+        .node = &container_node,
+        .style = container_style,
+        .children = &container_children,
+    };
+
+    const root = try layout.buildLayoutTree(allocator, &sn_container);
+    defer {
+        root.deinit(allocator);
+        allocator.destroy(root);
+        container_node.children.deinit(allocator);
+        span_node.children.deinit(allocator);
+        ib_child_node.children.deinit(allocator);
+        container_node.attributes.deinit(allocator);
+        span_node.attributes.deinit(allocator);
+        ib_child_node.attributes.deinit(allocator);
+    }
+
+    layout.layoutTree(root, .{ .allocator = allocator, .viewport_width = 400.0, .viewport_height = 300.0 });
+
+    // The outer div is the root block.
+    // Its child should be an anonymous block wrapping the inline content.
+    try std.testing.expectEqual(@as(usize, 1), root.children.items.len);
+    const anon = root.children.items[0];
+    try std.testing.expectEqual(layout.BoxType.anonymousBlock, anon.box_type);
+
+    // Inside the anonymous block: the span (inlineNode)
+    try std.testing.expect(anon.children.items.len >= 1);
+    const span_box = anon.children.items[0];
+    try std.testing.expectEqual(layout.BoxType.inlineNode, span_box.box_type);
+
+    // The span should have expanded to contain the inline-block child (80x30)
+    try std.testing.expect(span_box.dimensions.content.width >= 80.0);
+    // Height should be approximately font-size (default ~16px), NOT the full inline-block height
+    try std.testing.expect(span_box.dimensions.content.height > 0);
+    try std.testing.expect(span_box.dimensions.content.height < 30.0);
+
+    // The inline-block child itself should have correct dimensions
+    try std.testing.expect(span_box.children.items.len >= 1);
+    const ib_child = span_box.children.items[0];
+    try std.testing.expectEqual(layout.BoxType.inlineBlockNode, ib_child.box_type);
+    try std.testing.expectApproxEqAbs(@as(f32, 80.0), ib_child.dimensions.content.width, 0.1);
+    try std.testing.expectApproxEqAbs(@as(f32, 30.0), ib_child.dimensions.content.height, 0.1);
+}

@@ -245,6 +245,21 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
             const dx = target_x - seg.layout_box.dimensions.content.x;
             const dy = target_y - seg.layout_box.dimensions.content.y;
             shiftBox(seg.layout_box, dx, dy);
+
+            // RC-59: Propagate inline-block dimensions to inline parent boxes.
+            // Use the parent's resolved font-size for height (not the full
+            // inline-block height) — Chrome reports inline parents as only
+            // line-height tall, not stretched by inline-block children.
+            if (seg.layout_box.parent) |inline_parent| {
+                const ib_border = seg.layout_box.dimensions.borderBox();
+                const layout_mod = @import("layout.zig");
+                const p_fs: f32 = if (inline_parent.styled_node) |sn|
+                    layout_mod.resolveLength(sn.style.font_size, parent_font_size, ctx, sn.style.font_size.value)
+                else
+                    parent_font_size;
+                expandBoxRect(inline_parent, ib_border.x, anon_abs_y + cursor_y, ib_border.width, p_fs);
+            }
+
             line_ibs.append(ib_alloc, .{ .box = seg.layout_box }) catch {};
 
             cursor_x += block_w;
