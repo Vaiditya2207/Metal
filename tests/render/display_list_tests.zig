@@ -226,3 +226,197 @@ test "background repeat-x tiles across box width" {
         }
     }
 }
+
+// ── Visual correctness tests ────────────────────────────────────────────
+
+test "transparent background emits no draw_rect" {
+    const allocator = std.testing.allocator;
+
+    var node = dom.Node.init(allocator, .element);
+    const style = properties.ComputedStyle{
+        .background_color = values.CssColor{ .r = 0, .g = 0, .b = 0, .a = 0 },
+    };
+    const sn = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 100, .height = 100 };
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    try std.testing.expectEqual(@as(usize, 0), dl.commands.items.len);
+}
+
+test "background color RGBA is preserved in draw_rect" {
+    const allocator = std.testing.allocator;
+
+    var node = dom.Node.init(allocator, .element);
+    const style = properties.ComputedStyle{
+        .background_color = values.CssColor{ .r = 128, .g = 64, .b = 32, .a = 200 },
+    };
+    const sn = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 10, .y = 20, .width = 50, .height = 50 };
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    try std.testing.expect(dl.commands.items.len > 0);
+    const cmd = dl.commands.items[0];
+    switch (cmd) {
+        .draw_rect => |rect| {
+            try std.testing.expectEqual(@as(u8, 128), rect.color.r);
+            try std.testing.expectEqual(@as(u8, 64), rect.color.g);
+            try std.testing.expectEqual(@as(u8, 32), rect.color.b);
+            try std.testing.expectEqual(@as(u8, 200), rect.color.a);
+        },
+        else => return error.UnexpectedCommand,
+    }
+}
+
+test "semi-transparent opacity modifies alpha channel" {
+    const allocator = std.testing.allocator;
+
+    var node = dom.Node.init(allocator, .element);
+    const style = properties.ComputedStyle{
+        .background_color = values.CssColor.fromRgb(100, 100, 100),
+        .opacity = 0.5,
+    };
+    const sn = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 100, .height = 100 };
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    try std.testing.expect(dl.commands.items.len > 0);
+    const cmd = dl.commands.items[0];
+    switch (cmd) {
+        .draw_rect => |rect| {
+            try std.testing.expectEqual(@as(u8, 100), rect.color.r);
+            try std.testing.expectEqual(@as(u8, 100), rect.color.g);
+            try std.testing.expectEqual(@as(u8, 100), rect.color.b);
+            // 255 * 0.5 = 127.5 → @intFromFloat → 127
+            try std.testing.expect(rect.color.a >= 127);
+            try std.testing.expect(rect.color.a <= 128);
+        },
+        else => return error.UnexpectedCommand,
+    }
+}
+
+test "visibility hidden emits no commands" {
+    const allocator = std.testing.allocator;
+
+    var node = dom.Node.init(allocator, .element);
+    const style = properties.ComputedStyle{
+        .background_color = values.CssColor.fromRgb(255, 0, 0),
+        .visibility = .hidden,
+    };
+    const sn = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 100, .height = 100 };
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    try std.testing.expectEqual(@as(usize, 0), dl.commands.items.len);
+}
+
+test "zero-size box emits no draw_rect" {
+    const allocator = std.testing.allocator;
+
+    var node = dom.Node.init(allocator, .element);
+    const style = properties.ComputedStyle{
+        .background_color = values.CssColor.fromRgb(255, 0, 0),
+    };
+    const sn = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 0, .height = 100 };
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    // borderBox().width == 0 (no padding/border), so no draw_rect emitted
+    for (dl.commands.items) |cmd| {
+        switch (cmd) {
+            .draw_rect => return error.UnexpectedDrawRect,
+            else => {},
+        }
+    }
+}
+
+test "border generates draw_rect commands with border color" {
+    const allocator = std.testing.allocator;
+
+    var node = dom.Node.init(allocator, .element);
+    const style = properties.ComputedStyle{
+        .background_color = values.CssColor{ .r = 0, .g = 0, .b = 0, .a = 0 }, // transparent, no bg
+        .border_width = .{ .value = 2, .unit = .px },
+        .border_color = values.CssColor{ .r = 0, .g = 0, .b = 0, .a = 255 },
+    };
+    const sn = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 10, .y = 10, .width = 100, .height = 50 };
+    root.dimensions.border = .{ .top = 2, .right = 2, .bottom = 2, .left = 2 };
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    // Should have 4 border draw_rect commands (top, bottom, left, right)
+    // No background draw_rect since bg is transparent
+    try std.testing.expectEqual(@as(usize, 4), dl.commands.items.len);
+
+    // Check the top border: height should be 2 (border_width.value)
+    var found_top_border = false;
+    for (dl.commands.items) |cmd| {
+        switch (cmd) {
+            .draw_rect => |rect| {
+                if (rect.rect.height == 2 and rect.rect.width > 2) {
+                    // This is a horizontal border (top or bottom)
+                    found_top_border = true;
+                    try std.testing.expectEqual(@as(u8, 0), rect.color.r);
+                    try std.testing.expectEqual(@as(u8, 0), rect.color.g);
+                    try std.testing.expectEqual(@as(u8, 0), rect.color.b);
+                    try std.testing.expectEqual(@as(u8, 255), rect.color.a);
+                }
+            },
+            else => {},
+        }
+    }
+    try std.testing.expect(found_top_border);
+}

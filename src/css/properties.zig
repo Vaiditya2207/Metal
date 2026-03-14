@@ -722,3 +722,52 @@ test "RC-46: copyPropertyFromParent copies width, height, padding, margin" {
     child.copyPropertyFromParent("opacity", &parent);
     try std.testing.expectEqual(@as(f32, 0.5), child.opacity);
 }
+
+// ── Visual correctness / background shorthand tests ─────────────────────
+
+test "VR-2: background shorthand resets sub-properties" {
+    const allocator = std.testing.allocator;
+    var style = ComputedStyle{};
+
+    // Set a background color first
+    try style.applyProperty("background-color", "#ff0000", allocator);
+    try std.testing.expectEqual(@as(u8, 255), style.background_color.r);
+
+    // Now apply background shorthand with just a URL — should reset bg-color to transparent
+    try style.applyProperty("background", "url(image.png) no-repeat", allocator);
+    defer if (style.background_image_url) |url| allocator.free(url);
+
+    // background-color should be reset to transparent
+    try std.testing.expectEqual(@as(u8, 0), style.background_color.a);
+    // background-image-url should be set
+    try std.testing.expect(style.background_image_url != null);
+    // background-repeat should be no-repeat
+    try std.testing.expectEqual(BackgroundRepeat.no_repeat, style.background_repeat);
+}
+
+test "VR-2: background none resets everything" {
+    const allocator = std.testing.allocator;
+    var style = ComputedStyle{};
+
+    // Set various background properties
+    try style.applyProperty("background-color", "#ff0000", allocator);
+    try style.applyProperty("background-repeat", "no-repeat", allocator);
+
+    // Apply background: none — should reset all
+    try style.applyProperty("background", "none", allocator);
+
+    try std.testing.expectEqual(@as(u8, 0), style.background_color.a);
+    try std.testing.expectEqual(BackgroundRepeat.repeat, style.background_repeat); // reset to default
+}
+
+test "VR-2: background shorthand with color preserves it" {
+    const allocator = std.testing.allocator;
+    var style = ComputedStyle{};
+
+    try style.applyProperty("background", "#00ff00", allocator);
+
+    try std.testing.expectEqual(@as(u8, 0), style.background_color.r);
+    try std.testing.expectEqual(@as(u8, 255), style.background_color.g);
+    try std.testing.expectEqual(@as(u8, 0), style.background_color.b);
+    try std.testing.expectEqual(@as(u8, 255), style.background_color.a);
+}
