@@ -74,10 +74,32 @@ pub fn measureIntrinsicWidth(node: *LayoutBox) f32 {
             // Auto-width child — recurse to find its intrinsic content width,
             // then add its padding/border (but not auto margins).
             const inner_width = measureIntrinsicWidth(child);
-            if (inner_width > 0) {
-                var child_width = inner_width +
-                    child.dimensions.padding.left + child.dimensions.padding.right +
-                    child.dimensions.border.left + child.dimensions.border.right;
+            const h_extras = child.dimensions.padding.left + child.dimensions.padding.right +
+                child.dimensions.border.left + child.dimensions.border.right;
+            var child_width = inner_width + h_extras;
+
+            // Apply min-width constraint: auto-width block children with
+            // min-width must respect it during intrinsic sizing.
+            if (c_style) |cs| {
+                if (cs.min_width) |mw| {
+                    const min_w: f32 = switch (mw.unit) {
+                        .px => mw.value,
+                        .em => mw.value * cs.font_size.value,
+                        else => 0,
+                    };
+                    if (min_w > 0) {
+                        if (cs.box_sizing == .border_box) {
+                            // min-width is the border-box total — compare directly
+                            child_width = @max(child_width, min_w);
+                        } else {
+                            // min-width is content-box — add padding+border for comparison
+                            child_width = @max(child_width, min_w + h_extras);
+                        }
+                    }
+                }
+            }
+
+            if (child_width > 0) {
                 const ml_auto = if (c_style) |cs| cs.margin_left.unit == .auto else false;
                 const mr_auto = if (c_style) |cs| cs.margin_right.unit == .auto else false;
                 if (!ml_auto) child_width += child.dimensions.margin.left;
@@ -1718,4 +1740,106 @@ test "RC-44: RC-29 re-layout passes child as containing block so descendants see
     try std.testing.expectEqual(@as(f32, 400), child_a_box.dimensions.content.width);
     // Grandchild (100% of child_a) should see the corrected width, NOT parent's 600
     try std.testing.expectEqual(@as(f32, 400), gc_box.dimensions.content.width);
+}
+
+test "VR-6: measureIntrinsicWidth respects min-width on auto-width children" {
+    const allocator = std.testing.allocator;
+
+    // Create child DOM node — auto-width, but with min-width: 85px border-box
+    var child_node = dom.Node.init(allocator, .element);
+    var child_sn = resolver.StyledNode{
+        .node = &child_node,
+        .style = properties.ComputedStyle{
+            .min_width = .{ .value = 85, .unit = .px },
+            .box_sizing = .border_box,
+            .padding_left = .{ .value = 12, .unit = .px },
+            .padding_right = .{ .value = 12, .unit = .px },
+        },
+        .children = &.{},
+    };
+
+    // The child LayoutBox has NO explicit width — auto-width path.
+    // It has a text run of 43px simulating "Sign in" text.
+    var child_box = LayoutBox.init(.blockNode, &child_sn);
+    child_box.dimensions.padding.left = 12;
+    child_box.dimensions.padding.right = 12;
+    // Add a text run to produce inner_width=43 from recursion
+    child_box.text_runs.append(allocator, .{
+        .text = "Sign in",
+        .styled_node = &child_sn,
+        .x = 0,
+        .y = 0,
+        .width = 43,
+    }) catch unreachable;
+    defer child_box.text_runs.deinit(allocator);
+
+    // Create a row flex parent
+    var parent_node = dom.Node.init(allocator, .element);
+    var parent_sn = resolver.StyledNode{
+        .node = &parent_node,
+        .style = properties.ComputedStyle{
+            .display = .flex,
+            .flex_direction = .row,
+        },
+        .children = &.{},
+    };
+    var parent_box = LayoutBox.init(.flexNode, &parent_sn);
+
+    parent_box.children.append(allocator, &child_box) catch unreachable;
+    defer parent_box.children.deinit(allocator);
+
+    // Without fix: inner_width=43, child_width = 43 + 12 + 12 = 67
+    // With fix: min-width=85 border-box, so child_width = max(67, 85) = 85
+    const width = measureIntrinsicWidth(&parent_box);
+    try std.testing.expectApproxEqAbs(@as(f32, 85.0), width, 0.01);
+}
+
+test "VR-6: measureIntrinsicWidth respects min-width content-box" {
+    const allocator = std.testing.allocator;
+
+    // Create child DOM node — auto-width, min-width: 60px content-box (default)
+    var child_node = dom.Node.init(allocator, .element);
+    var child_sn = resolver.StyledNode{
+        .node = &child_node,
+        .style = properties.ComputedStyle{
+            .min_width = .{ .value = 60, .unit = .px },
+            // box_sizing defaults to .content_box
+            .padding_left = .{ .value = 12, .unit = .px },
+            .padding_right = .{ .value = 12, .unit = .px },
+        },
+        .children = &.{},
+    };
+
+    var child_box = LayoutBox.init(.blockNode, &child_sn);
+    child_box.dimensions.padding.left = 12;
+    child_box.dimensions.padding.right = 12;
+    // Add a text run to produce inner_width=43 from recursion
+    child_box.text_runs.append(allocator, .{
+        .text = "Sign in",
+        .styled_node = &child_sn,
+        .x = 0,
+        .y = 0,
+        .width = 43,
+    }) catch unreachable;
+    defer child_box.text_runs.deinit(allocator);
+
+    // Create a row flex parent
+    var parent_node = dom.Node.init(allocator, .element);
+    var parent_sn = resolver.StyledNode{
+        .node = &parent_node,
+        .style = properties.ComputedStyle{
+            .display = .flex,
+            .flex_direction = .row,
+        },
+        .children = &.{},
+    };
+    var parent_box = LayoutBox.init(.flexNode, &parent_sn);
+
+    parent_box.children.append(allocator, &child_box) catch unreachable;
+    defer parent_box.children.deinit(allocator);
+
+    // Without fix: inner_width=43, child_width = 43 + 12 + 12 = 67
+    // With fix: min-width=60 content-box, so total = max(67, 60 + 24) = max(67, 84) = 84
+    const width = measureIntrinsicWidth(&parent_box);
+    try std.testing.expectApproxEqAbs(@as(f32, 84.0), width, 0.01);
 }
