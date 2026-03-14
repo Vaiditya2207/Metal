@@ -2,6 +2,10 @@ const std = @import("std");
 const dom = @import("dom/mod.zig");
 const css = @import("css/mod.zig");
 const layout = @import("layout/mod.zig");
+const text_measure = @import("layout/text_measure.zig");
+const c_text = @cImport({
+    @cInclude("text_atlas.h");
+});
 
 fn escapeJsonString(allocator: std.mem.Allocator, in: []const u8) ![]u8 {
     var out = std.ArrayListUnmanaged(u8){};
@@ -140,6 +144,8 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
 }
 
 pub fn main() !void {
+    text_measure.setMeasureFn(coreTextMeasure);
+
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -228,4 +234,9 @@ fn countNodes(box: *const layout.LayoutBox, count: *usize, zero_count: *usize) v
     const b = box.dimensions.borderBox();
     if (b.width == 0 and b.height == 0) zero_count.* += 1;
     for (box.children.items) |child| countNodes(child, count, zero_count);
+}
+
+fn coreTextMeasure(text: []const u8, font_size: f32, _: f32) f32 {
+    if (text.len == 0) return 0;
+    return c_text.measure_text_width(text.ptr, @intCast(text.len), font_size);
 }

@@ -115,6 +115,18 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    dump_dom.addCSourceFile(.{
+        .file = b.path("src/platform/text_atlas.m"),
+        .flags = &[_][]const u8{ "-fobjc-arc", "-Isrc/platform" },
+    });
+    dump_dom.addIncludePath(b.path("src/platform"));
+    dump_dom.linkFramework("AppKit");
+    dump_dom.linkFramework("Foundation");
+    dump_dom.linkFramework("CoreText");
+    dump_dom.linkFramework("CoreGraphics");
+    dump_dom.linkFramework("Metal");
+    dump_dom.linkFramework("MetalKit");
+    dump_dom.linkLibC();
     b.installArtifact(dump_dom);
 
     // Provide an explicit step to build it manually if requested
@@ -123,11 +135,11 @@ pub fn build(b: *std.Build) void {
 
     // Fidelity Test Master Step
     const fidelity_step = b.step("test-fidelity", "Run the cross-browser fidelity test");
-    const run_fidelity_script = b.addSystemCommand(&.{"bash", "tests/fidelity/run_test.sh"});
-    
+    const run_fidelity_script = b.addSystemCommand(&.{ "bash", "tests/fidelity/run_test.sh" });
+
     if (b.args) |args| {
         run_fidelity_script.addArgs(args);
     }
-    
+
     fidelity_step.dependOn(&run_fidelity_script.step);
 }

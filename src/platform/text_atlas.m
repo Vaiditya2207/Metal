@@ -246,7 +246,8 @@ void batch_text_quads(void *frame_context, void *device_ptr, void *tex_ptr,
 float measure_text_width(const char *text, int len, float font_size) {
   if (!text || len <= 0 || font_size <= 0)
     return 0.0f;
-  NSFont *font = [NSFont systemFontOfSize:font_size];
+  NSFont *font = [NSFont fontWithName:@"Arial" size:font_size];
+  if (!font) font = [NSFont systemFontOfSize:font_size];
   CTFontRef ct_font = (__bridge CTFontRef)font;
 
   CFStringRef str =
