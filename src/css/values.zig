@@ -222,6 +222,15 @@ pub fn parseLength(value_str: []const u8) ?Length {
     if (std.mem.eql(u8, value_str, "auto")) return Length{ .value = 0, .unit = .auto };
     if (std.mem.eql(u8, value_str, "none")) return Length{ .value = 0, .unit = .none };
 
+    // CSS absolute-size keywords (font-size)
+    if (std.mem.eql(u8, value_str, "xx-small")) return Length{ .value = 9, .unit = .px };
+    if (std.mem.eql(u8, value_str, "x-small")) return Length{ .value = 10, .unit = .px };
+    if (std.mem.eql(u8, value_str, "small")) return Length{ .value = 13, .unit = .px };
+    if (std.mem.eql(u8, value_str, "medium")) return Length{ .value = 16, .unit = .px };
+    if (std.mem.eql(u8, value_str, "large")) return Length{ .value = 18, .unit = .px };
+    if (std.mem.eql(u8, value_str, "x-large")) return Length{ .value = 24, .unit = .px };
+    if (std.mem.eql(u8, value_str, "xx-large")) return Length{ .value = 32, .unit = .px };
+
     // Handle calc() expressions
     if (value_str.len > 6 and std.mem.startsWith(u8, value_str, "calc(") and value_str[value_str.len - 1] == ')') {
         return parseCalcExpression(value_str[5 .. value_str.len - 1]);
@@ -479,4 +488,48 @@ fn parseHslFunc(value_str: []const u8) ?CssColor {
         }
     }
     return CssColor{ .r = rgb[0], .g = rgb[1], .b = rgb[2], .a = a };
+}
+
+test "RC-62: parseLength handles CSS absolute-size keywords" {
+    // xx-small = 9px
+    const xxs = parseLength("xx-small");
+    try std.testing.expect(xxs != null);
+    try std.testing.expectApproxEqAbs(@as(f32, 9.0), xxs.?.value, 0.1);
+    try std.testing.expectEqual(Unit.px, xxs.?.unit);
+
+    // x-small = 10px
+    const xs = parseLength("x-small");
+    try std.testing.expect(xs != null);
+    try std.testing.expectApproxEqAbs(@as(f32, 10.0), xs.?.value, 0.1);
+    try std.testing.expectEqual(Unit.px, xs.?.unit);
+
+    // small = 13px
+    const sm = parseLength("small");
+    try std.testing.expect(sm != null);
+    try std.testing.expectApproxEqAbs(@as(f32, 13.0), sm.?.value, 0.1);
+    try std.testing.expectEqual(Unit.px, sm.?.unit);
+
+    // medium = 16px
+    const md = parseLength("medium");
+    try std.testing.expect(md != null);
+    try std.testing.expectApproxEqAbs(@as(f32, 16.0), md.?.value, 0.1);
+    try std.testing.expectEqual(Unit.px, md.?.unit);
+
+    // large = 18px
+    const lg = parseLength("large");
+    try std.testing.expect(lg != null);
+    try std.testing.expectApproxEqAbs(@as(f32, 18.0), lg.?.value, 0.1);
+    try std.testing.expectEqual(Unit.px, lg.?.unit);
+
+    // x-large = 24px
+    const xl = parseLength("x-large");
+    try std.testing.expect(xl != null);
+    try std.testing.expectApproxEqAbs(@as(f32, 24.0), xl.?.value, 0.1);
+    try std.testing.expectEqual(Unit.px, xl.?.unit);
+
+    // xx-large = 32px
+    const xxl = parseLength("xx-large");
+    try std.testing.expect(xxl != null);
+    try std.testing.expectApproxEqAbs(@as(f32, 32.0), xxl.?.value, 0.1);
+    try std.testing.expectEqual(Unit.px, xxl.?.unit);
 }
