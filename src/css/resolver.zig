@@ -112,6 +112,19 @@ pub const StyleResolver = struct {
             }
         }
 
+        // CSS Flexbox §4: Blockify flex items.
+        // Direct children of a flex container have their display value blockified:
+        // inline → block, inline-block → block. This prevents anonymous block
+        // wrapping in the layout tree and ensures flex items participate correctly
+        // in flex line computation.
+        if (parent_style) |ps| {
+            if (ps.display == .flex) {
+                if (style.display == .inline_val or style.display == .inline_block) {
+                    style.display = .block;
+                }
+            }
+        }
+
         if (style.display == .none) return null;
 
         // Resolve font-size to absolute px values.
