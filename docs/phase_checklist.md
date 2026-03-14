@@ -193,7 +193,7 @@
 - [x] Vertex format: position (x, y), color (rgba)
 - [x] Emit 2 triangles per layout box via draw_solid_rect
 - [x] Fragment shader: solid fill
-- [ ] Border rendering (SDF border-radius)
+- [x] Border rendering (SDF border-radius)
 - [ ] Batch all quads into single draw call
 
 ### Text Pipeline (`src/render/text.zig`)
