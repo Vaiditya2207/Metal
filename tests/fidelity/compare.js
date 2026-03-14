@@ -15,9 +15,10 @@ function flatten(node, list, depth, isChrome, insideSvg) {
   // Chrome reports SVG className as "[object SVGAnimatedString]" — normalize to empty
   let clsParts = rawCls.split(' ').filter(Boolean);
   if (clsParts.some(c => c.includes('SVGAnimatedString'))) clsParts = [];
+  const tag = node.tag || '';
+  if (tag === 'svg') clsParts = [];
   // Truncate to first 3 classes (unsorted) to match Chrome dump format, then sort
   let cls = clsParts.slice(0, 3).sort().join(' ');
-  const tag = node.tag || '';
 
   // Skip SVG children on Chrome side (Metal treats SVG as opaque replaced elements)
   const isSvgChild = isChrome && insideSvg && SVG_CHILD_TAGS.has(tag);
