@@ -6,18 +6,41 @@
 static const char *shader_source =
     "#include <metal_stdlib>\n"
     "using namespace metal;\n"
-    "struct VertexIn { float2 position [[attribute(0)]]; float4 color "
-    "[[attribute(1)]]; };\n"
-    "struct VertexOut { float4 position [[position]]; float4 color; };\n"
+    "struct VertexIn { "
+    "  float2 position [[attribute(0)]]; "
+    "  float4 color [[attribute(1)]]; "
+    "  float2 local_pos [[attribute(2)]]; "
+    "  float2 rect_size [[attribute(3)]]; "
+    "  float radius [[attribute(4)]]; "
+    "};\n"
+    "struct VertexOut { "
+    "  float4 position [[position]]; "
+    "  float4 color; "
+    "  float2 local_pos; "
+    "  float2 rect_size; "
+    "  float radius; "
+    "};\n"
     "struct Uniforms { float4x4 projection; };\n"
     "vertex VertexOut vertex_main(VertexIn in [[stage_in]], constant Uniforms "
     "&uniforms [[buffer(1)]]) {\n"
     "  VertexOut out;\n"
     "  out.position = uniforms.projection * float4(in.position, 0.0, 1.0);\n"
     "  out.color = in.color;\n"
+    "  out.local_pos = in.local_pos;\n"
+    "  out.rect_size = in.rect_size;\n"
+    "  out.radius = in.radius;\n"
     "  return out;\n"
     "}\n"
     "fragment float4 fragment_main(VertexOut in [[stage_in]]) {\n"
+    "  if (in.radius > 0.0) {\n"
+    "    float2 half_size = in.rect_size * 0.5;\n"
+    "    float2 p = in.local_pos - half_size;\n"
+    "    float2 d = abs(p) - half_size + in.radius;\n"
+    "    float dist = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - in.radius;\n"
+    "    float alpha = 1.0 - smoothstep(-0.5, 0.5, dist);\n"
+    "    if (alpha <= 0.0) discard_fragment();\n"
+    "    return float4(in.color.rgb, in.color.a * alpha);\n"
+    "  }\n"
     "  return in.color;\n"
     "}\n";
 
@@ -48,13 +71,34 @@ void *create_render_pipeline(void *device_ptr) {
     desc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
 
     MTLVertexDescriptor *vDesc = [MTLVertexDescriptor vertexDescriptor];
+    NSUInteger offset = 0;
+
     vDesc.attributes[0].format = MTLVertexFormatFloat2;
-    vDesc.attributes[0].offset = 0;
+    vDesc.attributes[0].offset = offset;
     vDesc.attributes[0].bufferIndex = 0;
+    offset += sizeof(float) * 2;
+
     vDesc.attributes[1].format = MTLVertexFormatFloat4;
-    vDesc.attributes[1].offset = sizeof(simd_float2);
+    vDesc.attributes[1].offset = offset;
     vDesc.attributes[1].bufferIndex = 0;
-    vDesc.layouts[0].stride = sizeof(simd_float2) + sizeof(simd_float4);
+    offset += sizeof(float) * 4;
+
+    vDesc.attributes[2].format = MTLVertexFormatFloat2;
+    vDesc.attributes[2].offset = offset;
+    vDesc.attributes[2].bufferIndex = 0;
+    offset += sizeof(float) * 2;
+
+    vDesc.attributes[3].format = MTLVertexFormatFloat2;
+    vDesc.attributes[3].offset = offset;
+    vDesc.attributes[3].bufferIndex = 0;
+    offset += sizeof(float) * 2;
+
+    vDesc.attributes[4].format = MTLVertexFormatFloat;
+    vDesc.attributes[4].offset = offset;
+    vDesc.attributes[4].bufferIndex = 0;
+    offset += sizeof(float);
+
+    vDesc.layouts[0].stride = offset;
 
     desc.vertexDescriptor = vDesc;
 
@@ -93,12 +137,18 @@ void draw_solid_rect(void *frame_context, float x, float y, float w, float h,
   FrameContext *ctx = (FrameContext *)frame_context;
   id<MTLRenderCommandEncoder> encoder = (__bridge id<MTLRenderCommandEncoder>)ctx->renderEncoder;
   struct Vertex {
-    simd_float2 pos;
-    simd_float4 color;
+    float pos[2];
+    float color[4];
+    float local_pos[2];
+    float size[2];
+    float radius;
   } vertices[] = {
-      {{x, y}, {r, g, b, a}},         {{x + w, y}, {r, g, b, a}},
-      {{x, y + h}, {r, g, b, a}},     {{x + w, y}, {r, g, b, a}},
-      {{x, y + h}, {r, g, b, a}},     {{x + w, y + h}, {r, g, b, a}},
+      {{x, y},         {r, g, b, a}, {0, 0}, {w, h}, 0.0f},
+      {{x + w, y},     {r, g, b, a}, {w, 0}, {w, h}, 0.0f},
+      {{x, y + h},     {r, g, b, a}, {0, h}, {w, h}, 0.0f},
+      {{x + w, y},     {r, g, b, a}, {w, 0}, {w, h}, 0.0f},
+      {{x, y + h},     {r, g, b, a}, {0, h}, {w, h}, 0.0f},
+      {{x + w, y + h}, {r, g, b, a}, {w, h}, {w, h}, 0.0f},
   };
   [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
   [encoder drawPrimitives:MTLPrimitiveTypeTriangle
@@ -145,7 +195,8 @@ void batch_solid_rects(void *frame_context, void *device_ptr, const void *vertex
     id<MTLRenderCommandEncoder> encoder = (__bridge id<MTLRenderCommandEncoder>)ctx->renderEncoder;
     id<MTLDevice> device = (__bridge id<MTLDevice>)device_ptr;
 
-    size_t byte_count = vertex_count * (sizeof(simd_float2) + sizeof(simd_float4));
+    // 44 bytes per vertex: pos(8) + color(16) + local_pos(8) + size(8) + radius(4)
+    size_t byte_count = vertex_count * 44;
     id<MTLBuffer> buffer = [device newBufferWithBytes:vertex_data
                                                length:byte_count
                                               options:MTLResourceStorageModeShared];

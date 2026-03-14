@@ -12,13 +12,13 @@ test "RectBatch starts empty" {
 
 test "RectBatch appendRect adds 6 vertices" {
     var b: batch.RectBatch = .{};
-    b.appendRect(10, 20, 100, 50, 1.0, 0.0, 0.0, 1.0);
+    b.appendRect(10, 20, 100, 50, 1.0, 0.0, 0.0, 1.0, 0.0);
     try testing.expectEqual(@as(usize, 6), b.vertexCount());
 }
 
 test "RectBatch appendRect produces correct triangle vertices" {
     var b: batch.RectBatch = .{};
-    b.appendRect(10, 20, 100, 50, 1.0, 0.5, 0.0, 1.0);
+    b.appendRect(10, 20, 100, 50, 1.0, 0.5, 0.0, 1.0, 0.0);
 
     // Triangle 1: top-left, top-right, bottom-left
     try testing.expectApproxEqAbs(@as(f32, 10), b.vertices[0].position[0], 0.001);
@@ -49,7 +49,7 @@ test "RectBatch isFull returns true at capacity" {
     var b: batch.RectBatch = .{};
     const max_quads = batch.max_rect_vertices / 6;
     for (0..max_quads) |_| {
-        b.appendRect(0, 0, 1, 1, 1, 1, 1, 1);
+        b.appendRect(0, 0, 1, 1, 1, 1, 1, 1, 0);
     }
     try testing.expectEqual(batch.max_rect_vertices, b.vertexCount());
     try testing.expect(b.isFull());
@@ -59,16 +59,16 @@ test "RectBatch appendRect silently drops when full" {
     var b: batch.RectBatch = .{};
     const max_quads = batch.max_rect_vertices / 6;
     for (0..max_quads) |_| {
-        b.appendRect(0, 0, 1, 1, 1, 1, 1, 1);
+        b.appendRect(0, 0, 1, 1, 1, 1, 1, 1, 0);
     }
     // One more should be silently dropped
-    b.appendRect(99, 99, 99, 99, 0, 0, 0, 0);
+    b.appendRect(99, 99, 99, 99, 0, 0, 0, 0, 0);
     try testing.expectEqual(batch.max_rect_vertices, b.vertexCount());
 }
 
 test "RectBatch clear resets count" {
     var b: batch.RectBatch = .{};
-    b.appendRect(0, 0, 10, 10, 1, 0, 0, 1);
+    b.appendRect(0, 0, 10, 10, 1, 0, 0, 1, 0);
     try testing.expectEqual(@as(usize, 6), b.vertexCount());
     b.clear();
     try testing.expectEqual(@as(usize, 0), b.vertexCount());
@@ -131,8 +131,7 @@ test "TextBatch clear resets count" {
 }
 
 test "RectVertex is extern struct with correct size" {
-    // 2 floats position + 4 floats color = 6 * 4 = 24 bytes
-    try testing.expectEqual(@as(usize, 24), @sizeOf(batch.RectVertex));
+    try testing.expectEqual(@as(usize, 44), @sizeOf(batch.RectVertex));
 }
 
 test "TextVertex is extern struct with correct size" {
@@ -142,8 +141,8 @@ test "TextVertex is extern struct with correct size" {
 
 test "Multiple rects accumulate sequentially" {
     var b: batch.RectBatch = .{};
-    b.appendRect(0, 0, 10, 10, 1, 0, 0, 1);
-    b.appendRect(20, 20, 10, 10, 0, 1, 0, 1);
+    b.appendRect(0, 0, 10, 10, 1, 0, 0, 1, 0);
+    b.appendRect(20, 20, 10, 10, 0, 1, 0, 1, 0);
     try testing.expectEqual(@as(usize, 12), b.vertexCount());
 
     // Second rect's first vertex starts at index 6

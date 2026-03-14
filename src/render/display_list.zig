@@ -20,6 +20,7 @@ pub const DisplayCommand = union(enum) {
     draw_rect: struct {
         rect: layout_box.Rect,
         color: values.CssColor,
+        radius: f32 = 0.0,
     },
     draw_text: struct {
         text: []const u8,
@@ -95,6 +96,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                     .draw_rect = .{
                         .rect = box.dimensions.borderBox(),
                         .color = color,
+                        .radius = sn.style.border_radius.value,
                     },
                 });
             }
@@ -229,13 +231,13 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
             }
             if (bw > 0) {
                 // Top
-                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = b_box.width, .height = bw }, .color = bc } });
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = b_box.width, .height = bw }, .color = bc, .radius = 0.0 } });
                 // Bottom
-                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y + b_box.height - bw, .width = b_box.width, .height = bw }, .color = bc } });
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y + b_box.height - bw, .width = b_box.width, .height = bw }, .color = bc, .radius = 0.0 } });
                 // Left
-                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc } });
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc, .radius = 0.0 } });
                 // Right
-                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x + b_box.width - bw, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc } });
+                try dl.commands.append(dl.allocator, .{ .draw_rect = .{ .rect = .{ .x = b_box.x + b_box.width - bw, .y = b_box.y, .width = bw, .height = b_box.height }, .color = bc, .radius = 0.0 } });
             }
         }
 
@@ -251,6 +253,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
             try dl.commands.append(dl.allocator, .{ .draw_rect = .{
                 .rect = .{ .x = bullet_x, .y = bullet_y, .width = bullet_size, .height = bullet_size },
                 .color = c,
+                .radius = bullet_size / 2.0,
             } });
         }
     }
@@ -326,6 +329,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                                 .height = sn.style.font_size.value,
                             },
                             .color = c,
+                            .radius = 0.0,
                         },
                     });
                 }
@@ -361,6 +365,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                             .height = 1.0,
                         },
                         .color = ul_color,
+                        .radius = 0.0,
                     },
                 });
             }

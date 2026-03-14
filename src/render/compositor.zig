@@ -102,7 +102,7 @@ pub const Compositor = struct {
                     const gf = @as(f32, @floatFromInt(r.color.g)) / 255.0;
                     const bf = @as(f32, @floatFromInt(r.color.b)) / 255.0;
                     const af = @as(f32, @floatFromInt(r.color.a)) / 255.0;
-                    rect_batch.appendRect(r.rect.x, r.rect.y - scroll_y + content_top_offset, r.rect.width, r.rect.height, rf, gf, bf, af);
+                    rect_batch.appendRect(r.rect.x, r.rect.y - scroll_y + content_top_offset, r.rect.width, r.rect.height, rf, gf, bf, af, r.radius);
                 },
                 .draw_text => |t| {
                     if (!isVisible(t.rect.y, t.rect.height, scroll_y, content_height)) {
@@ -294,7 +294,7 @@ pub const Compositor = struct {
                     const gf = @as(f32, @floatFromInt(r.color.g)) / 255.0;
                     const bf = @as(f32, @floatFromInt(r.color.b)) / 255.0;
                     const af = @as(f32, @floatFromInt(r.color.a)) / 255.0;
-                    rect_batch.appendRect(r.rect.x, r.rect.y - scroll_y, r.rect.width, r.rect.height, rf, gf, bf, af);
+                    rect_batch.appendRect(r.rect.x, r.rect.y - scroll_y, r.rect.width, r.rect.height, rf, gf, bf, af, r.radius);
                 },
                 .draw_text => |t| {
                     if (!isVisible(t.rect.y, t.rect.height, scroll_y, content_height)) {

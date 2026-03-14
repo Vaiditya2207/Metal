@@ -6,6 +6,9 @@
 pub const RectVertex = extern struct {
     position: [2]f32,
     color: [4]f32,
+    local_pos: [2]f32,
+    rect_size: [2]f32,
+    radius: f32,
 };
 
 pub const TextVertex = extern struct {
@@ -47,15 +50,17 @@ pub const RectBatch = struct {
         g: f32,
         b: f32,
         a: f32,
+        radius: f32,
     ) void {
         if (self.count + 6 > max_rect_vertices) return;
         const color = [4]f32{ r, g, b, a };
-        self.vertices[self.count + 0] = .{ .position = .{ x, y }, .color = color };
-        self.vertices[self.count + 1] = .{ .position = .{ x + w, y }, .color = color };
-        self.vertices[self.count + 2] = .{ .position = .{ x, y + h }, .color = color };
-        self.vertices[self.count + 3] = .{ .position = .{ x + w, y }, .color = color };
-        self.vertices[self.count + 4] = .{ .position = .{ x, y + h }, .color = color };
-        self.vertices[self.count + 5] = .{ .position = .{ x + w, y + h }, .color = color };
+        const size = [2]f32{ w, h };
+        self.vertices[self.count + 0] = .{ .position = .{ x, y }, .color = color, .local_pos = .{ 0, 0 }, .rect_size = size, .radius = radius };
+        self.vertices[self.count + 1] = .{ .position = .{ x + w, y }, .color = color, .local_pos = .{ w, 0 }, .rect_size = size, .radius = radius };
+        self.vertices[self.count + 2] = .{ .position = .{ x, y + h }, .color = color, .local_pos = .{ 0, h }, .rect_size = size, .radius = radius };
+        self.vertices[self.count + 3] = .{ .position = .{ x + w, y }, .color = color, .local_pos = .{ w, 0 }, .rect_size = size, .radius = radius };
+        self.vertices[self.count + 4] = .{ .position = .{ x, y + h }, .color = color, .local_pos = .{ 0, h }, .rect_size = size, .radius = radius };
+        self.vertices[self.count + 5] = .{ .position = .{ x + w, y + h }, .color = color, .local_pos = .{ w, h }, .rect_size = size, .radius = radius };
         self.count += 6;
     }
 };
