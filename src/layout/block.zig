@@ -31,6 +31,14 @@ pub fn layoutBlock(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
 
     const locked_height = box.lock_content_height;
     const preserved_height = box.dimensions.content.height;
+
+    // RC-31: Save float context state before first layout pass.
+    // The shrink-to-fit second pass (below) re-layouts children with a
+    // narrower width.  If any child is a float, the first pass will have
+    // added its rect to ctx.float_ctx.  Without restoring, the second pass
+    // sees the stale float from pass 1, causing float-avoidance to push
+    // the (re-laid-out) child downward by the full float height.
+    const fc_len_before_children = if (ctx.float_ctx) |fc| fc.floats.items.len else 0;
     layoutChildren(box, ctx);
 
     if (locked_height) {
@@ -118,6 +126,11 @@ pub fn layoutBlock(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout.L
                 // The lock_content_width flag prevents calculateWidth from overwriting
                 // the shrunk width during the second pass.
                 box.lock_content_width = true;
+                // RC-31: Restore float context to pre-first-pass state so the
+                // second layout pass does not see stale floats from pass 1.
+                if (ctx.float_ctx) |fc| {
+                    fc.floats.shrinkRetainingCapacity(fc_len_before_children);
+                }
                 layoutChildren(box, ctx);
                 box.lock_content_width = false;
 

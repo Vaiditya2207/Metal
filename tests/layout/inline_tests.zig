@@ -557,3 +557,130 @@ test "RC-59: inline parent expands to contain inline-block child" {
     try std.testing.expectApproxEqAbs(@as(f32, 80.0), ib_child.dimensions.content.width, 0.1);
     try std.testing.expectApproxEqAbs(@as(f32, 30.0), ib_child.dimensions.content.height, 0.1);
 }
+
+test "RC-31: shrink-to-fit inline-block does not push floated child down" {
+    // Regression test for float context contamination in shrink-to-fit.
+    //
+    // Structure (models google.com gb_D → gb_B):
+    //   container (block, 1000px)
+    //     └─ ib_box (inline-block, auto width, height:48px border-box, padding:4px)
+    //         └─ float_child (block, float:right, width:40px, height:40px, padding:8px border-box)
+    //
+    // The inline-block has auto width, which triggers shrink-to-fit (CSS 2.1 §10.3.5).
+    // Shrink-to-fit calls layoutChildren twice: once to measure, once to reflow.
+    // BUG: The first pass adds the float to the FloatContext. The second pass
+    // then sees the stale float and the float-avoidance loop in calculatePosition
+    // pushes the child downward by the entire float height (~32px).
+    //
+    // After the fix, the float context is restored between passes, so the
+    // floated child stays at its correct Y position inside the inline-block.
+    const allocator = std.testing.allocator;
+
+    // --- DOM nodes ---
+    var container_node = dom.Node.init(allocator, .element);
+    container_node.tag = .div;
+
+    var ib_node = dom.Node.init(allocator, .element);
+    ib_node.tag = .div;
+
+    var float_child_node = dom.Node.init(allocator, .element);
+    float_child_node.tag = .div;
+
+    const limits = dom.Limits{ .max_children = 100, .max_depth = 10, .max_total_nodes = 1000 };
+    try ib_node.appendChild(&float_child_node, limits);
+    try container_node.appendChild(&ib_node, limits);
+
+    // --- Styles ---
+    var container_style = css.ComputedStyle{};
+    container_style.display = .block;
+
+    // Inline-block: auto width, explicit height 48px border-box, padding 4px
+    var ib_style = css.ComputedStyle{};
+    ib_style.display = .inline_block;
+    // width is null (auto) — triggers shrink-to-fit
+    ib_style.height = .{ .value = 48, .unit = .px };
+    ib_style.box_sizing = .border_box;
+    ib_style.padding_top = .{ .value = 4, .unit = .px };
+    ib_style.padding_bottom = .{ .value = 4, .unit = .px };
+    ib_style.padding_left = .{ .value = 4, .unit = .px };
+    ib_style.padding_right = .{ .value = 4, .unit = .px };
+
+    // Float child: float:right, 40x40 border-box, padding 8px
+    // (blockified from inline-block by resolver, but we set display=block directly)
+    var float_style = css.ComputedStyle{};
+    float_style.display = .block;
+    float_style.float = .right;
+    float_style.width = .{ .value = 40, .unit = .px };
+    float_style.height = .{ .value = 40, .unit = .px };
+    float_style.box_sizing = .border_box;
+    float_style.padding_top = .{ .value = 8, .unit = .px };
+    float_style.padding_bottom = .{ .value = 8, .unit = .px };
+    float_style.padding_left = .{ .value = 8, .unit = .px };
+    float_style.padding_right = .{ .value = 8, .unit = .px };
+
+    // --- Styled tree ---
+    var sn_float = css.StyledNode{
+        .node = &float_child_node,
+        .style = float_style,
+        .children = &[_]*css.StyledNode{},
+    };
+    const ib_children = [_]*css.StyledNode{&sn_float};
+    var sn_ib = css.StyledNode{
+        .node = &ib_node,
+        .style = ib_style,
+        .children = &ib_children,
+    };
+    const container_children = [_]*css.StyledNode{&sn_ib};
+    var sn_container = css.StyledNode{
+        .node = &container_node,
+        .style = container_style,
+        .children = &container_children,
+    };
+
+    const root = try layout.buildLayoutTree(allocator, &sn_container);
+    defer {
+        root.deinit(allocator);
+        allocator.destroy(root);
+        container_node.children.deinit(allocator);
+        ib_node.children.deinit(allocator);
+        float_child_node.children.deinit(allocator);
+        container_node.attributes.deinit(allocator);
+        ib_node.attributes.deinit(allocator);
+        float_child_node.attributes.deinit(allocator);
+    }
+
+    layout.layoutTree(root, .{ .allocator = allocator, .viewport_width = 1000.0, .viewport_height = 600.0 });
+
+    // Navigate to the inline-block box:
+    //   root (block)
+    //     └─ anonymous block (wraps inline content)
+    //         └─ ib_box (inlineBlockNode)
+    //             └─ float_child (blockNode, float:right)
+    try std.testing.expectEqual(@as(usize, 1), root.children.items.len);
+    const anon = root.children.items[0];
+    try std.testing.expectEqual(layout.BoxType.anonymousBlock, anon.box_type);
+
+    try std.testing.expect(anon.children.items.len >= 1);
+    const ib_box = anon.children.items[0];
+    try std.testing.expectEqual(layout.BoxType.inlineBlockNode, ib_box.box_type);
+
+    // The inline-block should have shrunk to fit the float (40px)
+    try std.testing.expectApproxEqAbs(@as(f32, 40.0), ib_box.dimensions.content.width, 1.0);
+
+    // Find the float child inside the inline-block
+    try std.testing.expect(ib_box.children.items.len >= 1);
+    const float_box = ib_box.children.items[0];
+
+    // The float child's Y should be close to the inline-block's content.y + padding.
+    // With border-box height=40px and padding=8px, content height = 40 - 16 = 24px.
+    // The float is positioned at ib_box.content.y + 0 (no preceding content) + 0 (margin) +
+    // 0 (border) + 8 (padding) = ib_box.content.y + 8.
+    //
+    // BUG (before fix): The float child was at ib_box.content.y + 40 (pushed down by stale float).
+    // FIXED: The float child should be at ib_box.content.y + 8 (padding-top only).
+    const float_y_relative = float_box.dimensions.content.y - ib_box.dimensions.content.y;
+
+    // The float child's padding-top is 8px. Its Y relative to ib_box should be 8 (just padding).
+    // Before the fix, this was 40 (pushed down by the full float height).
+    try std.testing.expectApproxEqAbs(@as(f32, 8.0), float_y_relative, 1.0);
+}
