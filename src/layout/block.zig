@@ -146,11 +146,16 @@ fn layoutChildren(box: *LayoutBox, ctx: layout.LayoutContext) void {
     var is_at_parent_top = true;
 
     const is_root = box.styled_node != null and box.styled_node.?.node.parent == null;
-    const parent_can_collapse_top = (box.styled_node != null) and !is_root and
+
+    // BFC-establishing elements suppress parent-child margin collapsing
+    const is_bfc = box.is_bfc or box.box_type == .flexNode or box.box_type == .inlineBlockNode or
+        (if (box.styled_node) |sn| sn.style.float != .none else false);
+
+    const parent_can_collapse_top = !is_bfc and (box.styled_node != null) and !is_root and
         box.dimensions.padding.top == 0 and
         box.dimensions.border.top == 0;
 
-    const parent_can_collapse_bottom = (box.styled_node != null) and !is_root and
+    const parent_can_collapse_bottom = !is_bfc and (box.styled_node != null) and !is_root and
         box.dimensions.padding.bottom == 0 and
         box.dimensions.border.bottom == 0;
 

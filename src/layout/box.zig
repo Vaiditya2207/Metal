@@ -88,6 +88,7 @@ pub const LayoutBox = struct {
     intrinsic_height: f32 = 0,
     lock_content_width: bool = false,
     lock_content_height: bool = false,
+    is_bfc: bool = false,
 
     pub fn init(box_type: BoxType, styled_node: ?*const resolver.StyledNode) LayoutBox {
         return .{

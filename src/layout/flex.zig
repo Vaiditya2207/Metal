@@ -434,6 +434,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         if (child.box_type == .flexNode) {
             layoutFlexBox(child, box, item_ctx);
         } else {
+            child.is_bfc = true;
             block.layoutBlock(child, box, item_ctx);
         }
     }
@@ -489,6 +490,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                         layoutFlexBox(child, box, item_ctx);
                         child.dimensions.content.height = saved_h;
                     } else {
+                        child.is_bfc = true;
                         child.lock_content_height = true;
                         block.layoutBlock(child, box, item_ctx);
                     }
@@ -516,6 +518,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                         layoutFlexBox(child, box, item_ctx);
                         child.dimensions.content.height = content_base;
                     } else {
+                        child.is_bfc = true;
                         block.layoutBlock(child, box, item_ctx);
                     }
                 }
@@ -602,6 +605,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                         if (child.box_type == .flexNode) {
                             layoutFlexBox(child, child, item_ctx);
                         } else {
+                            child.is_bfc = true;
                             block.layoutBlock(child, box, item_ctx);
                         }
                         child.dimensions.content.width = content_base;
@@ -641,6 +645,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                         if (child.box_type == .flexNode) {
                             layoutFlexBox(child, child, item_ctx);
                         } else {
+                            child.is_bfc = true;
                             block.layoutBlock(child, box, item_ctx);
                         }
                         child.dimensions.content.width = corrected_width;

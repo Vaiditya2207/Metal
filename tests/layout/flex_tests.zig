@@ -2160,3 +2160,113 @@ test "flex row justify-content space-around" {
     try std.testing.expectApproxEqAbs(@as(f32, 125.0), c2.dimensions.content.x, 0.1);
     try std.testing.expectApproxEqAbs(@as(f32, 225.0), c3.dimensions.content.x, 0.1);
 }
+
+test "RC-58: flex item suppresses parent-child margin collapsing (BFC)" {
+    // A flex item (child of column flex container) establishes a BFC.
+    // Its child <p> has UA margin-top:16px, margin-bottom:16px.
+    // Without BFC suppression, the <p>'s bottom margin leaks into the
+    // flex item's margin.bottom, reducing its flex-grow-allocated height.
+    // With the fix, margins stay inside the flex item.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // DOM hierarchy: html > body > flex-container > flex-item > p
+    var html_dom = dom.Node.init(allocator, .element);
+    html_dom.tag = .html;
+
+    var body_dom = dom.Node.init(allocator, .element);
+    body_dom.tag = .body;
+    body_dom.parent = &html_dom;
+
+    var flex_div_dom = dom.Node.init(allocator, .element);
+    flex_div_dom.tag = .div;
+    flex_div_dom.parent = &body_dom;
+
+    var item_div_dom = dom.Node.init(allocator, .element);
+    item_div_dom.tag = .div;
+    item_div_dom.parent = &flex_div_dom;
+
+    var p_dom = dom.Node.init(allocator, .element);
+    p_dom.tag = .p;
+    p_dom.parent = &item_div_dom;
+
+    // <p> with UA-like margins: margin-top: 16px, margin-bottom: 16px
+    var p_style = properties.ComputedStyle{};
+    p_style.display = .block;
+    p_style.margin_top = .{ .value = 16, .unit = .px };
+    p_style.margin_bottom = .{ .value = 16, .unit = .px };
+
+    var p_sn = resolver.StyledNode{
+        .node = &p_dom,
+        .style = p_style,
+        .children = &.{},
+    };
+
+    // Flex item: flex-grow: 1 (should fill the entire 200px container)
+    var item_style = properties.ComputedStyle{};
+    item_style.display = .block;
+    item_style.flex_grow = 1;
+
+    const item_children = try allocator.alloc(*resolver.StyledNode, 1);
+    item_children[0] = &p_sn;
+
+    var item_sn = resolver.StyledNode{
+        .node = &item_div_dom,
+        .style = item_style,
+        .children = item_children,
+    };
+
+    // Flex container: column, height: 200px
+    var flex_style = properties.ComputedStyle{};
+    flex_style.display = .flex;
+    flex_style.flex_direction = .column;
+    flex_style.height = .{ .value = 200, .unit = .px };
+
+    const flex_children = try allocator.alloc(*resolver.StyledNode, 1);
+    flex_children[0] = &item_sn;
+
+    var flex_sn = resolver.StyledNode{
+        .node = &flex_div_dom,
+        .style = flex_style,
+        .children = flex_children,
+    };
+
+    // Body: no margin/padding/border for simplicity
+    var body_style = properties.ComputedStyle{};
+    body_style.display = .block;
+
+    const body_children = try allocator.alloc(*resolver.StyledNode, 1);
+    body_children[0] = &flex_sn;
+
+    var body_sn = resolver.StyledNode{
+        .node = &body_dom,
+        .style = body_style,
+        .children = body_children,
+    };
+
+    // HTML root
+    var html_style = properties.ComputedStyle{};
+    html_style.display = .block;
+
+    const html_children = try allocator.alloc(*resolver.StyledNode, 1);
+    html_children[0] = &body_sn;
+
+    var html_sn = resolver.StyledNode{
+        .node = &html_dom,
+        .style = html_style,
+        .children = html_children,
+    };
+
+    const root_box = try layout.buildLayoutTree(allocator, &html_sn);
+    layout.layoutTree(root_box, .{ .allocator = allocator, .viewport_width = 800, .viewport_height = 600 });
+
+    const body_box = root_box.children.items[0];
+    const flex_box = body_box.children.items[0];
+    const item_box = flex_box.children.items[0];
+
+    // The flex item should fill the entire 200px (sole child with flex-grow:1)
+    try std.testing.expectEqual(@as(f32, 200), item_box.dimensions.content.height);
+    // The flex item's margin.bottom must be 0 — the <p>'s margin should NOT leak out
+    try std.testing.expectEqual(@as(f32, 0), item_box.dimensions.margin.bottom);
+}
