@@ -541,7 +541,15 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
 
                 if (max_content_right > 0) {
                     child.dimensions.content.width = max_content_right;
-                    base_sizes[i] = max_content_right;
+                    // RC-60: For border-box items, base_sizes must store the border-box width
+                    // (content + padding + border), not just content width. The recalc loop
+                    // at line ~574 assumes border-box items already include padding+border.
+                    const c_stl = if (child.styled_node) |sn| &sn.style else null;
+                    if (c_stl != null and c_stl.?.box_sizing == .border_box) {
+                        base_sizes[i] = max_content_right + child.dimensions.padding.left + child.dimensions.padding.right + child.dimensions.border.left + child.dimensions.border.right;
+                    } else {
+                        base_sizes[i] = max_content_right;
+                    }
                     needs_recalc = true;
 
                     // RC-39: Re-layout flex items after shrink-to-fit so their

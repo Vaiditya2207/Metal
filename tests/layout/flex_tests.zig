@@ -2270,3 +2270,114 @@ test "RC-58: flex item suppresses parent-child margin collapsing (BFC)" {
     // The flex item's margin.bottom must be 0 — the <p>'s margin should NOT leak out
     try std.testing.expectEqual(@as(f32, 0), item_box.dimensions.margin.bottom);
 }
+
+test "RC-60: flex-end positioning with border-box shrink-to-fit item" {
+    // Container: flex row, justify-content: flex-end, 500px wide
+    // Child 1: explicit width 100px (content-box)
+    // Child 2: border-box, padding 10px each side, auto width (shrink-to-fit)
+    //   -> shrink-to-fit content = text width, but base_sizes must include padding
+    //
+    // Without the fix, Pass 2b stores only content width in base_sizes[i] for the
+    // border-box child. The recalc loop assumes border-box items already include
+    // padding+border, so it under-counts total_base_size, making available_space
+    // too large and flex-end over-shifts items past x=500.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // DOM nodes
+    var container_dom = dom.Node.init(allocator, .element);
+    container_dom.tag = .div;
+
+    var child1_dom = dom.Node.init(allocator, .element);
+    child1_dom.tag = .div;
+    child1_dom.parent = &container_dom;
+
+    var child2_dom = dom.Node.init(allocator, .element);
+    child2_dom.tag = .div;
+    child2_dom.parent = &container_dom;
+
+    var text2_dom = dom.Node.init(allocator, .text);
+    text2_dom.data = "B";
+    text2_dom.parent = &child2_dom;
+
+    // Container: display:flex, flex-direction:row, justify-content:flex-end, width:500
+    var container_style = properties.ComputedStyle{};
+    container_style.display = .flex;
+    container_style.flex_direction = .row;
+    container_style.justify_content = .flex_end;
+    container_style.width = .{ .value = 500, .unit = .px };
+
+    // Child 1: explicit width 100px (content-box, default)
+    var child1_style = properties.ComputedStyle{};
+    child1_style.display = .block;
+    child1_style.width = .{ .value = 100, .unit = .px };
+
+    var child1_sn = resolver.StyledNode{
+        .node = &child1_dom,
+        .style = child1_style,
+        .children = &.{},
+    };
+
+    // Child 2: border-box, padding 10px each side, no explicit width (auto → shrink-to-fit)
+    var child2_style = properties.ComputedStyle{};
+    child2_style.display = .block;
+    child2_style.box_sizing = .border_box;
+    child2_style.padding_left = .{ .value = 10, .unit = .px };
+    child2_style.padding_right = .{ .value = 10, .unit = .px };
+
+    // Text node style for "B"
+    var text2_style = properties.ComputedStyle{};
+    text2_style.display = .inline_val;
+    text2_style.font_size = .{ .value = 16.0, .unit = .px };
+    text2_style.font_weight = 400;
+
+    var text2_sn = resolver.StyledNode{
+        .node = &text2_dom,
+        .style = text2_style,
+        .children = &.{},
+    };
+
+    const child2_children = try allocator.alloc(*resolver.StyledNode, 1);
+    child2_children[0] = &text2_sn;
+
+    var child2_sn = resolver.StyledNode{
+        .node = &child2_dom,
+        .style = child2_style,
+        .children = child2_children,
+    };
+
+    const container_children = try allocator.alloc(*resolver.StyledNode, 2);
+    container_children[0] = &child1_sn;
+    container_children[1] = &child2_sn;
+
+    var container_sn = resolver.StyledNode{
+        .node = &container_dom,
+        .style = container_style,
+        .children = container_children,
+    };
+
+    const root = try layout.buildLayoutTree(allocator, &container_sn);
+    layout.layoutTree(root, .{ .allocator = allocator, .viewport_width = 500, .viewport_height = 300 });
+
+    // The flex container
+    try std.testing.expectApproxEqAbs(@as(f32, 500.0), root.dimensions.content.width, 0.1);
+
+    const child1 = root.children.items[0];
+    const child2 = root.children.items[1];
+
+    // Child 2 is border-box with padding 10+10=20. Its shrink-to-fit content width
+    // is small (just "B" text ~8px). The border-box width = content + 20.
+    // So total items width = 100 + (content2 + 20).
+    // With flex-end, child1.x = 500 - 100 - child2_border_box_width
+    const child2_border_box = child2.dimensions.content.width + child2.dimensions.padding.left + child2.dimensions.padding.right + child2.dimensions.border.left + child2.dimensions.border.right;
+
+    // The items should not overflow past x=500
+    const child2_right_edge = child2.dimensions.content.x - child2.dimensions.padding.left - child2.dimensions.border.left + child2_border_box;
+    try std.testing.expect(child2_right_edge <= 500.5); // Allow small rounding
+
+    // Child 1 should start at 500 - total_items_width (flex-end)
+    const total_items = 100.0 + child2_border_box;
+    const expected_child1_x = 500.0 - total_items;
+    try std.testing.expectApproxEqAbs(expected_child1_x, child1.dimensions.content.x, 1.0);
+}
