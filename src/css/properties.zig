@@ -10,7 +10,7 @@ pub const BoxSizing = enum { content_box, border_box };
 
 pub const FlexDirection = enum { row, column };
 pub const FlexWrap = enum { nowrap, wrap };
-pub const JustifyContent = enum { flex_start, flex_end, center, space_between };
+pub const JustifyContent = enum { flex_start, flex_end, center, space_between, space_around, space_evenly };
 pub const AlignItems = enum { stretch, flex_start, flex_end, center };
 pub const BackgroundSize = enum { auto, contain, cover };
 pub const BackgroundRepeat = enum { repeat, no_repeat, repeat_x, repeat_y };
@@ -328,8 +328,8 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "flex-end")) self.justify_content = .flex_end;
             if (std.mem.eql(u8, val, "center")) self.justify_content = .center;
             if (std.mem.eql(u8, val, "space-between")) self.justify_content = .space_between;
-            if (std.mem.eql(u8, val, "space-around")) self.justify_content = .space_between;
-            if (std.mem.eql(u8, val, "space-evenly")) self.justify_content = .space_between;
+            if (std.mem.eql(u8, val, "space-around")) self.justify_content = .space_around;
+            if (std.mem.eql(u8, val, "space-evenly")) self.justify_content = .space_evenly;
         } else if (std.mem.eql(u8, prop, "text-align")) {
             if (std.mem.eql(u8, val, "left")) self.text_align = .left;
             if (std.mem.eql(u8, val, "center")) self.text_align = .center;

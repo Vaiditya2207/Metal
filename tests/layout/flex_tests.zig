@@ -2050,3 +2050,113 @@ test "floats in separate flex items don't interfere" {
     try std.testing.expectEqual(@as(f32, 0), float1_rel_y);
     try std.testing.expectEqual(@as(f32, 0), float2_rel_y);
 }
+
+test "flex row justify-content space-evenly" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
+
+    // Container: 300px wide, display: flex, justify-content: space-evenly
+    var container_style = properties.ComputedStyle{};
+    container_style.display = .flex;
+    container_style.flex_direction = .row;
+    container_style.width = .{ .value = 300, .unit = .px };
+    container_style.justify_content = .space_evenly;
+
+    // 3 children of 50px each => total content = 150px, available = 150px
+    // space-evenly: gap = 150 / (3+1) = 37.5px
+    // Positions: 37.5, 37.5+50+37.5=125.0, 125.0+50+37.5=212.5
+    var child1_style = properties.ComputedStyle{};
+    child1_style.display = .block;
+    child1_style.width = .{ .value = 50, .unit = .px };
+    child1_style.height = .{ .value = 20, .unit = .px };
+
+    var child2_style = properties.ComputedStyle{};
+    child2_style.display = .block;
+    child2_style.width = .{ .value = 50, .unit = .px };
+    child2_style.height = .{ .value = 20, .unit = .px };
+
+    var child3_style = properties.ComputedStyle{};
+    child3_style.display = .block;
+    child3_style.width = .{ .value = 50, .unit = .px };
+    child3_style.height = .{ .value = 20, .unit = .px };
+
+    var child1_node = resolver.StyledNode{ .node = &dummy_node, .style = child1_style, .children = &.{} };
+    var child2_node = resolver.StyledNode{ .node = &dummy_node, .style = child2_style, .children = &.{} };
+    var child3_node = resolver.StyledNode{ .node = &dummy_node, .style = child3_style, .children = &.{} };
+
+    var container_node = resolver.StyledNode{ .node = &dummy_node, .style = container_style, .children = &.{} };
+    const c_children = try allocator.alloc(*resolver.StyledNode, 3);
+    c_children[0] = &child1_node;
+    c_children[1] = &child2_node;
+    c_children[2] = &child3_node;
+    container_node.children = c_children;
+
+    const root = try layout.buildLayoutTree(allocator, &container_node);
+    layout.layoutTree(root, .{ .allocator = allocator, .viewport_width = 300, .viewport_height = 600 });
+
+    const c1 = root.children.items[0];
+    const c2 = root.children.items[1];
+    const c3 = root.children.items[2];
+
+    // space-evenly: gap = 150 / 4 = 37.5
+    try std.testing.expectApproxEqAbs(@as(f32, 37.5), c1.dimensions.content.x, 0.1);
+    try std.testing.expectApproxEqAbs(@as(f32, 125.0), c2.dimensions.content.x, 0.1);
+    try std.testing.expectApproxEqAbs(@as(f32, 212.5), c3.dimensions.content.x, 0.1);
+}
+
+test "flex row justify-content space-around" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var dummy_node = dom.Node.init(allocator, .element);
+
+    // Container: 300px wide, display: flex, justify-content: space-around
+    var container_style = properties.ComputedStyle{};
+    container_style.display = .flex;
+    container_style.flex_direction = .row;
+    container_style.width = .{ .value = 300, .unit = .px };
+    container_style.justify_content = .space_around;
+
+    // 3 children of 50px each => total content = 150px, available = 150px
+    // space-around: gap = 150 / 3 = 50
+    // Positions: 50/2=25.0, 25+50+50=125.0, 125+50+50=225.0
+    var child1_style = properties.ComputedStyle{};
+    child1_style.display = .block;
+    child1_style.width = .{ .value = 50, .unit = .px };
+    child1_style.height = .{ .value = 20, .unit = .px };
+
+    var child2_style = properties.ComputedStyle{};
+    child2_style.display = .block;
+    child2_style.width = .{ .value = 50, .unit = .px };
+    child2_style.height = .{ .value = 20, .unit = .px };
+
+    var child3_style = properties.ComputedStyle{};
+    child3_style.display = .block;
+    child3_style.width = .{ .value = 50, .unit = .px };
+    child3_style.height = .{ .value = 20, .unit = .px };
+
+    var child1_node = resolver.StyledNode{ .node = &dummy_node, .style = child1_style, .children = &.{} };
+    var child2_node = resolver.StyledNode{ .node = &dummy_node, .style = child2_style, .children = &.{} };
+    var child3_node = resolver.StyledNode{ .node = &dummy_node, .style = child3_style, .children = &.{} };
+
+    var container_node = resolver.StyledNode{ .node = &dummy_node, .style = container_style, .children = &.{} };
+    const c_children = try allocator.alloc(*resolver.StyledNode, 3);
+    c_children[0] = &child1_node;
+    c_children[1] = &child2_node;
+    c_children[2] = &child3_node;
+    container_node.children = c_children;
+
+    const root = try layout.buildLayoutTree(allocator, &container_node);
+    layout.layoutTree(root, .{ .allocator = allocator, .viewport_width = 300, .viewport_height = 600 });
+
+    const c1 = root.children.items[0];
+    const c2 = root.children.items[1];
+    const c3 = root.children.items[2];
+
+    // space-around: gap = 150 / 3 = 50, half-gap = 25
+    try std.testing.expectApproxEqAbs(@as(f32, 25.0), c1.dimensions.content.x, 0.1);
+    try std.testing.expectApproxEqAbs(@as(f32, 125.0), c2.dimensions.content.x, 0.1);
+    try std.testing.expectApproxEqAbs(@as(f32, 225.0), c3.dimensions.content.x, 0.1);
+}

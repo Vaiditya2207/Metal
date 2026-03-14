@@ -774,6 +774,20 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                             line_spacing = line_available / @as(f32, @floatFromInt(line_count - 1));
                         }
                     },
+                    .space_around => {
+                        const line_count = line.end - line.start;
+                        if (line_count > 0) {
+                            line_spacing = line_available / @as(f32, @floatFromInt(line_count));
+                            line_main_pos = line_spacing / 2.0;
+                        }
+                    },
+                    .space_evenly => {
+                        const line_count = line.end - line.start;
+                        if (line_count > 0) {
+                            line_spacing = line_available / @as(f32, @floatFromInt(line_count + 1));
+                            line_main_pos = line_spacing;
+                        }
+                    },
                 }
             }
 
@@ -838,6 +852,18 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                 .space_between => {
                     if (children.items.len > 1) {
                         spacing = available_space / @as(f32, @floatFromInt(children.items.len - 1));
+                    }
+                },
+                .space_around => {
+                    if (children.items.len > 0) {
+                        spacing = available_space / @as(f32, @floatFromInt(children.items.len));
+                        main_pos = spacing / 2.0;
+                    }
+                },
+                .space_evenly => {
+                    if (children.items.len > 0) {
+                        spacing = available_space / @as(f32, @floatFromInt(children.items.len + 1));
+                        main_pos = spacing;
                     }
                 },
             }
