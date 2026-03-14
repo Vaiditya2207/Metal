@@ -27,6 +27,13 @@ pub fn measureIntrinsicWidth(node: *LayoutBox) f32 {
     const is_row_flex = node.box_type == .flexNode and
         if (node.styled_node) |sn| sn.style.flex_direction == .row else false;
 
+    // Detect anonymous block: wraps inline-level content that flows horizontally.
+    // All children (inline, inline-block, text) sit on one line when unconstrained,
+    // so the intrinsic width is the sum of all items, not the max.
+    const is_inline_flow = node.box_type == .anonymousBlock;
+
+    const should_sum = is_row_flex or is_inline_flow;
+
     // Check text runs — use their width directly (not position-dependent)
     // Text runs always use @max since they have absolute x positions
     for (node.text_runs.items) |run| {
@@ -46,7 +53,8 @@ pub fn measureIntrinsicWidth(node: *LayoutBox) f32 {
             false;
         if (is_out_of_flow) continue;
 
-        if (has_explicit_width or child.intrinsic_width > 0) {
+        const has_laid_out_width = child.box_type == .inlineBlockNode and child.dimensions.content.width > 0;
+        if (has_explicit_width or child.intrinsic_width > 0 or has_laid_out_width) {
             // This child has an explicit/intrinsic width — use its full box width
             // (content + padding + border) plus non-auto margins
             var child_width = child.dimensions.content.width +
@@ -57,7 +65,7 @@ pub fn measureIntrinsicWidth(node: *LayoutBox) f32 {
             const mr_auto = if (c_style) |cs| cs.margin_right.unit == .auto else false;
             if (!ml_auto) child_width += child.dimensions.margin.left;
             if (!mr_auto) child_width += child.dimensions.margin.right;
-            if (is_row_flex) {
+            if (should_sum) {
                 sum_width += child_width;
             } else {
                 max_width = @max(max_width, child_width);
@@ -74,7 +82,7 @@ pub fn measureIntrinsicWidth(node: *LayoutBox) f32 {
                 const mr_auto = if (c_style) |cs| cs.margin_right.unit == .auto else false;
                 if (!ml_auto) child_width += child.dimensions.margin.left;
                 if (!mr_auto) child_width += child.dimensions.margin.right;
-                if (is_row_flex) {
+                if (should_sum) {
                     sum_width += child_width;
                 } else {
                     max_width = @max(max_width, child_width);
@@ -83,7 +91,7 @@ pub fn measureIntrinsicWidth(node: *LayoutBox) f32 {
         }
     }
 
-    if (is_row_flex) {
+    if (should_sum) {
         return @max(max_width, sum_width);
     }
     return max_width;
