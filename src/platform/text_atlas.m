@@ -273,3 +273,20 @@ float measure_text_width(const char *text, int len, float font_size) {
 
   return (float)width;
 }
+
+float get_font_line_height_ratio(const char *family_name, float font_size, float font_weight) {
+    if (font_size <= 0) return 1.2f;
+    
+    NSString *family = family_name ? [NSString stringWithUTF8String:family_name] : @"Arial";
+    NSFont *font = [NSFont fontWithName:family size:font_size];
+    if (!font) font = [NSFont fontWithName:@"Arial" size:font_size];
+    if (!font) font = [NSFont systemFontOfSize:font_size];
+    
+    CTFontRef ct_font = (__bridge CTFontRef)font;
+    double ascent = CTFontGetAscent(ct_font);
+    double descent = CTFontGetDescent(ct_font);
+    double leading = CTFontGetLeading(ct_font);
+    double total = ascent + descent + leading;
+    
+    return (float)(total / font_size);
+}

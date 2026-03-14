@@ -2,6 +2,19 @@ const std = @import("std");
 const layout_box = @import("../layout/box.zig");
 const properties = @import("../css/properties.zig");
 const values = @import("../css/values.zig");
+const text_measure = @import("../layout/text_measure.zig");
+
+/// Resolve line-height ratio (multiplier) handling the -1.0 sentinel for CSS `normal`.
+fn resolveLineHeightRatio(style: *const properties.ComputedStyle) f32 {
+    if (style.line_height < 0) {
+        return text_measure.getLineHeightRatio(
+            style.font_family,
+            style.font_size.value,
+            style.font_weight,
+        );
+    }
+    return style.line_height;
+}
 
 pub const DisplayCommand = union(enum) {
     draw_rect: struct {
@@ -269,10 +282,21 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
 
             var c = sn.style.color;
             if (sn.style.opacity < 1.0) c.a = @intFromFloat(@as(f32, @floatFromInt(c.a)) * sn.style.opacity);
+            const text_x = switch (sn.style.text_align) {
+                .center => blk: {
+                    const tw = text_measure.measureTextWidth(val, sn.style.font_size.value, sn.style.font_weight);
+                    break :blk box.dimensions.content.x + @max(0, (box.dimensions.content.width - tw) / 2.0);
+                },
+                .right => blk: {
+                    const tw = text_measure.measureTextWidth(val, sn.style.font_size.value, sn.style.font_weight);
+                    break :blk box.dimensions.content.x + box.dimensions.content.width - tw - 4.0;
+                },
+                else => box.dimensions.content.x + 4.0,
+            };
             const rect = layout_box.Rect{
-                .x = box.dimensions.content.x + 4.0, // minor padding adjustment
+                .x = text_x,
                 .y = box.dimensions.content.y + 2.0,
-                .width = box.dimensions.content.width - 8.0,
+                .width = box.dimensions.content.width,
                 .height = box.dimensions.content.height - 4.0,
             };
 
@@ -332,7 +356,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                     .draw_rect = .{
                         .rect = .{
                             .x = run.x,
-                            .y = run.y + (sn.style.line_height * font_size) - 2.0,
+                            .y = run.y + (resolveLineHeightRatio(&sn.style) * font_size) - 2.0,
                             .width = run.width,
                             .height = 1.0,
                         },

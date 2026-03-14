@@ -420,3 +420,58 @@ test "border generates draw_rect commands with border color" {
     }
     try std.testing.expect(found_top_border);
 }
+
+test "input button text-align center positions text centrally" {
+    const allocator = std.testing.allocator;
+
+    // Create an input element node with a value attribute
+    var node = dom.Node.init(allocator, .element);
+    node.tag = .input;
+    try node.setAttribute("value", "Search");
+    defer {
+        // Free the duped attribute strings
+        for (node.attributes.items) |attr| {
+            allocator.free(attr.name);
+            allocator.free(attr.value);
+        }
+        node.attributes.deinit(allocator);
+    }
+
+    const style = properties.ComputedStyle{
+        .text_align = .center,
+        .font_size = .{ .value = 16.0, .unit = .px },
+    };
+
+    const sn = resolver.StyledNode{
+        .node = &node,
+        .style = style,
+        .children = &.{},
+    };
+
+    var root = layout_box.LayoutBox.init(.blockNode, &sn);
+    root.dimensions.content = .{ .x = 0, .y = 0, .width = 200, .height = 30 };
+    defer root.deinit(allocator);
+
+    var dl = try display_list.buildDisplayList(allocator, &root, null);
+    defer dl.deinit();
+
+    // Find the draw_text command for the input value
+    var found_text = false;
+    for (dl.commands.items) |cmd| {
+        switch (cmd) {
+            .draw_text => |dt| {
+                if (std.mem.eql(u8, dt.text, "Search")) {
+                    found_text = true;
+                    // "Search" = 6 chars, char_width = 16 * 0.6 = 9.6, tw = 57.6
+                    // centered x = 0 + (200 - 57.6) / 2 = 71.2
+                    // With left-align, x would be 0 + 4.0 = 4.0
+                    // So centered x must be significantly greater than 4.0
+                    try std.testing.expect(dt.rect.x > 50.0);
+                    try std.testing.expect(dt.rect.x < 100.0);
+                }
+            },
+            else => {},
+        }
+    }
+    try std.testing.expect(found_text);
+}

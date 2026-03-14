@@ -21,6 +21,7 @@ pub const SelectorPart = struct {
     is_first_of_type: bool = false,
     is_last_of_type: bool = false,
     has_pseudo_element: bool = false,
+    unsupported_pseudo_classes: []const []const u8 = &.{},
     not_selectors: []const SelectorPart = &.{},
     any_selectors: []const SelectorPart = &.{},
 };
@@ -182,6 +183,9 @@ pub const Selector = struct {
 
         // Pseudo-element selectors (::before, ::after, etc.) never match real elements
         if (part.has_pseudo_element) return false;
+
+        // Unhandled pseudo-classes (like :hover, :focus) should not match normally
+        if (part.unsupported_pseudo_classes.len > 0) return false;
 
         if (part.is_root) {
             if (node.tag != .html) return false;
@@ -498,6 +502,11 @@ fn parsePseudo(
         part.is_first_of_type = true;
     } else if (std.mem.eql(u8, name, "last-of-type")) {
         part.is_last_of_type = true;
+    } else {
+        var new_unsupported = std.ArrayListUnmanaged([]const u8){};
+        new_unsupported.appendSlice(allocator, part.unsupported_pseudo_classes) catch {};
+        new_unsupported.append(allocator, name) catch {};
+        part.unsupported_pseudo_classes = new_unsupported.toOwnedSlice(allocator) catch part.unsupported_pseudo_classes;
     }
     spec.b += 1;
 }

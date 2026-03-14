@@ -115,6 +115,7 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
     });
 
     try writer.print(",\"style\":{{", .{});
+
     const display_str = @tagName(sn.style.display);
     try writer.print("\"display\":\"{s}\"", .{display_str});
     // Font size
@@ -145,6 +146,7 @@ fn collectNodesJson(allocator: std.mem.Allocator, box: *const layout.LayoutBox, 
 
 pub fn main() !void {
     text_measure.setMeasureFn(coreTextMeasure);
+    text_measure.setLineHeightFn(coreTextLineHeight);
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -239,4 +241,12 @@ fn countNodes(box: *const layout.LayoutBox, count: *usize, zero_count: *usize) v
 fn coreTextMeasure(text: []const u8, font_size: f32, _: f32) f32 {
     if (text.len == 0) return 0;
     return c_text.measure_text_width(text.ptr, @intCast(text.len), font_size);
+}
+
+fn coreTextLineHeight(font_family: []const u8, font_size: f32, font_weight: f32) f32 {
+    var buf: [256]u8 = undefined;
+    const len = @min(font_family.len, 255);
+    @memcpy(buf[0..len], font_family[0..len]);
+    buf[len] = 0;
+    return c_text.get_font_line_height_ratio(&buf, font_size, font_weight);
 }

@@ -69,7 +69,7 @@ pub const ComputedStyle = struct {
     font_weight: f32 = 400,
     font_style: FontStyle = .normal,
     text_align: TextAlign = .left,
-    line_height: f32 = 1.2,
+    line_height: f32 = -1.0,
     text_decoration: TextDecoration = .none,
     list_style_type: ListStyleType = .disc,
     white_space: WhiteSpace = .normal,
@@ -349,7 +349,7 @@ pub const ComputedStyle = struct {
             if (std.mem.eql(u8, val, "end")) self.text_align = .right;
         } else if (std.mem.eql(u8, prop, "line-height")) {
             if (std.mem.eql(u8, val, "normal")) {
-                self.line_height = 1.2;
+                self.line_height = -1.0;
             } else if (values_mod.parseLength(val)) |l| {
                 switch (l.unit) {
                     .px => {

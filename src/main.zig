@@ -14,6 +14,7 @@ const jsc = @cImport({
     @cInclude("jsc_bridge.h");
     @cInclude("net_bridge.h");
     @cInclude("image_bridge.h");
+    @cInclude("text_atlas.h");
 });
 
 const default_html =
@@ -188,6 +189,14 @@ fn atlasMeasure(text_str: []const u8, font_size: f32, font_weight: f32) f32 {
     return @as(f32, @floatFromInt(text_str.len)) * 8.0;
 }
 
+fn coreTextLineHeight(font_family: []const u8, font_size: f32, font_weight: f32) f32 {
+    var buf: [256]u8 = undefined;
+    const len = @min(font_family.len, 255);
+    @memcpy(buf[0..len], font_family[0..len]);
+    buf[len] = 0;
+    return jsc.get_font_line_height_ratio(&buf, font_size, font_weight);
+}
+
 fn logJsException(js_ctx: *js.context.JsContext, source_url: []const u8, script_body: []const u8) void {
     const ex = jsc.jsc_get_exception(js_ctx.ctx);
     var preview: [161]u8 = undefined;
@@ -221,15 +230,35 @@ fn logJsException(js_ctx: *js.context.JsContext, source_url: []const u8, script_
 }
 
 const net_bridge = net.fetch.NetBridge{
-    .net_fetch_start = @ptrCast(&struct { fn start(url_arg: [*:0]const u8, method: [*:0]const u8, h1: ?[*]const ?[*:0]const u8, c1: c_int, body: ?[*]const u8, l: c_int) callconv(.c) net.fetch.FetchHandle { return jsc.net_fetch_start(url_arg, method, @ptrCast(@constCast(h1)), c1, body, l); } }.start),
+    .net_fetch_start = @ptrCast(&struct {
+        fn start(url_arg: [*:0]const u8, method: [*:0]const u8, h1: ?[*]const ?[*:0]const u8, c1: c_int, body: ?[*]const u8, l: c_int) callconv(.c) net.fetch.FetchHandle {
+            return jsc.net_fetch_start(url_arg, method, @ptrCast(@constCast(h1)), c1, body, l);
+        }
+    }.start),
     .net_fetch_poll = @ptrCast(&jsc.net_fetch_poll),
     .net_fetch_get_status_code = @ptrCast(&jsc.net_fetch_get_status_code),
-    .net_fetch_get_body = @ptrCast(&struct { fn body(h: net.fetch.FetchHandle, len: *c_int) callconv(.c) ?[*]const u8 { return jsc.net_fetch_get_body(h, len); } }.body),
+    .net_fetch_get_body = @ptrCast(&struct {
+        fn body(h: net.fetch.FetchHandle, len: *c_int) callconv(.c) ?[*]const u8 {
+            return jsc.net_fetch_get_body(h, len);
+        }
+    }.body),
     .net_fetch_free = @ptrCast(&jsc.net_fetch_free),
-    .net_fetch_get_header = @ptrCast(&struct { fn f(h: net.fetch.FetchHandle, n: [*:0]const u8, o: [*]u8, m: c_int) callconv(.c) c_int { return jsc.net_fetch_get_header(h, n, o, m); } }.f),
+    .net_fetch_get_header = @ptrCast(&struct {
+        fn f(h: net.fetch.FetchHandle, n: [*:0]const u8, o: [*]u8, m: c_int) callconv(.c) c_int {
+            return jsc.net_fetch_get_header(h, n, o, m);
+        }
+    }.f),
     .net_fetch_get_header_count = @ptrCast(&jsc.net_fetch_get_header_count),
-    .net_fetch_get_header_at = @ptrCast(&struct { fn f(h: net.fetch.FetchHandle, i: c_int, on: [*]u8, nm: c_int, ov: [*]u8, vm: c_int) callconv(.c) c_int { return jsc.net_fetch_get_header_at(h, i, on, nm, ov, vm); } }.f),
-    .net_fetch_get_final_url = @ptrCast(&struct { fn f(h: net.fetch.FetchHandle, out: [*]u8, max_len: c_int) callconv(.c) c_int { return jsc.net_fetch_get_final_url(h, out, max_len); } }.f),
+    .net_fetch_get_header_at = @ptrCast(&struct {
+        fn f(h: net.fetch.FetchHandle, i: c_int, on: [*]u8, nm: c_int, ov: [*]u8, vm: c_int) callconv(.c) c_int {
+            return jsc.net_fetch_get_header_at(h, i, on, nm, ov, vm);
+        }
+    }.f),
+    .net_fetch_get_final_url = @ptrCast(&struct {
+        fn f(h: net.fetch.FetchHandle, out: [*]u8, max_len: c_int) callconv(.c) c_int {
+            return jsc.net_fetch_get_final_url(h, out, max_len);
+        }
+    }.f),
 };
 
 pub fn main() !void {
@@ -250,7 +279,7 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    
+
     var fetch_client = net.fetch.FetchClient.init(allocator, &net_bridge);
     var base_url = net.url.Url.parse("http://localhost/") catch unreachable;
     var base_url_storage: ?[]u8 = null;
@@ -263,7 +292,7 @@ pub fn main() !void {
             if (std.mem.startsWith(u8, arg_path, "http://") or std.mem.startsWith(u8, arg_path, "https://")) {
                 std.debug.print("Fetching URL: {s}\n", .{arg_path});
                 base_url = net.url.Url.parse(arg_path) catch base_url;
-                
+
                 var resp = fetch_client.fetch(.{ .url = arg_path }) catch |err| {
                     std.debug.print("Failed to fetch page: {}\n", .{err});
                     break :blk @as([]const u8, default_html);
@@ -276,7 +305,7 @@ pub fn main() !void {
                 }
                 if (resp.headers.len > 0) allocator.free(resp.headers);
                 resp.headers = &[_]net.types.HttpHeader{};
-                
+
                 if (resp.status_code == 200) {
                     if (resp.final_url) |final_url| {
                         const owned = allocator.dupe(u8, final_url) catch null;
@@ -426,6 +455,7 @@ pub fn main() !void {
 
     global_renderer = &my_renderer;
     layout.text_measure.setMeasureFn(&atlasMeasure);
+    layout.text_measure.setLineHeightFn(&coreTextLineHeight);
     const layout_root = try layout.buildLayoutTree(allocator, styled_root);
     const lctx = layout.LayoutContext{
         .allocator = allocator,

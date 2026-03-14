@@ -45,6 +45,9 @@ void batch_text_quads(void *frame_context, void *device, void *texture,
 // Measure text width using CoreText (no Metal device required)
 float measure_text_width(const char *text, int len, float font_size);
 
+// Get the normal line-height ratio (ascent + descent + leading) / font_size for a font
+float get_font_line_height_ratio(const char *family_name, float font_size, float font_weight);
+
 #ifdef __cplusplus
 }
 #endif

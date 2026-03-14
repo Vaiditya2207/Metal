@@ -20,6 +20,14 @@ fn coreTextMeasure(text: []const u8, font_size: f32, _: f32) f32 {
     return c.measure_text_width(text.ptr, @intCast(text.len), font_size);
 }
 
+fn coreTextLineHeight(font_family: []const u8, font_size: f32, font_weight: f32) f32 {
+    var buf: [256]u8 = undefined;
+    const len = @min(font_family.len, 255);
+    @memcpy(buf[0..len], font_family[0..len]);
+    buf[len] = 0;
+    return c.get_font_line_height_ratio(&buf, font_size, font_weight);
+}
+
 fn parseFloatArg(s: []const u8) f32 {
     return std.fmt.parseFloat(f32, s) catch 1200.0;
 }
@@ -33,6 +41,7 @@ fn usage() void {
 pub fn main() !void {
     // Set text measurement to use CoreText
     text_measure.setMeasureFn(coreTextMeasure);
+    text_measure.setLineHeightFn(coreTextLineHeight);
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -93,6 +102,16 @@ pub fn main() !void {
 
     std.debug.print("[screenshot] Display list: {d} commands\n", .{dl.commands.items.len});
 
+    for (dl.commands.items, 0..) |cmd, i| {
+        switch (cmd) {
+            .draw_rect => |r| std.debug.print("  [{d}] draw_rect: x={d} y={d} w={d} h={d} color=rgb({d},{d},{d},{d})\n", .{ i, r.rect.x, r.rect.y, r.rect.width, r.rect.height, r.color.r, r.color.g, r.color.b, r.color.a }),
+            .draw_text => |t| std.debug.print("  [{d}] draw_text: '{s}' at x={d} y={d} color=rgb({d},{d},{d},{d})\n", .{ i, t.text, t.rect.x, t.rect.y, t.color.r, t.color.g, t.color.b, t.color.a }),
+            .draw_image => |im| std.debug.print("  [{d}] draw_image: x={d} y={d} w={d} h={d}\n", .{ i, im.rect.x, im.rect.y, im.rect.width, im.rect.height }),
+            .draw_svg => |s| std.debug.print("  [{d}] draw_svg: x={d} y={d} w={d} h={d}\n", .{ i, s.rect.x, s.rect.y, s.rect.width, s.rect.height }),
+            else => std.debug.print("  [{d}] {s}\n", .{ i, @tagName(cmd) }),
+        }
+    }
+
     // --- GPU SETUP ---
     const device = MTLCreateSystemDefaultDevice() orelse {
         std.debug.print("ERROR: No Metal device available\n", .{});
@@ -133,6 +152,7 @@ pub fn main() !void {
     };
 
     // Build compositor
+    var svg_cache: std.StringArrayHashMapUnmanaged(*anyopaque) = .{};
     const comp = compositor_mod.Compositor{
         .rect_pipeline = rect_pipeline,
         .text_renderer = &text_renderer,
@@ -140,7 +160,7 @@ pub fn main() !void {
         .device = device,
         .command_queue = queue,
         .allocator = allocator,
-        .svg_cache = null,
+        .svg_cache = &svg_cache,
     };
 
     // Render via the offscreen path (no toolbar offset, no view)

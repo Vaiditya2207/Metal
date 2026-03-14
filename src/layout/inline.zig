@@ -5,9 +5,39 @@ const resolver = @import("../css/resolver.zig");
 const properties = @import("../css/properties.zig");
 const block = @import("block.zig");
 
+/// Resolve the computed line-height (in pixels) for a given style.
+/// When line_height is the sentinel -1.0 (CSS `normal`), we query the
+/// platform font metrics via text_measure.getLineHeightRatio.
+fn resolveLineHeight(style: *const properties.ComputedStyle) f32 {
+    if (style.line_height < 0) {
+        return text_measure.getLineHeightRatio(
+            style.font_family,
+            style.font_size.value,
+            style.font_weight,
+        ) * style.font_size.value;
+    }
+    return style.line_height * style.font_size.value;
+}
+
+/// Resolve the line-height ratio for a given font (returns the multiplier, not pixels).
+fn resolveLineHeightRatio(style: *const properties.ComputedStyle) f32 {
+    if (style.line_height < 0) {
+        return text_measure.getLineHeightRatio(
+            style.font_family,
+            style.font_size.value,
+            style.font_weight,
+        );
+    }
+    return style.line_height;
+}
+
 fn shiftBox(box: *box_mod.LayoutBox, dx: f32, dy: f32) void {
     box.dimensions.content.x += dx;
     box.dimensions.content.y += dy;
+    for (box.text_runs.items) |*run| {
+        run.x += dx;
+        run.y += dy;
+    }
     for (box.children.items) |child| {
         shiftBox(child, dx, dy);
     }
@@ -41,7 +71,7 @@ fn collectTextSegments(
                 .layout_box = box,
                 .font_size = sn.style.font_size.value,
                 .font_weight = sn.style.font_weight,
-                .line_height = @max(box.intrinsic_height, sn.style.line_height * sn.style.font_size.value),
+                .line_height = @max(box.intrinsic_height, resolveLineHeight(&sn.style)),
                 .white_space = sn.style.white_space,
                 .is_inline_block = true,
             }) catch return;
@@ -60,7 +90,7 @@ fn collectTextSegments(
                         .layout_box = box,
                         .font_size = sn.style.font_size.value,
                         .font_weight = sn.style.font_weight,
-                        .line_height = sn.style.line_height * sn.style.font_size.value,
+                        .line_height = resolveLineHeight(&sn.style),
                         .white_space = sn.style.white_space,
                         .is_inline_block = false,
                     }) catch return;
@@ -77,7 +107,7 @@ fn collectTextSegments(
                     .layout_box = box,
                     .font_size = sn.style.font_size.value,
                     .font_weight = sn.style.font_weight,
-                    .line_height = sn.style.line_height * sn.style.font_size.value,
+                    .line_height = resolveLineHeight(&sn.style),
                     .white_space = .pre,
                     .is_inline_block = false,
                 }) catch return;
@@ -132,7 +162,12 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
 
     var cursor_x: f32 = 0;
     var cursor_y: f32 = 0;
-    var current_line_height: f32 = parent_font_size * 1.2;
+    // Resolve initial line-height from the parent's style if available,
+    // otherwise fall back to font metrics for the parent font size.
+    var current_line_height: f32 = if (layout_box.parent) |p|
+        if (p.styled_node) |sn| resolveLineHeight(&sn.style) else parent_font_size * text_measure.getLineHeightRatio("sans-serif", parent_font_size, 400)
+    else
+        parent_font_size * text_measure.getLineHeightRatio("sans-serif", parent_font_size, 400);
 
     for (layout_box.children.items) |child| {
         resetChildDimensions(child);
