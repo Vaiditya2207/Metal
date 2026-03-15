@@ -177,7 +177,8 @@ test "FetchClient extracts response headers" {
     defer resp.deinit(testing.allocator);
 
     try testing.expectEqual(@as(usize, 2), resp.headers.len);
-    const ct = resp.getHeader("Content-Type");
-    try testing.expect(ct != null);
-    try testing.expectEqualStrings("text/html", ct.?);
+    try testing.expectEqualStrings("Content-Type", resp.headers[0].name);
+    try testing.expectEqualStrings("text/html", resp.headers[0].value);
+    try testing.expectEqualStrings("X-Custom", resp.headers[1].name);
+    try testing.expectEqualStrings("hello", resp.headers[1].value);
 }
