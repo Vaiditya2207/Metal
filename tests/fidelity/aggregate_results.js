@@ -5,42 +5,51 @@ const { execSync } = require('child_process');
 
 const RESULTS_DIR = path.join(__dirname, 'results');
 const GOOGLE_TARGET = 'https://www.google.com';
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
-function runCommand(cmd) {
-    console.log(`Running: ${cmd}`);
+function runCommand(cmd, cwd = __dirname) {
+    console.log(`Running: ${cmd} in ${cwd}`);
     try {
-        return execSync(cmd, { stdio: 'pipe' }).toString();
+        return {
+            output: execSync(cmd, { cwd, stdio: 'pipe' }).toString(),
+            success: true
+        };
     } catch (e) {
-        return e.stdout?.toString() || e.stderr?.toString() || e.message;
+        return {
+            output: e.stdout?.toString() || e.stderr?.toString() || e.message,
+            success: false
+        };
     }
 }
 
 async function main() {
-    console.log('--- Fidelity Benchmarking ---');
+    console.log('=== Metal CI Comprehensive Report ===');
 
-    // 1. Run DOM Fidelity (all + Google)
+    // 1. Run Unit Tests
+    console.log('Running Zig Engine Unit Tests...');
+    const unitResult = runCommand('zig build test', PROJECT_ROOT);
+    const unitStatus = unitResult.success ? "✅ PASSED" : "❌ FAILED";
+
+    // 2. Run DOM Fidelity (all + Google)
     console.log('Running all DOM Fidelity tests...');
-    const domOutput = runCommand('./run_test.sh --all');
+    const domOutput = runCommand('./run_test.sh --all').output;
     console.log('Running DOM Fidelity for Google...');
-    const domGoogleOutput = runCommand(`./run_test.sh ${GOOGLE_TARGET}`);
+    const domGoogleOutput = runCommand(`./run_test.sh ${GOOGLE_TARGET}`).output;
     
-    // 2. Run Visual Fidelity (all + Google)
+    // 3. Run Visual Fidelity (all + Google)
     console.log('Running all Visual Fidelity tests...');
-    const visualOutput = runCommand('./run_visual_test.sh --all');
+    const visualOutput = runCommand('./run_visual_test.sh --all').output;
     console.log('Running Visual Fidelity for Google...');
-    const visualGoogleOutput = runCommand(`./run_visual_test.sh ${GOOGLE_TARGET}`);
+    const visualGoogleOutput = runCommand(`./run_visual_test.sh ${GOOGLE_TARGET}`).output;
 
-    // 3. Extract results for Google
+    // 4. Extract results for Google
     const domGoogleMatch = domGoogleOutput.match(/Accuracy: ([\d.]+)%/);
     const domGoogleAccuracy = domGoogleMatch ? parseFloat(domGoogleMatch[1]) : 0;
 
     const visualGoogleMatch = visualGoogleOutput.match(/Match: ([\d.]+)%/);
     const visualGoogleAccuracy = visualGoogleMatch ? parseFloat(visualGoogleMatch[1]) : 0;
 
-    // 4. Extract overview table from visualOutput
-    // It looks like:
-    //   Page                      Match
-    //   01_simple                 97.74%
+    // 5. Extract overview table from visualOutput
     const visualTable = [];
     const tableLines = visualOutput.split('\n');
     let inTable = false;
@@ -55,28 +64,37 @@ async function main() {
         }
     }
 
-    // 5. Generate PR Comment Markdown
-    let summaryMd = `## 📊 Fidelity Benchmark Results\n\n`;
+    // 6. Generate PR Comment Markdown
+    let summaryMd = `## 🚀 Metal CI: Unified Report\n\n`;
     
-    summaryMd += `### 🌐 Google.com (Gatekeeper)\n`;
-    const status = domGoogleAccuracy >= 85 ? "✅ PASS" : "❌ FAIL (Under 85%)";
-    summaryMd += `- **DOM Accuracy:** ${domGoogleAccuracy}%\n`;
-    summaryMd += `- **Visual Match:** ${visualGoogleAccuracy}%\n`;
-    summaryMd += `- **Status:** ${status}\n\n`;
+    summaryMd += `### 🧠 Logic & Engine\n`;
+    summaryMd += `- **Unit Tests:** ${unitStatus}\n\n`;
 
-    summaryMd += `### 📄 Test Pages Overview\n\n`;
+    summaryMd += `### 🌐 Google.com Benchmark (Gatekeeper)\n`;
+    const googleStatus = domGoogleAccuracy >= 85 ? "✅ PASS" : "❌ FAIL (Under 85%)";
+    summaryMd += `| Metric | Accuracy | Status |\n`;
+    summaryMd += `| :--- | :---: | :---: |\n`;
+    summaryMd += `| DOM Fidelity | ${domGoogleAccuracy}% | ${googleStatus} |\n`;
+    summaryMd += `| Visual Match | ${visualGoogleAccuracy}% | - |\n\n`;
+
+    summaryMd += `### 📄 Visual Fidelity Suite\n\n`;
     summaryMd += `| Page | Visual Match |\n`;
     summaryMd += `| :--- | :---: |\n`;
     for (const row of visualTable) {
         summaryMd += `| ${row.name} | ${row.match} |\n`;
     }
 
-    summaryMd += `\n*Note: High DPI (Retina) scaling is applied to Metal screenshots before comparison.*\n`;
+    summaryMd += `\n*Artifacts containing full logs and comparison screenshots are available in the Actions tab.*\n`;
     
     fs.mkdirSync(RESULTS_DIR, { recursive: true });
     fs.writeFileSync(path.join(RESULTS_DIR, 'pr_comment.md'), summaryMd);
-    console.log('PR comment summary written to results/pr_comment.md');
+    console.log('Detailed PR comment summary written to results/pr_comment.md');
 
+    // Final Gatekeeper Logic
+    if (!unitResult.success) {
+        console.error('ERROR: Unit tests failed.');
+        process.exit(1);
+    }
     if (domGoogleAccuracy < 85) {
         console.error(`ERROR: Google.com DOM Accuracy (${domGoogleAccuracy}%) is below 85%`);
         process.exit(1);
