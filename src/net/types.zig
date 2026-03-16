@@ -47,13 +47,6 @@ pub const HttpResponse = struct {
         if (self.final_url) |u| allocator.free(u);
     }
 
-    /// Get a response header value by name (case-insensitive).
-    pub fn getHeader(self: *const HttpResponse, name: []const u8) ?[]const u8 {
-        for (self.headers) |hdr| {
-            if (std.ascii.eqlIgnoreCase(hdr.name, name)) return hdr.value;
-        }
-        return null;
-    }
 };
 
 /// Errors that can occur during a fetch operation.
