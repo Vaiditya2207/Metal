@@ -69,7 +69,7 @@ test "Url.format http standard port" {
         .host = "example.com",
         .path = "/test",
     };
-    const str = try u.format(testing.allocator);
+    const str = try u.toString(testing.allocator);
     defer testing.allocator.free(str);
     try testing.expectEqualStrings("http://example.com/test", str);
 }
@@ -82,7 +82,7 @@ test "Url.format https custom port with query" {
         .path = "/test",
         .query = "a=b",
     };
-    const str = try u.format(testing.allocator);
+    const str = try u.toString(testing.allocator);
     defer testing.allocator.free(str);
     try testing.expectEqualStrings("https://example.com:8443/test?a=b", str);
 }

@@ -12,6 +12,10 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
