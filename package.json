@@ -8,7 +8,10 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "zig build test",
+    "test:fidelity": "cd tests/fidelity && npm run dom",
+    "test:visual": "cd tests/fidelity && npm run visual",
+    "test:all": "zig build test && cd tests/fidelity && npm run dom"
   },
   "repository": {
     "type": "git",

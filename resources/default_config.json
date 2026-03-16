@@ -18,5 +18,50 @@
   "renderer": {
     "clear_color": [1.0, 1.0, 1.0, 1.0],
     "target_fps": 120
+  },
+  "ui": {
+    "toolbar": {
+      "height": 52.0,
+      "padding_x": 12.0,
+      "padding_y": 8.0,
+      "border_height": 1.0,
+      "button_size": 28.0,
+      "button_gap": 8.0,
+      "address_height": 32.0,
+      "address_gap": 10.0,
+      "address_padding_x": 10.0,
+      "address_border_width": 1.0,
+      "url_text_size": 15.0,
+      "title_text_size": 12.0,
+      "title_area_width": 220.0,
+      "favicon_size": 16.0,
+      "favicon_gap": 6.0,
+      "loading_bar_height": 2.0,
+      "loading_bar_offset": 4.0,
+      "loading_bar_width_ratio": 0.3
+    },
+    "scrollbar": {
+      "width": 10.0,
+      "thumb_inset": 2.0,
+      "min_thumb_height": 20.0
+    },
+    "colors": {
+      "toolbar_bg": [0.97, 0.97, 0.98, 1.0],
+      "toolbar_border": [0.83, 0.83, 0.85, 1.0],
+      "address_bg": [1.0, 1.0, 1.0, 1.0],
+      "address_border": [0.80, 0.80, 0.83, 1.0],
+      "address_focus_border": [0.22, 0.52, 0.90, 1.0],
+      "button_bg": [0.92, 0.92, 0.94, 1.0],
+      "button_hover_bg": [0.84, 0.84, 0.86, 1.0],
+      "button_disabled_bg": [0.94, 0.94, 0.96, 1.0],
+      "button_icon": [0.18, 0.18, 0.20, 1.0],
+      "button_icon_disabled": [0.60, 0.60, 0.62, 1.0],
+      "url_text": [0.12, 0.12, 0.13, 1.0],
+      "url_placeholder": [0.50, 0.50, 0.52, 1.0],
+      "title_text": [0.45, 0.45, 0.47, 1.0],
+      "loading_bar": [0.00, 0.55, 0.85, 1.0],
+      "scrollbar_track": [0.94, 0.94, 0.95, 0.90],
+      "scrollbar_thumb": [0.55, 0.55, 0.57, 0.90]
+    }
   }
 }

@@ -31,7 +31,10 @@ async function chromeCapture(url) {
     console.log(`\n${BOLD}[1/4] Chrome Reference Capture${RST}`);
     console.log(`  URL: ${url}`);
 
-    const browser = await puppeteer.launch({ headless: 'new' });
+    const browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
     const page = await browser.newPage();
     await page.setViewport({ ...VIEWPORT, deviceScaleFactor: 1 });
 

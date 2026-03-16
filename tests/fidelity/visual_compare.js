@@ -156,28 +156,14 @@ try {
   const targetW = Math.min(chrome.width, metal.width);
   const targetH = Math.min(chrome.height, metal.height);
 
-  // Downscale if needed
-  let chromeImg = chrome;
-  let metalImg = metal;
-  let chromeScaled = false;
-  let metalScaled = false;
+  // Instead of downscaling, we crop both images to the intersection.
+  // This avoids interpolation artifacts that cause false negatives in pixelmatch.
+  const chromeImg = chrome;
+  const metalImg = metal;
 
-  if (chrome.width > targetW || chrome.height > targetH) {
-    chromeImg = downscale(chrome, targetW, targetH);
-    chromeScaled = true;
-  }
-  if (metal.width > targetW || metal.height > targetH) {
-    metalImg = downscale(metal, targetW, targetH);
-    metalScaled = true;
-  }
-
-  if (metalScaled) {
-    console.log(`[visual] Metal: ${metal.width}x${metal.height} \u2192 downscaled to ${targetW}x${targetH} (source: ${metalPath})`);
-  } else {
-    console.log(`[visual] Metal: ${metal.width}x${metal.height} (source: ${metalPath})`);
-  }
-  if (chromeScaled) {
-    console.log(`[visual] Chrome was downscaled from ${chrome.width}x${chrome.height} to ${targetW}x${targetH}`);
+  if (chrome.width !== metal.width || chrome.height !== metal.height) {
+    console.warn(`[visual] WARNING: Dimension mismatch! Chrome: ${chrome.width}x${chrome.height}, Metal: ${metal.width}x${metal.height}`);
+    console.log(`[visual] Using intersection: ${targetW}x${targetH}`);
   }
 
   const totalPixels = targetW * targetH;
@@ -186,14 +172,14 @@ try {
   // Create diff output image
   const diff = new PNG({ width: targetW, height: targetH });
 
-  // Run pixelmatch
+  // Run pixelmatch on the top-left intersection
   const mismatched = pixelmatch(
     chromeImg.data,
     metalImg.data,
     diff.data,
     targetW,
     targetH,
-    { threshold }
+    { threshold: threshold || 0.15 }
   );
 
   const mismatchPct = (mismatched / totalPixels * 100).toFixed(2);

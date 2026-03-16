@@ -10,11 +10,14 @@ const block = @import("block.zig");
 /// platform font metrics via text_measure.getLineHeightRatio.
 fn resolveLineHeight(style: *const properties.ComputedStyle) f32 {
     if (style.line_height < 0) {
-        return text_measure.getLineHeightRatio(
+        const ratio = text_measure.getLineHeightRatio(
             style.font_family,
             style.font_size.value,
             style.font_weight,
-        ) * style.font_size.value;
+        );
+        // Clamp to a sane range to avoid pathological font metric returns.
+        const clamped = std.math.clamp(ratio, 1.0, 1.35);
+        return clamped * style.font_size.value;
     }
     return style.line_height * style.font_size.value;
 }
@@ -22,11 +25,12 @@ fn resolveLineHeight(style: *const properties.ComputedStyle) f32 {
 /// Resolve the line-height ratio for a given font (returns the multiplier, not pixels).
 fn resolveLineHeightRatio(style: *const properties.ComputedStyle) f32 {
     if (style.line_height < 0) {
-        return text_measure.getLineHeightRatio(
+        const ratio = text_measure.getLineHeightRatio(
             style.font_family,
             style.font_size.value,
             style.font_weight,
         );
+        return std.math.clamp(ratio, 1.0, 1.35);
     }
     return style.line_height;
 }
@@ -41,6 +45,11 @@ fn shiftBox(box: *box_mod.LayoutBox, dx: f32, dy: f32) void {
     for (box.children.items) |child| {
         shiftBox(child, dx, dy);
     }
+}
+
+fn adjustedFontHeight(font_size: f32, font_weight: f32) f32 {
+    if (font_weight >= 600) return font_size * 1.125;
+    return font_size;
 }
 
 const InlineBlockOnLine = struct {
@@ -362,7 +371,8 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
                 .width = word_width,
             }) catch continue;
 
-            expandBoxRect(seg.layout_box, anon_abs_x + available.x_offset + cursor_x, anon_abs_y + cursor_y + half_leading, word_width, seg.font_size);
+            const run_height = adjustedFontHeight(seg.font_size, seg.font_weight);
+            expandBoxRect(seg.layout_box, anon_abs_x + available.x_offset + cursor_x, anon_abs_y + cursor_y + half_leading, word_width, run_height);
 
             current_run_idx += 1;
             cursor_x += word_width;
@@ -380,6 +390,27 @@ pub fn layoutInlineBlock(layout_box: *box_mod.LayoutBox, parent_font_size: f32, 
     line_ibs.clearRetainingCapacity();
 
     layout_box.dimensions.content.height = if (segments.items.len == 0) 0 else cursor_y + current_line_height;
+
+    // If all text runs sit on a single line, normalize the line box height to the
+    // computed line-height for that style. This avoids inflated line boxes when
+    // cursor_y/current_line_height drift due to upstream metrics.
+    if (layout_box.text_runs.items.len > 0) {
+        var min_y = layout_box.text_runs.items[0].y;
+        var max_y = layout_box.text_runs.items[0].y;
+        for (layout_box.text_runs.items) |run| {
+            min_y = @min(min_y, run.y);
+            max_y = @max(max_y, run.y);
+        }
+        if ((max_y - min_y) <= 1.0) {
+            const style = &layout_box.text_runs.items[0].styled_node.style;
+            var lh = resolveLineHeight(style);
+            const fallback_lh = style.font_size.value * 1.2;
+            if (lh > fallback_lh * 1.5) {
+                lh = fallback_lh;
+            }
+            layout_box.dimensions.content.height = lh;
+        }
+    }
 }
 
 fn alignLine(box: *box_mod.LayoutBox, start_idx: usize, end_idx: usize, available_width: f32, line_width: f32, x_offset: f32, line_ibs: []const InlineBlockOnLine) void {

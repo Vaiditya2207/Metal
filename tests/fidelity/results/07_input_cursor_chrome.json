@@ -1,0 +1,326 @@
+{
+  "tree": {
+    "type": "element",
+    "tag": "html",
+    "className": "",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 1200,
+      "height": 284
+    },
+    "style": {
+      "display": "block",
+      "color": "rgb(0, 0, 0)",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "fontStyle": "normal",
+      "backgroundColor": "rgba(0, 0, 0, 0)",
+      "margin": "0px",
+      "padding": "0px",
+      "textAlign": "start",
+      "lineHeight": "normal",
+      "textDecoration": "none",
+      "visibility": "visible",
+      "overflow": "visible",
+      "position": "static"
+    },
+    "children": [
+      {
+        "type": "element",
+        "tag": "head",
+        "className": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "style": {
+          "display": "none",
+          "color": "rgb(0, 0, 0)",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "fontStyle": "normal",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "margin": "0px",
+          "padding": "0px",
+          "textAlign": "start",
+          "lineHeight": "normal",
+          "textDecoration": "none",
+          "visibility": "visible",
+          "overflow": "visible",
+          "position": "static"
+        },
+        "children": []
+      },
+      {
+        "type": "element",
+        "tag": "body",
+        "className": "",
+        "rect": {
+          "x": 8,
+          "y": 8,
+          "width": 1184,
+          "height": 268
+        },
+        "style": {
+          "display": "block",
+          "color": "rgb(0, 0, 0)",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "fontStyle": "normal",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "margin": "8px",
+          "padding": "0px",
+          "textAlign": "start",
+          "lineHeight": "normal",
+          "textDecoration": "none",
+          "visibility": "visible",
+          "overflow": "visible",
+          "position": "static"
+        },
+        "children": [
+          {
+            "type": "element",
+            "tag": "div",
+            "className": "",
+            "rect": {
+              "x": 8,
+              "y": 8,
+              "width": 1184,
+              "height": 67
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(0, 0, 0)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "element",
+                "tag": "input",
+                "className": "",
+                "rect": {
+                  "x": 18,
+                  "y": 18,
+                  "width": 324,
+                  "height": 47
+                },
+                "style": {
+                  "display": "inline-block",
+                  "color": "rgb(0, 0, 0)",
+                  "fontSize": "20px",
+                  "fontWeight": "400",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgb(255, 255, 255)",
+                  "margin": "10px",
+                  "padding": "10px",
+                  "textAlign": "start",
+                  "lineHeight": "normal",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "clip",
+                  "position": "static"
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "div",
+            "className": "",
+            "rect": {
+              "x": 8,
+              "y": 75,
+              "width": 1184,
+              "height": 67
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(0, 0, 0)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "element",
+                "tag": "input",
+                "className": "center",
+                "rect": {
+                  "x": 18,
+                  "y": 85,
+                  "width": 324,
+                  "height": 47
+                },
+                "style": {
+                  "display": "inline-block",
+                  "color": "rgb(0, 0, 0)",
+                  "fontSize": "20px",
+                  "fontWeight": "400",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgb(255, 255, 255)",
+                  "margin": "10px",
+                  "padding": "10px",
+                  "textAlign": "center",
+                  "lineHeight": "normal",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "clip",
+                  "position": "static"
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "div",
+            "className": "",
+            "rect": {
+              "x": 8,
+              "y": 142,
+              "width": 1184,
+              "height": 67
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(0, 0, 0)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "element",
+                "tag": "input",
+                "className": "right",
+                "rect": {
+                  "x": 18,
+                  "y": 152,
+                  "width": 324,
+                  "height": 47
+                },
+                "style": {
+                  "display": "inline-block",
+                  "color": "rgb(0, 0, 0)",
+                  "fontSize": "20px",
+                  "fontWeight": "400",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgb(255, 255, 255)",
+                  "margin": "10px",
+                  "padding": "10px",
+                  "textAlign": "right",
+                  "lineHeight": "normal",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "clip",
+                  "position": "static"
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "div",
+            "className": "",
+            "rect": {
+              "x": 8,
+              "y": 209,
+              "width": 1184,
+              "height": 67
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(0, 0, 0)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "element",
+                "tag": "input",
+                "className": "",
+                "rect": {
+                  "x": 18,
+                  "y": 219,
+                  "width": 324,
+                  "height": 47
+                },
+                "style": {
+                  "display": "inline-block",
+                  "color": "rgb(0, 0, 0)",
+                  "fontSize": "20px",
+                  "fontWeight": "400",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgb(255, 255, 255)",
+                  "margin": "10px",
+                  "padding": "10px",
+                  "textAlign": "start",
+                  "lineHeight": "normal",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "clip",
+                  "position": "static"
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "viewportCoverage": 33,
+  "imageStats": {
+    "total": 0,
+    "loaded": 0,
+    "broken": 0
+  },
+  "viewport": {
+    "width": 1200,
+    "height": 800
+  }
+}

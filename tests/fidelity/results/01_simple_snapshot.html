@@ -1,0 +1,25 @@
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <title>Fidelity Test 01: Simple Layout</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Helvetica, sans-serif; font-size: 16px; color: #1a1a1a; background: #ffffff; }
+    h1 { font-size: 32px; font-weight: 700; margin: 0 0 16px 0; }
+    p { margin: 0 0 12px 0; line-height: 1.5; }
+    em { font-style: italic; }
+    strong { font-weight: 700; }
+    .box { background: #e8e8e8; border: 1px solid #999999; padding: 16px; margin: 20px 0; }
+    a { color: #0055aa; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>Simple Layout Test</h1>
+  <p>This paragraph tests basic <strong>block layout</strong>, <em>inline emphasis</em>, and font rendering. The body should fill the full viewport width.</p>
+  <div class="box">
+    <p>This box has a gray background, a border, and padding. It should span the full available width minus body padding.</p>
+    <p>A second paragraph inside the box, testing vertical <a href="#stacking">stacking of block elements</a>.</p>
+  </div>
+  <p>Content below the box should not overlap. This tests anonymous block Y-positioning (L-3) and min-height: 100vh (L-1).</p>
+  <p>Non-ASCII test: café, naïve, résumé, — em dash, “smart quotes”.</p>
+
+
+</body></html>

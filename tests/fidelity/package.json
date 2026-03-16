@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "./run_test.sh --all --report",
+    "dom": "./run_test.sh --all --report",
+    "visual": "./run_visual_test.sh --all",
+    "diagnose": "node diagnose.js"
   },
   "keywords": [],
   "author": "",

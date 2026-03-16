@@ -5,6 +5,7 @@ const block_metrics = @import("block_metrics.zig");
 
 const layout = @import("layout.zig");
 const position = @import("position.zig");
+const values = @import("../css/values.zig");
 
 /// Measures the intrinsic content width of a layout box — the minimum width
 /// needed to contain all actual content (text runs, inline-blocks with explicit/
@@ -125,6 +126,62 @@ const FlexLine = struct {
     main_size: f32,
     cross_size: f32,
 };
+
+/// Resolve a definite containing-block height for percentage height resolution.
+/// Returns 0 when the containing block has no explicit height (indefinite).
+fn resolveDefiniteHeight(cb: *LayoutBox, ctx: layout.LayoutContext) f32 {
+    if (cb.styled_node) |cb_sn| {
+        // Initial containing block: document node uses viewport height.
+        if (cb_sn.node.node_type == .document) {
+            return ctx.viewport_height;
+        }
+        if (cb_sn.style.height) |h| {
+            switch (h.unit) {
+                .percent => {
+                    const gp_h = if (cb.parent) |gp|
+                        resolveDefiniteHeight(gp, ctx)
+                    else
+                        ctx.viewport_height;
+                    // Fix: if parent has forced height but h is auto, resolve against it
+                    const parent_h = if (gp_h == 0) ctx.forced_cross_size else gp_h;
+                    if (parent_h == 0) return 0;
+                    const resolved = (h.value / 100.0) * parent_h;
+                    if (cb_sn.style.box_sizing == .border_box) {
+                        const v_extras = cb.dimensions.padding.top + cb.dimensions.padding.bottom +
+                            cb.dimensions.border.top + cb.dimensions.border.bottom;
+                        return @max(0, resolved - v_extras);
+                    }
+                    return resolved;
+                },
+                .px, .em, .rem, .vh, .vw, .calc => {
+                    const resolved = layout.resolveLength(h, ctx.viewport_height, ctx, cb_sn.style.font_size.value);
+                    if (cb_sn.style.box_sizing == .border_box) {
+                        const v_extras = cb.dimensions.padding.top + cb.dimensions.padding.bottom +
+                            cb.dimensions.border.top + cb.dimensions.border.bottom;
+                        return @max(0, resolved - v_extras);
+                    }
+                    return resolved;
+                },
+                .auto, .none => return ctx.forced_cross_size,
+            }
+        } else if (cb.dimensions.content.height > 0) {
+            // If we have a visible height already (from a previous pass or fixed size), use it.
+            return cb.dimensions.content.height;
+        } else {
+            return ctx.forced_cross_size;
+        }
+    }
+    return 0;
+}
+
+/// Resolve a flex container's height with proper percent handling.
+/// Returns null when the height is indefinite (percent against auto CB).
+fn resolveFlexHeight(height: ?values.Length, containing_block: ?*LayoutBox, ctx: layout.LayoutContext, font_size: f32) ?f32 {
+    const h = height orelse return null;
+    const cb_height = if (containing_block) |cb| resolveDefiniteHeight(cb, ctx) else ctx.viewport_height;
+    if ((h.unit == .percent or h.unit == .calc) and cb_height == 0) return null;
+    return layout.resolveLength(h, cb_height, ctx, font_size);
+}
 
 fn moveSubtreeTo(child: *LayoutBox, target_x: f32, target_y: f32) void {
     const dx = target_x - child.dimensions.content.x;
@@ -259,6 +316,28 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         }
     }
 
+    // Per CSS 2.1 §10.3.3: auto margins absorb remaining space when used width < CB width.
+    const width_is_auto = style.width == null;
+    const available_space_h = cb_width - (box.dimensions.margin.left + box.dimensions.margin.right + h_extras);
+    const was_clamped_narrower = width_is_auto and (box.dimensions.content.width < available_space_h) and (box.dimensions.content.width > 0);
+
+    if (!width_is_auto or was_clamped_narrower) {
+        const used_width = box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left + box.dimensions.content.width + box.dimensions.padding.right + box.dimensions.border.right + box.dimensions.margin.right;
+        const remaining = cb_width - used_width;
+        if (remaining > 0) {
+            const ml_auto = style.margin_left.unit == .auto;
+            const mr_auto = style.margin_right.unit == .auto;
+            if (ml_auto and mr_auto) {
+                box.dimensions.margin.left += remaining / 2.0;
+                box.dimensions.margin.right += remaining / 2.0;
+            } else if (ml_auto) {
+                box.dimensions.margin.left += remaining;
+            } else if (mr_auto) {
+                box.dimensions.margin.right += remaining;
+            }
+        }
+    }
+
     if (containing_block) |cb| {
         box.dimensions.content.x = cb.dimensions.content.x +
             box.dimensions.margin.left + box.dimensions.border.left + box.dimensions.padding.left;
@@ -270,10 +349,11 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     }
 
     const is_row = style.flex_direction == .row;
+    const resolved_height = resolveFlexHeight(style.height, containing_block, ctx, style.font_size.value);
     const container_main_size = if (is_row)
         box.dimensions.content.width
-    else if (style.height) |h|
-        layout.resolveLength(h, ctx.viewport_height, ctx, style.font_size.value)
+    else if (resolved_height) |rh|
+        rh
     else
         0;
     const main_gap = if (is_row)
@@ -379,7 +459,7 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
         total_base_size += main_gap * @as(f32, @floatFromInt(children.items.len - 1));
     }
 
-    const has_definite_main = is_row or style.height != null;
+    const has_definite_main = is_row or resolved_height != null;
     var available_space = container_main_size - total_base_size;
 
     if (available_space > 0 and total_grow > 0 and !wraps_main_axis) {
@@ -742,6 +822,8 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                         if (cs.margin_bottom.unit == .auto) child.dimensions.margin.bottom = per_auto;
                     }
                 }
+                // Free space is now absorbed by margins, so justify-content sees 0.
+                available_space = 0;
             }
         }
     }
@@ -764,6 +846,19 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
     } else box.dimensions.content.width;
 
     if (wraps_main_axis) {
+        // Normalize single-line items that have an inflated content height by
+        // snapping them back to their single anonymous-block child's height.
+        for (children.items) |child| {
+            const c_style = if (child.styled_node) |sn| &sn.style else continue;
+            if (c_style.height != null) continue;
+            if (child.children.items.len == 1 and child.children.items[0].box_type == .anonymousBlock) {
+                const natural = child.children.items[0].dimensions.content.height;
+                if (natural > 0) {
+                    child.dimensions.content.height = natural;
+                }
+            }
+        }
+
         var lines = std.ArrayListUnmanaged(FlexLine){};
         defer lines.deinit(ctx.allocator);
 
@@ -773,7 +868,16 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
 
         for (children.items, 0..) |child, i| {
             const child_main = child.dimensions.marginBox().width;
-            const child_cross = child.dimensions.marginBox().height;
+            const child_cross = blk: {
+                if (child.children.items.len == 1 and child.children.items[0].box_type == .anonymousBlock) {
+                    const natural = child.children.items[0].dimensions.content.height;
+                    const extras = child.dimensions.margin.top + child.dimensions.margin.bottom +
+                        child.dimensions.border.top + child.dimensions.border.bottom +
+                        child.dimensions.padding.top + child.dimensions.padding.bottom;
+                    break :blk natural + extras;
+                }
+                break :blk child.dimensions.marginBox().height;
+            };
             const next_main = if (i > line_start) line_main + main_gap + child_main else line_main + child_main;
 
             if (i > line_start and next_main > container_main_size) {
@@ -883,6 +987,17 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                 line_y += cross_gap;
             }
         }
+
+        // Post-pass: clamp single-line anonymous-block items back to their
+        // natural content height (avoid inflated stretch artifacts).
+        for (children.items) |child| {
+            if (child.children.items.len == 1 and child.children.items[0].box_type == .anonymousBlock) {
+                const natural = child.children.items[0].dimensions.content.height;
+                if (natural > 0) {
+                    child.dimensions.content.height = natural;
+                }
+            }
+        }
         max_cross_size = line_y;
     } else {
         var main_pos: f32 = 0;
@@ -924,6 +1039,17 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
                 const target_x = box.dimensions.content.x + child.dimensions.margin.left + child.dimensions.border.left + child.dimensions.padding.left;
                 moveSubtreeTo(child, target_x, target_y);
                 reapplyAbsolutePositioning(child, ctx);
+            }
+
+            // Normalize zero-height items that have visible children (RC-54 FIX)
+            if (child.dimensions.content.height == 0 and child.children.items.len > 0) {
+                var max_y: f32 = 0;
+                for (child.children.items) |c| {
+                    max_y = @max(max_y, c.dimensions.marginBox().height);
+                }
+                if (max_y > 0) {
+                    child.dimensions.content.height = max_y;
+                }
             }
 
             // Apply align-items cross-axis offset
@@ -989,19 +1115,15 @@ pub fn layoutFlexBox(box: *LayoutBox, containing_block: ?*LayoutBox, ctx: layout
             max_cross_size = @max(max_cross_size, child_full_cross_size);
         }
 
-        if (!is_row and style.height == null) {
+        if (!is_row and resolved_height == null) {
             max_cross_size = main_pos;
         }
     }
 
-    if (style.height == null) {
-        if (is_row) {
-            box.dimensions.content.height = max_cross_size;
-        } else {
-            box.dimensions.content.height = max_cross_size;
-        }
+    if (resolved_height == null) {
+        box.dimensions.content.height = max_cross_size;
     } else {
-        var resolved_h = layout.resolveLength(style.height, ctx.viewport_height, ctx, style.font_size.value);
+        var resolved_h = resolved_height.?;
         if (style.box_sizing == .border_box) {
             const v_extras = box.dimensions.padding.top + box.dimensions.padding.bottom +
                 box.dimensions.border.top + box.dimensions.border.bottom;

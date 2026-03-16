@@ -30,7 +30,12 @@ pub fn defaultMeasureFn() MeasureFn {
 
 pub fn measureTextWidth(text: []const u8, font_size: f32, font_weight: f32) f32 {
     if (text.len == 0) return 0;
-    return global_measure_fn(text, font_size, font_weight);
+    var w = global_measure_fn(text, font_size, font_weight);
+    // Approximate bold width expansion since the backend ignores font_weight.
+    if (font_weight >= 600) {
+        w *= 1.1;
+    }
+    return w;
 }
 
 pub fn getLineHeightRatio(font_family: []const u8, font_size: f32, font_weight: f32) f32 {

@@ -9,6 +9,7 @@ const events = @import("../platform/events.zig");
 const layout_mod = @import("../layout/mod.zig");
 const ui = @import("../ui/mod.zig");
 const hit_test = @import("hit_test.zig");
+const config = @import("../config.zig");
 
 const display_list_mod = @import("display_list.zig");
 const interaction_mod = @import("interaction.zig");
@@ -47,7 +48,12 @@ const CachedImage = struct {
 extern "C" fn MTLCreateSystemDefaultDevice() ?*anyopaque;
 extern "C" fn set_cursor_style(style: i32) void;
 extern "C" fn terminate_application() void;
-const toolbar_height: f32 = 40.0;
+
+fn textBaseline(tr: *text.TextRenderer, top: f32, height: f32, font_size: f32) f32 {
+    const scale = font_size / tr.font_size;
+    const ascent = tr.font_ascent * scale;
+    return top + (height - font_size) * 0.5 + ascent;
+}
 
 pub const Renderer = struct {
     device: *anyopaque,
@@ -412,6 +418,19 @@ pub const Renderer = struct {
     }
 
     pub fn processEvents(self: *Renderer) void {
+        const ui_cfg = config.getConfig().ui;
+        const toolbar_cfg = ui_cfg.toolbar;
+        const toolbar_height = toolbar_cfg.height;
+        const btn_size = toolbar_cfg.button_size;
+        const btn_gap = toolbar_cfg.button_gap;
+        const btn_y = @max(0.0, (toolbar_height - btn_size) * 0.5);
+        const back_x = toolbar_cfg.padding_x;
+        const fwd_x = back_x + btn_size + btn_gap;
+        const reload_x = fwd_x + btn_size + btn_gap;
+        const address_x = reload_x + btn_size + toolbar_cfg.address_gap;
+        const address_height = @min(toolbar_cfg.address_height, toolbar_height);
+        const address_y = (toolbar_height - address_height) * 0.5;
+
         while (events.global_queue.pop()) |event| {
             switch (event.event_type) {
                 .scroll => {
@@ -421,7 +440,21 @@ pub const Renderer = struct {
                     self.mouse_x = event.x;
                     self.mouse_y = event.y;
                     if (event.y < toolbar_height) {
-                        set_cursor_style(2); // text cursor
+                        const back_enabled = self.history_pos > 1;
+                        const fwd_enabled = self.history_pos < self.history_count;
+                        const reload_enabled = self.history_pos > 0;
+                        const over_back = event.x >= back_x and event.x < back_x + btn_size and event.y >= btn_y and event.y < btn_y + btn_size;
+                        const over_fwd = event.x >= fwd_x and event.x < fwd_x + btn_size and event.y >= btn_y and event.y < btn_y + btn_size;
+                        const over_reload = event.x >= reload_x and event.x < reload_x + btn_size and event.y >= btn_y and event.y < btn_y + btn_size;
+                        const over_address = event.x >= address_x and event.y >= address_y and event.y < address_y + address_height;
+
+                        if ((over_back and back_enabled) or (over_fwd and fwd_enabled) or (over_reload and reload_enabled)) {
+                            set_cursor_style(1); // pointer
+                        } else if (over_address) {
+                            set_cursor_style(2); // text cursor
+                        } else {
+                            set_cursor_style(0); // default
+                        }
                     } else if (self.layout_root) |root| {
                         const old_state = self.interaction.cursor_state;
                         const new_state = self.interaction.handleMouseMove(root, event.x, event.y - toolbar_height, self.scroll.scroll_y);
@@ -437,18 +470,27 @@ pub const Renderer = struct {
                 },
                 .mouse_down => {
                     if (event.y < toolbar_height) {
-                        // I-1 FIX: Hit zones match drawn button positions
-                        // Back: x=[10,35), Forward: x=[45,70), Reload: x=[80,105)
-                        if (event.x >= 10 and event.x < 35) {
+                        const back_enabled = self.history_pos > 1;
+                        const fwd_enabled = self.history_pos < self.history_count;
+                        const reload_enabled = self.history_pos > 0;
+                        const over_back = event.x >= back_x and event.x < back_x + btn_size and event.y >= btn_y and event.y < btn_y + btn_size;
+                        const over_fwd = event.x >= fwd_x and event.x < fwd_x + btn_size and event.y >= btn_y and event.y < btn_y + btn_size;
+                        const over_reload = event.x >= reload_x and event.x < reload_x + btn_size and event.y >= btn_y and event.y < btn_y + btn_size;
+                        const over_address = event.x >= address_x and event.y >= address_y and event.y < address_y + address_height;
+
+                        if (over_back and back_enabled) {
                             self.goBack();
-                        } else if (event.x >= 45 and event.x < 70) {
+                        } else if (over_fwd and fwd_enabled) {
                             self.goForward();
-                        } else if (event.x >= 80 and event.x < 105) {
+                        } else if (over_reload and reload_enabled) {
                             self.reload();
-                        } else if (event.x >= 105) {
+                        } else if (over_address) {
                             self.url_bar_focused = true;
                             self.input_manager.blur();
                             set_cursor_style(2);
+                        } else {
+                            self.url_bar_focused = false;
+                            set_cursor_style(0);
                         }
                     } else {
                         self.url_bar_focused = false;
@@ -643,6 +685,11 @@ pub const Renderer = struct {
     pub fn draw(ctx: ?*anyopaque) callconv(.c) void {
         if (ctx == null) return;
         const self: *Renderer = @ptrCast(@alignCast(ctx.?));
+        const ui_cfg = config.getConfig().ui;
+        const toolbar_cfg = ui_cfg.toolbar;
+        const scrollbar_cfg = ui_cfg.scrollbar;
+        const colors = ui_cfg.colors;
+        const toolbar_height = toolbar_cfg.height;
 
         self.scroll.tick();
         self.processEvents();
@@ -769,56 +816,85 @@ pub const Renderer = struct {
             if (self.pipeline_state) |ps| {
                 objc.set_pipeline(fc, ps);
                 objc.set_projection(fc, width, height);
-                // Outer bar bg
-                objc.draw_solid_rect(fc, 0, 0, width, toolbar_height, 0.95, 0.95, 0.95, 1.0);
+                const toolbar_bg = colors.toolbar_bg;
+                objc.draw_solid_rect(fc, 0, 0, width, toolbar_height, toolbar_bg[0], toolbar_bg[1], toolbar_bg[2], toolbar_bg[3]);
 
-                // Input box - reserved space for nav buttons (110px)
-                const buttons_width: f32 = 100.0;
-                const box_stroke = if (self.url_bar_focused) @as(f32, 0.6) else @as(f32, 0.8);
-                objc.draw_solid_rect(fc, 10 + buttons_width, 5, width - 20 - buttons_width, 30, box_stroke, box_stroke, box_stroke, 1.0);
-                objc.draw_solid_rect(fc, 11 + buttons_width, 6, width - 22 - buttons_width, 28, 1.0, 1.0, 1.0, 1.0);
+                if (toolbar_cfg.border_height > 0) {
+                    const border = colors.toolbar_border;
+                    objc.draw_solid_rect(fc, 0, toolbar_height - toolbar_cfg.border_height, width, toolbar_cfg.border_height, border[0], border[1], border[2], border[3]);
+                }
 
-                // Draw Buttons
-                const btn_y = 5.0;
-                const btn_h = 30.0;
-                const btn_w = 25.0;
+                const btn_size = toolbar_cfg.button_size;
+                const btn_gap = toolbar_cfg.button_gap;
+                const btn_y = @max(0.0, (toolbar_height - btn_size) * 0.5);
+
+                const back_x = toolbar_cfg.padding_x;
+                const fwd_x = back_x + btn_size + btn_gap;
+                const reload_x = fwd_x + btn_size + btn_gap;
+
+                const address_x = reload_x + btn_size + toolbar_cfg.address_gap;
+                const address_w = if (width > address_x + toolbar_cfg.padding_x) width - address_x - toolbar_cfg.padding_x else 0.0;
+                const address_h = @min(toolbar_cfg.address_height, toolbar_height);
+                const address_y = (toolbar_height - address_h) * 0.5;
 
                 const back_enabled = self.history_pos > 1;
                 const fwd_enabled = self.history_pos < self.history_count;
                 const reload_enabled = self.history_pos > 0;
 
-                const back_hover = self.mouse_y < toolbar_height and self.mouse_x >= 10 and self.mouse_x < 10 + btn_w;
-                const fwd_hover = self.mouse_y < toolbar_height and self.mouse_x >= 45 and self.mouse_x < 45 + btn_w;
-                const reload_hover = self.mouse_y < toolbar_height and self.mouse_x >= 80 and self.mouse_x < 80 + btn_w;
+                const mouse_in_toolbar = self.mouse_y < toolbar_height;
+                const back_hover = mouse_in_toolbar and self.mouse_x >= back_x and self.mouse_x < back_x + btn_size and self.mouse_y >= btn_y and self.mouse_y < btn_y + btn_size;
+                const fwd_hover = mouse_in_toolbar and self.mouse_x >= fwd_x and self.mouse_x < fwd_x + btn_size and self.mouse_y >= btn_y and self.mouse_y < btn_y + btn_size;
+                const reload_hover = mouse_in_toolbar and self.mouse_x >= reload_x and self.mouse_x < reload_x + btn_size and self.mouse_y >= btn_y and self.mouse_y < btn_y + btn_size;
 
-                // Back Button
-                const back_bg = if (back_hover and back_enabled) @as(f32, 0.75) else 0.85;
-                objc.draw_solid_rect(fc, 10, btn_y, btn_w, btn_h, back_bg, back_bg, back_bg, 1.0);
-                // Forward Button
-                const fwd_bg = if (fwd_hover and fwd_enabled) @as(f32, 0.75) else 0.85;
-                objc.draw_solid_rect(fc, 45, btn_y, btn_w, btn_h, fwd_bg, fwd_bg, fwd_bg, 1.0);
-                // Reload Button
-                const reload_bg = if (reload_hover and reload_enabled) @as(f32, 0.75) else 0.85;
-                objc.draw_solid_rect(fc, 80, btn_y, btn_w, btn_h, reload_bg, reload_bg, reload_bg, 1.0);
+                const button_bg = colors.button_bg;
+                const button_hover_bg = colors.button_hover_bg;
+                const button_disabled_bg = colors.button_disabled_bg;
+
+                const back_color = if (back_enabled) (if (back_hover) button_hover_bg else button_bg) else button_disabled_bg;
+                const fwd_color = if (fwd_enabled) (if (fwd_hover) button_hover_bg else button_bg) else button_disabled_bg;
+                const reload_color = if (reload_enabled) (if (reload_hover) button_hover_bg else button_bg) else button_disabled_bg;
+
+                objc.draw_solid_rect(fc, back_x, btn_y, btn_size, btn_size, back_color[0], back_color[1], back_color[2], back_color[3]);
+                objc.draw_solid_rect(fc, fwd_x, btn_y, btn_size, btn_size, fwd_color[0], fwd_color[1], fwd_color[2], fwd_color[3]);
+                objc.draw_solid_rect(fc, reload_x, btn_y, btn_size, btn_size, reload_color[0], reload_color[1], reload_color[2], reload_color[3]);
+
+                if (address_w > 0 and address_h > 0) {
+                    const address_border = if (self.url_bar_focused) colors.address_focus_border else colors.address_border;
+                    objc.draw_solid_rect(fc, address_x, address_y, address_w, address_h, address_border[0], address_border[1], address_border[2], address_border[3]);
+                    const border_w = toolbar_cfg.address_border_width;
+                    const inner_x = address_x + border_w;
+                    const inner_y = address_y + border_w;
+                    const inner_w = @max(0.0, address_w - 2.0 * border_w);
+                    const inner_h = @max(0.0, address_h - 2.0 * border_w);
+                    const address_bg = colors.address_bg;
+                    objc.draw_solid_rect(fc, inner_x, inner_y, inner_w, inner_h, address_bg[0], address_bg[1], address_bg[2], address_bg[3]);
+                }
 
                 if (self.text_renderer) |*tr| {
                     const app_mod = @import("../platform/app.zig");
                     app_mod.objc.set_pipeline(fc, tr.text_pipeline);
 
-                    const enabled_col = 0.2;
-                    const disabled_col = 0.6;
+                    const icon_size = toolbar_cfg.url_text_size;
+                    const icon_y = textBaseline(tr, btn_y, btn_size, icon_size);
+                    const icon_x_offset = (btn_size - icon_size) * 0.5;
 
-                    // Draw button labels/icons (scaled to 16px)
-                    tr.drawTextScaled(fc, "<", 18, 25, 16, if (back_enabled) enabled_col else disabled_col, if (back_enabled) enabled_col else disabled_col, if (back_enabled) enabled_col else disabled_col, 1.0);
-                    tr.drawTextScaled(fc, ">", 53, 25, 16, if (fwd_enabled) enabled_col else disabled_col, if (fwd_enabled) enabled_col else disabled_col, if (fwd_enabled) enabled_col else disabled_col, 1.0);
-                    tr.drawTextScaled(fc, "R", 88, 25, 16, if (reload_enabled) enabled_col else disabled_col, if (reload_enabled) enabled_col else disabled_col, if (reload_enabled) enabled_col else disabled_col, 1.0);
+                    const icon_enabled = colors.button_icon;
+                    const icon_disabled = colors.button_icon_disabled;
 
-                    var url_x_offset: f32 = 18.0 + buttons_width;
+                    const back_icon = if (back_enabled) icon_enabled else icon_disabled;
+                    const fwd_icon = if (fwd_enabled) icon_enabled else icon_disabled;
+                    const reload_icon = if (reload_enabled) icon_enabled else icon_disabled;
+
+                    tr.drawTextScaled(fc, "<", back_x + icon_x_offset, icon_y, icon_size, back_icon[0], back_icon[1], back_icon[2], back_icon[3]);
+                    tr.drawTextScaled(fc, ">", fwd_x + icon_x_offset, icon_y, icon_size, fwd_icon[0], fwd_icon[1], fwd_icon[2], fwd_icon[3]);
+                    tr.drawTextScaled(fc, "R", reload_x + icon_x_offset, icon_y, icon_size, reload_icon[0], reload_icon[1], reload_icon[2], reload_icon[3]);
+
+                    var url_x_offset: f32 = address_x + toolbar_cfg.address_padding_x;
                     if (self.favicon_texture) |fav_tex| {
                         if (self.image_pipeline) |ip| {
                             objc.set_pipeline(fc, ip);
-                            const fav_size: f32 = 16.0;
-                            const fav_y: f32 = 12.0;
+                            const fav_size: f32 = toolbar_cfg.favicon_size;
+                            const fav_y: f32 = address_y + (address_h - fav_size) * 0.5;
                             const vertices = [6][8]f32{
                                 .{ url_x_offset, fav_y, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0 },
                                 .{ url_x_offset + fav_size, fav_y, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0 },
@@ -828,19 +904,37 @@ pub const Renderer = struct {
                                 .{ url_x_offset + fav_size, fav_y + fav_size, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 },
                             };
                             objc.batch_image_quads(fc, self.device, fav_tex, @ptrCast(&vertices), 6);
-                            url_x_offset += fav_size + 6.0;
+                            url_x_offset += fav_size + toolbar_cfg.favicon_gap;
                         }
                     }
 
                     app_mod.objc.set_pipeline(fc, tr.text_pipeline);
+                    const url_text_size = toolbar_cfg.url_text_size;
+                    const url_text_y = textBaseline(tr, address_y, address_h, url_text_size);
                     const url_to_draw = if (self.url_bar_len > 0) self.url_bar_text[0..self.url_bar_len] else "Enter URL...";
-                    tr.drawTextScaled(fc, url_to_draw, url_x_offset, 25, 16, 0.1, 0.1, 0.1, 1.0);
+                    const url_color = if (self.url_bar_len > 0) colors.url_text else colors.url_placeholder;
 
-                    if (self.page_title_len > 0) {
-                        const title_text = self.page_title[0..self.page_title_len];
-                        // Draw title towards the right side of the address bar
-                        tr.drawTextScaled(fc, title_text, width - 300, 25, 14, 0.4, 0.4, 0.4, 1.0);
+                    const title_width = if (self.page_title_len > 0) toolbar_cfg.title_area_width else 0.0;
+                    const url_clip_w = @max(0.0, address_w - (toolbar_cfg.address_padding_x * 2.0) - title_width);
+                    if (url_clip_w > 0) {
+                        objc.set_scissor_rect(fc, url_x_offset, address_y, url_clip_w, address_h, height);
+                        tr.drawTextScaled(fc, url_to_draw, url_x_offset, url_text_y, url_text_size, url_color[0], url_color[1], url_color[2], url_color[3]);
                     }
+
+                    if (self.page_title_len > 0 and title_width > 0.0) {
+                        const title_text = self.page_title[0..self.page_title_len];
+                        const title_size = toolbar_cfg.title_text_size;
+                        const title_y = textBaseline(tr, address_y, address_h, title_size);
+                        const title_x = address_x + address_w - title_width + toolbar_cfg.address_padding_x;
+                        const title_clip_w = @max(0.0, title_width - toolbar_cfg.address_padding_x);
+                        if (title_clip_w > 0) {
+                            const title_color = colors.title_text;
+                            objc.set_scissor_rect(fc, title_x, address_y, title_clip_w, address_h, height);
+                            tr.drawTextScaled(fc, title_text, title_x, title_y, title_size, title_color[0], title_color[1], title_color[2], title_color[3]);
+                        }
+                    }
+
+                    objc.reset_scissor_rect(fc, width, height);
                 }
 
                 // Loading Bar
@@ -860,22 +954,28 @@ pub const Renderer = struct {
                 if (is_loading) {
                     objc.set_pipeline(fc, ps);
                     const sine_wave = (std.math.sin(self.loading_animation_time) + 1.0) / 2.0; // 0 to 1
-                    const bar_width = width * 0.3;
+                    const bar_width = width * toolbar_cfg.loading_bar_width_ratio;
                     const bar_x = sine_wave * (width - bar_width);
-                    objc.draw_solid_rect(fc, bar_x, 38.0, bar_width, 2.0, 0.0, 0.6, 0.8, 1.0);
+                    const bar_y = toolbar_height - toolbar_cfg.loading_bar_offset - toolbar_cfg.loading_bar_height;
+                    const loading = colors.loading_bar;
+                    objc.draw_solid_rect(fc, bar_x, bar_y, bar_width, toolbar_cfg.loading_bar_height, loading[0], loading[1], loading[2], loading[3]);
                 }
 
                 // Render Scrollbar
                 objc.set_pipeline(fc, ps);
                 if (self.scroll.content_height > self.scroll.viewport_height) {
                     const track_height = height - toolbar_height;
-                    const thumb_height = @max(20.0, (self.scroll.viewport_height / self.scroll.content_height) * track_height);
+                    const thumb_height = @max(scrollbar_cfg.min_thumb_height, (self.scroll.viewport_height / self.scroll.content_height) * track_height);
                     const max_scroll = self.scroll.content_height - self.scroll.viewport_height;
                     const scroll_progress = if (max_scroll > 0) self.scroll.scroll_y / max_scroll else 0.0;
                     const thumb_y = toolbar_height + scroll_progress * (track_height - thumb_height);
-
-                    objc.draw_solid_rect(fc, width - 12.0, toolbar_height, 12.0, track_height, 0.95, 0.95, 0.95, 0.8);
-                    objc.draw_solid_rect(fc, width - 10.0, thumb_y, 8.0, thumb_height, 0.6, 0.6, 0.6, 0.9);
+                    const track = colors.scrollbar_track;
+                    const thumb = colors.scrollbar_thumb;
+                    const track_x = width - scrollbar_cfg.width;
+                    const thumb_x = track_x + scrollbar_cfg.thumb_inset;
+                    const thumb_w = @max(1.0, scrollbar_cfg.width - 2.0 * scrollbar_cfg.thumb_inset);
+                    objc.draw_solid_rect(fc, track_x, toolbar_height, scrollbar_cfg.width, track_height, track[0], track[1], track[2], track[3]);
+                    objc.draw_solid_rect(fc, thumb_x, thumb_y, thumb_w, thumb_height, thumb[0], thumb[1], thumb[2], thumb[3]);
                 }
             }
 
@@ -904,6 +1004,7 @@ pub const Renderer = struct {
 
         if (new_styled) |ns| {
             self.queueBackgroundImageLoads(ns);
+            const toolbar_height = config.getConfig().ui.toolbar.height;
 
             const new_layout = layout_mod.buildLayoutTree(alloc, ns) catch |err| {
                 std.debug.print("rebuildRenderTree: buildLayoutTree failed: {}\n", .{err});

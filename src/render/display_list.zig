@@ -16,6 +16,17 @@ fn resolveLineHeightRatio(style: *const properties.ComputedStyle) f32 {
     return style.line_height;
 }
 
+/// Returns true if the text contains at least one printable non-whitespace ASCII
+/// character (33-126). Used to skip text runs that are entirely non-ASCII
+/// (e.g. Indic scripts) since the text atlas only supports ASCII glyphs.
+fn hasRenderableAscii(text_bytes: []const u8) bool {
+    for (text_bytes) |byte| {
+        // 33 = '!', 126 = '~'  — excludes space, tabs, control chars
+        if (byte >= 33 and byte <= 126) return true;
+    }
+    return false;
+}
+
 pub const DisplayCommand = union(enum) {
     draw_rect: struct {
         rect: layout_box.Rect,
@@ -92,9 +103,10 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                 if (opacity < 1.0) {
                     color.a = @intFromFloat(@as(f32, @floatFromInt(color.a)) * opacity);
                 }
+                const bb = box.dimensions.borderBox();
                 try dl.commands.append(dl.allocator, .{
                     .draw_rect = .{
-                        .rect = box.dimensions.borderBox(),
+                        .rect = bb,
                         .color = color,
                         .radius = sn.style.border_radius.value,
                     },
@@ -261,6 +273,8 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
     // 4. Draw image if this box has a loaded texture
     if (box_visible) {
         if (box.image_texture) |tex| {
+            const cr = box.dimensions.content;
+            std.debug.print("[DEBUG-IMG] y={d:.0} h={d:.0} w={d:.0} tex={}\n", .{ cr.y, cr.height, cr.width, @intFromPtr(tex) });
             try dl.commands.append(dl.allocator, .{
                 .draw_image = .{
                     .rect = box.dimensions.content,
@@ -269,6 +283,8 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
             });
         }
         if (box.svg_xml) |xml| {
+            const cr = box.dimensions.content;
+            std.debug.print("[DEBUG-SVG] y={d:.0} h={d:.0} w={d:.0} xml_len={d}\n", .{ cr.y, cr.height, cr.width, xml.len });
             try dl.commands.append(dl.allocator, .{
                 .draw_svg = .{
                     .rect = box.dimensions.content,
@@ -318,8 +334,8 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
 
             if (focused_node) |f_node| {
                 if (f_node == sn.node) {
-                    const char_width = sn.style.font_size.value * 0.6; // approx advance
-                    const cursor_x = rect.x + @as(f32, @floatFromInt(val.len)) * char_width;
+                    const text_w = text_measure.measureTextWidth(val, sn.style.font_size.value, sn.style.font_weight);
+                    const cursor_x = @min(rect.x + text_w, rect.x + rect.width - 2.0);
                     try dl.commands.append(dl.allocator, .{
                         .draw_rect = .{
                             .rect = .{
@@ -376,6 +392,22 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
         }
 
         if (run.width > 0) {
+            // R-7b FIX: Skip text runs with no printable ASCII characters.
+            // The text atlas only supports ASCII glyphs (32-126). Non-ASCII text
+            // (Hindi, Bengali, etc.) gets mapped to '?' producing a dense black
+            // block. Skip the entire run if it has no renderable ASCII content.
+            if (!hasRenderableAscii(run.text)) {
+                // DEBUG: Log skipped non-ASCII text runs
+                std.debug.print("[DEBUG-SKIP] non-ASCII text at y={d:.0} w={d:.0} len={d} bytes=0x{x}...\n", .{ run.y, run.width, run.text.len, run.text[0] });
+                continue;
+            }
+
+            // DEBUG: Log text runs in the black box region
+            if (run.y > 300 and run.y < 700) {
+                const max_show = @min(run.text.len, 40);
+                std.debug.print("[DEBUG-TEXT] y={d:.0} w={d:.0} '{s}'\n", .{ run.y, run.width, run.text[0..max_show] });
+            }
+
             try dl.commands.append(dl.allocator, .{
                 .draw_text = .{
                     .text = run.text,
@@ -391,6 +423,10 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                     .font_style = run.styled_node.style.font_style,
                 },
             });
+        } else if (run.text.len > 0) {
+            // R-7 FIX: If width is 0 but text is not empty, it means glyph measurement failed
+            // (e.g. Indic text without font fallback). Skip rendering to avoid black boxes.
+            continue;
         }
     }
 
