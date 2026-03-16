@@ -4,11 +4,20 @@ const path = require('path');
 
 async function run() {
     const args = process.argv.slice(2);
-    const inputPath = args[0];
-    const outputDir = args[1] || '.';
+    let nameOverride = null;
+    const positional = [];
+    for (const arg of args) {
+        if (arg.startsWith('--name=')) {
+            nameOverride = arg.slice('--name='.length);
+        } else {
+            positional.push(arg);
+        }
+    }
+    const inputPath = positional[0];
+    const outputDir = positional[1] || '.';
 
     if (!inputPath) {
-        console.error('Usage: node chrome_dump.js <html_file_or_url> [output_dir]');
+        console.error('Usage: node chrome_dump.js <html_file_or_url> [output_dir] [--name=basename]');
         process.exit(1);
     }
 
@@ -20,10 +29,25 @@ async function run() {
         url = 'file://' + path.resolve(inputPath);
     }
 
-    const baseName = path.basename(inputPath, path.extname(inputPath));
+    function deriveBaseName(input) {
+        if (input.startsWith('http://') || input.startsWith('https://')) {
+            try {
+                const u = new URL(input);
+                return u.host.replace(/[^\w]+/g, '-');
+            } catch {
+                return input.replace(/[^\w]+/g, '-');
+            }
+        }
+        return path.basename(input, path.extname(input));
+    }
+
+    const baseName = nameOverride || deriveBaseName(inputPath);
 
     console.log(`[Chrome] Launching Headless Chrome for ${url}...`);
-    const browser = await puppeteer.launch({ headless: 'new' });
+    const browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
+    });
     const page = await browser.newPage();
 
     // Match Metal's default viewport
@@ -70,7 +94,8 @@ async function run() {
                 type: 'element',
                 tag: tag,
                 id: node.id || undefined,
-                className: node.className || undefined,
+                className: (typeof node.className === 'string') ? node.className :
+                          (node.className && typeof node.className.baseVal === 'string') ? node.className.baseVal : '',
                 rect: {
                     x: Math.round(rect.x),
                     y: Math.round(rect.y),

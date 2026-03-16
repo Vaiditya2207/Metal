@@ -1,0 +1,470 @@
+{
+  "tree": {
+    "type": "element",
+    "tag": "html",
+    "className": "",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 1200,
+      "height": 335
+    },
+    "style": {
+      "display": "block",
+      "color": "rgb(0, 0, 0)",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "fontStyle": "normal",
+      "backgroundColor": "rgba(0, 0, 0, 0)",
+      "margin": "0px",
+      "padding": "0px",
+      "textAlign": "start",
+      "lineHeight": "normal",
+      "textDecoration": "none",
+      "visibility": "visible",
+      "overflow": "visible",
+      "position": "static"
+    },
+    "children": [
+      {
+        "type": "element",
+        "tag": "head",
+        "className": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "style": {
+          "display": "none",
+          "color": "rgb(0, 0, 0)",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "fontStyle": "normal",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "margin": "0px",
+          "padding": "0px",
+          "textAlign": "start",
+          "lineHeight": "normal",
+          "textDecoration": "none",
+          "visibility": "visible",
+          "overflow": "visible",
+          "position": "static"
+        },
+        "children": [
+          {
+            "type": "element",
+            "tag": "title",
+            "className": "",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "style": {
+              "display": "none",
+              "color": "rgb(0, 0, 0)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "text",
+                "text": "Fidelity Test 01: Simple Layout"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "element",
+        "tag": "body",
+        "className": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1200,
+          "height": 335
+        },
+        "style": {
+          "display": "block",
+          "color": "rgb(26, 26, 26)",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "fontStyle": "normal",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "margin": "0px",
+          "padding": "20px",
+          "textAlign": "start",
+          "lineHeight": "normal",
+          "textDecoration": "none",
+          "visibility": "visible",
+          "overflow": "visible",
+          "position": "static"
+        },
+        "children": [
+          {
+            "type": "element",
+            "tag": "h1",
+            "className": "",
+            "rect": {
+              "x": 20,
+              "y": 20,
+              "width": 1160,
+              "height": 37
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(26, 26, 26)",
+              "fontSize": "32px",
+              "fontWeight": "700",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px 0px 16px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "text",
+                "text": "Simple Layout Test"
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "p",
+            "className": "",
+            "rect": {
+              "x": 20,
+              "y": 73,
+              "width": 1160,
+              "height": 24
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(26, 26, 26)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px 0px 12px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "24px",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "text",
+                "text": "This paragraph tests basic"
+              },
+              {
+                "type": "element",
+                "tag": "strong",
+                "className": "",
+                "rect": {
+                  "x": 212,
+                  "y": 76,
+                  "width": 93,
+                  "height": 18
+                },
+                "style": {
+                  "display": "inline",
+                  "color": "rgb(26, 26, 26)",
+                  "fontSize": "16px",
+                  "fontWeight": "700",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "margin": "0px",
+                  "padding": "0px",
+                  "textAlign": "start",
+                  "lineHeight": "24px",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "visible",
+                  "position": "static"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "block layout"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": ","
+              },
+              {
+                "type": "element",
+                "tag": "em",
+                "className": "",
+                "rect": {
+                  "x": 314,
+                  "y": 76,
+                  "width": 110,
+                  "height": 18
+                },
+                "style": {
+                  "display": "inline",
+                  "color": "rgb(26, 26, 26)",
+                  "fontSize": "16px",
+                  "fontWeight": "400",
+                  "fontStyle": "italic",
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "margin": "0px",
+                  "padding": "0px",
+                  "textAlign": "start",
+                  "lineHeight": "24px",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "visible",
+                  "position": "static"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "inline emphasis"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": ", and font rendering. The body should fill the full viewport width."
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "div",
+            "className": "box",
+            "rect": {
+              "x": 20,
+              "y": 117,
+              "width": 1160,
+              "height": 106
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(26, 26, 26)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgb(232, 232, 232)",
+              "margin": "20px 0px",
+              "padding": "16px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "element",
+                "tag": "p",
+                "className": "",
+                "rect": {
+                  "x": 37,
+                  "y": 134,
+                  "width": 1126,
+                  "height": 24
+                },
+                "style": {
+                  "display": "block",
+                  "color": "rgb(26, 26, 26)",
+                  "fontSize": "16px",
+                  "fontWeight": "400",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "margin": "0px 0px 12px",
+                  "padding": "0px",
+                  "textAlign": "start",
+                  "lineHeight": "24px",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "visible",
+                  "position": "static"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "This box has a gray background, a border, and padding. It should span the full a..."
+                  }
+                ]
+              },
+              {
+                "type": "element",
+                "tag": "p",
+                "className": "",
+                "rect": {
+                  "x": 37,
+                  "y": 170,
+                  "width": 1126,
+                  "height": 24
+                },
+                "style": {
+                  "display": "block",
+                  "color": "rgb(26, 26, 26)",
+                  "fontSize": "16px",
+                  "fontWeight": "400",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "margin": "0px 0px 12px",
+                  "padding": "0px",
+                  "textAlign": "start",
+                  "lineHeight": "24px",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "visible",
+                  "position": "static"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "A second paragraph inside the box, testing vertical"
+                  },
+                  {
+                    "type": "element",
+                    "tag": "a",
+                    "className": "",
+                    "rect": {
+                      "x": 399,
+                      "y": 173,
+                      "width": 188,
+                      "height": 18
+                    },
+                    "style": {
+                      "display": "inline",
+                      "color": "rgb(0, 85, 170)",
+                      "fontSize": "16px",
+                      "fontWeight": "400",
+                      "fontStyle": "normal",
+                      "backgroundColor": "rgba(0, 0, 0, 0)",
+                      "margin": "0px",
+                      "padding": "0px",
+                      "textAlign": "start",
+                      "lineHeight": "24px",
+                      "textDecoration": "underline",
+                      "visibility": "visible",
+                      "overflow": "visible",
+                      "position": "static"
+                    },
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "stacking of block elements"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "text": "."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "p",
+            "className": "",
+            "rect": {
+              "x": 20,
+              "y": 243,
+              "width": 1160,
+              "height": 24
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(26, 26, 26)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px 0px 12px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "24px",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "text",
+                "text": "Content below the box should not overlap. This tests anonymous block Y-positioni..."
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "p",
+            "className": "",
+            "rect": {
+              "x": 20,
+              "y": 279,
+              "width": 1160,
+              "height": 24
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(26, 26, 26)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px 0px 12px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "24px",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "text",
+                "text": "Non-ASCII test: café, naïve, résumé, — em dash, “smart quotes”."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "viewportCoverage": 43,
+  "imageStats": {
+    "total": 0,
+    "loaded": 0,
+    "broken": 0
+  },
+  "viewport": {
+    "width": 1200,
+    "height": 800
+  }
+}

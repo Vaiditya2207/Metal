@@ -1,0 +1,31 @@
+run
++- run exe metal
+   +- install
+      +- install render_screenshot
+         +- compile exe render_screenshot Debug native 1 errors
+src/render/display_list.zig:106:23: error: unused local constant
+                const bb = box.dimensions.borderBox();
+                      ^~
+error: the following command failed with 1 compilation errors:
+/Users/vaiditya/.asdf/installs/zig/0.15.2/zig build-exe -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/objc_bridge.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/metal_render.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/text_atlas.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/image_bridge.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/svg_bridge.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/screenshot_bridge.m -ODebug -I /Users/vaiditya/Desktop/dev/Metal/src/platform -Mroot=/Users/vaiditya/Desktop/dev/Metal/src/render_screenshot.zig -framework AppKit -framework Foundation -framework Metal -framework MetalKit -framework QuartzCore -framework CoreText -framework CoreGraphics -framework ImageIO -lc --cache-dir .zig-cache --global-cache-dir /Users/vaiditya/.cache/zig --name render_screenshot --zig-lib-dir /Users/vaiditya/.asdf/installs/zig/0.15.2/lib/ --listen=-
+run
++- run exe metal
+   +- compile exe metal Debug native 1 errors
+src/render/display_list.zig:106:23: error: unused local constant
+                const bb = box.dimensions.borderBox();
+                      ^~
+error: the following command failed with 1 compilation errors:
+/Users/vaiditya/.asdf/installs/zig/0.15.2/zig build-exe -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/objc_bridge.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/metal_render.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/text_atlas.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/event_bridge.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/jsc_bridge.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/jsc_bridge_ext.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/net_bridge.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/image_bridge.m -cflags -fobjc-arc -Isrc/platform -- /Users/vaiditya/Desktop/dev/Metal/src/platform/svg_bridge.m -ODebug -I /Users/vaiditya/Desktop/dev/Metal/src/platform -Mroot=/Users/vaiditya/Desktop/dev/Metal/src/main.zig -framework AppKit -framework Foundation -framework Metal -framework MetalKit -framework QuartzCore -framework CoreText -framework CoreGraphics -framework JavaScriptCore -framework ImageIO -lc --cache-dir .zig-cache --global-cache-dir /Users/vaiditya/.cache/zig --name metal --zig-lib-dir /Users/vaiditya/.asdf/installs/zig/0.15.2/lib/ --listen=-
+
+Build Summary: 2/9 steps succeeded; 2 failed
+run transitive failure
++- run exe metal transitive failure
+   +- compile exe metal Debug native 1 errors
+   +- install transitive failure
+      +- install metal transitive failure
+      |  +- compile exe metal Debug native (reused)
+      +- install render_screenshot transitive failure
+         +- compile exe render_screenshot Debug native 1 errors
+
+error: the following build command failed with exit code 1:
+.zig-cache/o/d86c5e4374efb0aa08b00bf7d1d420f3/build /Users/vaiditya/.asdf/installs/zig/0.15.2/zig /Users/vaiditya/.asdf/installs/zig/0.15.2/lib /Users/vaiditya/Desktop/dev/Metal .zig-cache /Users/vaiditya/.cache/zig --seed 0x94e4ba6c -Z52cbecd25947dd40 run -- https://google.com

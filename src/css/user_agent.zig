@@ -25,7 +25,7 @@ const ua_css =
     \\blockquote { display: block; margin-top: 1em; margin-bottom: 1em; margin-left: 40px; margin-right: 40px }
     \\div { display: block }
     \\body { display: block; background-color: #ffffff; color: #000000; margin: 8px }
-    \\html { display: block; background-color: #ffffff; min-height: 100vh }
+    \\html { display: block; background-color: #ffffff }
     \\head { display: none }
     \\title { display: none }
     \\style { display: none }
@@ -43,6 +43,9 @@ const ua_css =
     \\button { display: inline-block; padding-left: 6px; padding-right: 6px; padding-top: 1px; padding-bottom: 1px; border-width: 2px; border-color: #767676; background-color: #f0f0f0 }
     \\form { display: block }
     \\table { display: table }
+    \\thead { display: block }
+    \\tbody { display: block }
+    \\tfoot { display: block }
     \\tr { display: table-row }
     \\td { display: table-cell }
     \\th { display: table-cell; font-weight: bold; text-align: center }

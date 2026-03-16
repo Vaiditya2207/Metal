@@ -115,7 +115,6 @@ const bw = struct {
 };
 
 const jsc_bridge = js.context.JsBridge{ .context_create = &bw.ctxCreate, .context_release = &bw.ctxRelease, .evaluate_script = &bw.eval, .global_object = &bw.global, .make_object = &bw.makeObj, .object_set_property = &bw.setProp, .make_function = &bw.makeFn, .make_string_value = &bw.makeStr, .make_undefined = &bw.makeUndef, .value_to_string = &bw.valToStr, .string_get_utf8 = &bw.strUtf8, .string_release = &bw.strRelease, .value_is_string = &bw.isStr, .value_protect = &bw.valueProtect, .value_unprotect = &bw.valueUnprotect, .make_class_instance = &bw.makeClassInstance, .object_get_private = &bw.objectGetPrivate, .object_get_property = &bw.objectGetProperty, .make_number_value = &bw.makeNumberValue, .value_to_number = &bw.valueToNumber, .value_is_number = &bw.valueIsNumber, .make_null = &bw.makeNull, .call_function = &bw.callFunction, .class_get_user_data = &bw.classGetUserData, .has_exception = &bw.hasException, .get_exception = &bw.getException, .clear_exception = &bw.clearException };
-const toolbar_height: f32 = 40.0;
 
 fn jsConsolePrint(
     ctx_handle: ?*anyopaque,
@@ -263,6 +262,7 @@ const net_bridge = net.fetch.NetBridge{
 
 pub fn main() !void {
     const cfg = config.getConfig();
+    const toolbar_height = cfg.ui.toolbar.height;
     const my_app = try app.App.init();
     _ = my_app;
 

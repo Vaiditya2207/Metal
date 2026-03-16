@@ -13,9 +13,15 @@ mkdir -p "$RESULTS_DIR"
 # Report mode: add --report flag
 
 REPORT_FLAG=""
-if [[ " $* " == *" --report "* ]]; then
-    REPORT_FLAG="--report"
-fi
+TOL_FLAG=""
+FAIL_FLAG=""
+for arg in "$@"; do
+    case "$arg" in
+        --report) REPORT_FLAG="--report" ;;
+        --tol=*) TOL_FLAG="$arg" ;;
+        --fail-under=*) FAIL_FLAG="$arg" ;;
+    esac
+done
 
 run_single() {
     local input="$1"
@@ -34,7 +40,7 @@ run_single() {
 
     # 1. Chrome reference
     echo "[Step 1] Chrome dump..."
-    node "$SCRIPT_DIR/chrome_dump.js" "$input" "$RESULTS_DIR"
+    node "$SCRIPT_DIR/chrome_dump.js" "$input" "$RESULTS_DIR" --name="$base_name"
 
     # 2. Build dump_dom
     echo "[Step 2] Building dump_dom..."
@@ -65,6 +71,8 @@ else
     echo "  ./run_test.sh <html_file_or_url>     Run single test"
     echo "  ./run_test.sh --all                   Run all test pages"
     echo "  ./run_test.sh --all --report          Run all + generate HTML report"
+    echo "  ./run_test.sh --all --tol=5           Set layout tolerance in pixels"
+    echo "  ./run_test.sh --all --fail-under=95   Exit non-zero if accuracy < 95%"
     echo ""
     echo "Available test pages:"
     ls "$PAGES_DIR"/*.html 2>/dev/null || echo "  (none)"
@@ -76,7 +84,7 @@ echo ""
 echo "========================================"
 echo "  Comparing Results"
 echo "========================================"
-node "$SCRIPT_DIR/compare.js" "$RESULTS_DIR" $REPORT_FLAG
+node "$SCRIPT_DIR/compare.js" "$RESULTS_DIR" $REPORT_FLAG $TOL_FLAG $FAIL_FLAG
 
 if [ -f "$RESULTS_DIR/fidelity_report.html" ]; then
     echo ""

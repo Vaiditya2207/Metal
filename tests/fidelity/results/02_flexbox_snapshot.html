@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <title>Fidelity Test 02: Flexbox</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: Helvetica, sans-serif; font-size: 16px; color: #1a1a1a; background: #ffffff; }
+    h2 { font-size: 24px; font-weight: 700; margin: 0 0 12px 0; }
+
+    .flex-row { display: flex; gap: 12px; margin-bottom: 20px; }
+    .flex-item { background: #d0e0f0; padding: 16px; border: 1px solid #88aacc; }
+
+    /* align-items: stretch (L-7) — children should fill cross-axis */
+    .stretch-row { display: flex; align-items: stretch; gap: 12px; margin-bottom: 20px; min-height: 120px; background: #f0f0f0; }
+    .stretch-item { background: #c0d8c0; padding: 12px; border: 1px solid #669966; }
+    .tall-item { min-height: 100px; }
+
+    /* flex-wrap */
+    .wrap-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .wrap-item { width: 200px; background: #f0d0d0; padding: 12px; border: 1px solid #cc8888; }
+  </style>
+</head>
+<body>
+  <h2>Flex Row (no wrap)</h2>
+  <div class="flex-row">
+    <div class="flex-item">Item A</div>
+    <div class="flex-item">Item B with longer content</div>
+    <div class="flex-item">Item C</div>
+  </div>
+
+  <h2>Align-Items: Stretch</h2>
+  <div class="stretch-row">
+    <div class="stretch-item">Short</div>
+    <div class="stretch-item tall-item">Tall item (100px min-height). Other items should stretch to match.</div>
+    <div class="stretch-item">Short</div>
+  </div>
+
+  <h2>Flex Wrap</h2>
+  <div class="wrap-row">
+    <div class="wrap-item">Wrap 1</div>
+    <div class="wrap-item">Wrap 2</div>
+    <div class="wrap-item">Wrap 3</div>
+    <div class="wrap-item">Wrap 4</div>
+    <div class="wrap-item">Wrap 5</div>
+    <div class="wrap-item">Wrap 6</div>
+  </div>
+
+
+</body></html>

@@ -16,11 +16,15 @@ THRESHOLD_FLAG=""
 SKIP_BUILD=0
 MODE=""
 TARGETS=()
+FAIL_UNDER=""
 
 for arg in "$@"; do
     case "$arg" in
         --threshold=*)
             THRESHOLD_FLAG="$arg"
+            ;;
+        --fail-under=*)
+            FAIL_UNDER="${arg#--fail-under=}"
             ;;
         --skip-build)
             SKIP_BUILD=1
@@ -52,6 +56,7 @@ if [[ "$MODE" == "help" ]]; then
     echo ""
     echo "Flags:"
     echo "  --threshold=N    Pass through to visual_compare.js (0..1, default 0.1)"
+    echo "  --fail-under=N   Exit non-zero if match percentage is below N"
     echo "  --skip-build     Skip the 'zig build render-screenshot' step"
     echo ""
     echo "Available test pages:"
@@ -66,6 +71,7 @@ fi
 BUILD_DONE=0
 declare -a SUMMARY_NAMES=()
 declare -a SUMMARY_MATCHES=()
+VISUAL_FAILED=0
 
 # ---------------------------------------------------------------------------
 # Build render-screenshot (once)
@@ -123,7 +129,7 @@ run_visual() {
 
     if [[ "$skip_chrome" != "skip-chrome" ]]; then
         echo "[Step 1] Chrome screenshot..."
-        if node "$SCRIPT_DIR/chrome_dump.js" "$input" "$RESULTS_DIR"; then
+        if node "$SCRIPT_DIR/chrome_dump.js" "$input" "$RESULTS_DIR" --name="$base_name"; then
             echo "[Step 1] Chrome done."
         else
             echo "[Step 1] WARNING: Chrome dump failed — skipping this test"
@@ -171,8 +177,21 @@ run_visual() {
     # Extract match percentage
     local match_pct
     match_pct=$(echo "$compare_output" | grep -o 'Match: [0-9.]*%' | grep -o '[0-9.]*%' || echo "??%")
-    SUMMARY_NAMES+=("$base_name")
-    SUMMARY_MATCHES+=("$match_pct")
+    local match_val
+    match_val=$(echo "$match_pct" | tr -d '%')
+    if [[ -n "$FAIL_UNDER" ]]; then
+        if awk "BEGIN {exit !($match_val < $FAIL_UNDER)}"; then
+            SUMMARY_NAMES+=("$base_name")
+            SUMMARY_MATCHES+=("$match_pct FAIL")
+            VISUAL_FAILED=1
+        else
+            SUMMARY_NAMES+=("$base_name")
+            SUMMARY_MATCHES+=("$match_pct PASS")
+        fi
+    else
+        SUMMARY_NAMES+=("$base_name")
+        SUMMARY_MATCHES+=("$match_pct")
+    fi
 
     echo "[Step 4] Diff saved: $diff_png"
 }
@@ -235,3 +254,7 @@ done
 
 echo "========================================"
 echo ""
+
+if [[ "$VISUAL_FAILED" -eq 1 ]]; then
+    exit 2
+fi

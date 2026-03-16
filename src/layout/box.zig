@@ -187,17 +187,36 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
                         root.intrinsic_height = std.fmt.parseFloat(f32, h) catch 150.0;
                         has_explicit_height = true;
                     }
-                    // If no explicit width/height, try viewBox
+                    // If no explicit width/height, calculate aspect ratio from viewBox
                     if (!has_explicit_width and !has_explicit_height) {
                         if (sn.node.getAttribute("viewBox") orelse sn.node.getAttribute("viewbox")) |vb| {
                             var iter = std.mem.tokenizeAny(u8, vb, " ,");
                             _ = iter.next(); // skip minX
                             _ = iter.next(); // skip minY
-                            if (iter.next()) |vb_w| {
-                                root.intrinsic_width = std.fmt.parseFloat(f32, vb_w) catch 300.0;
-                            }
-                            if (iter.next()) |vb_h| {
-                                root.intrinsic_height = std.fmt.parseFloat(f32, vb_h) catch 150.0;
+                            const vb_w_str = iter.next();
+                            const vb_h_str = iter.next();
+                            if (vb_w_str != null and vb_h_str != null) {
+                                const w_val = std.fmt.parseFloat(f32, vb_w_str.?) catch null;
+                                const h_val = std.fmt.parseFloat(f32, vb_h_str.?) catch null;
+                                if (w_val != null and h_val != null and h_val.? > 0) {
+                                    const raw_w = w_val.?;
+                                    const raw_h = h_val.?;
+                                    // Use viewBox as intrinsic size, but clamp exceptionally large ones
+                                    // to avoid breaking layouts when CSS rules are missed by the engine.
+                                    if (raw_w > 32.0 or raw_h > 32.0) {
+                                        const ratio = raw_w / raw_h;
+                                        if (ratio > 1.0) {
+                                            root.intrinsic_width = 32.0;
+                                            root.intrinsic_height = 32.0 / ratio;
+                                        } else {
+                                            root.intrinsic_height = 32.0;
+                                            root.intrinsic_width = 32.0 * ratio;
+                                        }
+                                    } else {
+                                        root.intrinsic_width = raw_w;
+                                        root.intrinsic_height = raw_h;
+                                    }
+                                }
                             }
                         }
                     }
@@ -226,7 +245,7 @@ pub fn buildLayoutTree(allocator: std.mem.Allocator, styled_node: *const resolve
                 }
             }
 
-            if (root.box_type == .blockNode or root.box_type == .flexNode or root.box_type == .inlineBlockNode) {
+            if (root.box_type == .blockNode or root.box_type == .flexNode or root.box_type == .inlineBlockNode or root.box_type == .tableCellNode) {
                 try self.wrapAnonymousBlocks(root);
             }
 

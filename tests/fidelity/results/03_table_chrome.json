@@ -1,0 +1,929 @@
+{
+  "tree": {
+    "type": "element",
+    "tag": "html",
+    "className": "",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 1200,
+      "height": 271
+    },
+    "style": {
+      "display": "block",
+      "color": "rgb(0, 0, 0)",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "fontStyle": "normal",
+      "backgroundColor": "rgba(0, 0, 0, 0)",
+      "margin": "0px",
+      "padding": "0px",
+      "textAlign": "start",
+      "lineHeight": "normal",
+      "textDecoration": "none",
+      "visibility": "visible",
+      "overflow": "visible",
+      "position": "static"
+    },
+    "children": [
+      {
+        "type": "element",
+        "tag": "head",
+        "className": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "style": {
+          "display": "none",
+          "color": "rgb(0, 0, 0)",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "fontStyle": "normal",
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "margin": "0px",
+          "padding": "0px",
+          "textAlign": "start",
+          "lineHeight": "normal",
+          "textDecoration": "none",
+          "visibility": "visible",
+          "overflow": "visible",
+          "position": "static"
+        },
+        "children": [
+          {
+            "type": "element",
+            "tag": "title",
+            "className": "",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "style": {
+              "display": "none",
+              "color": "rgb(0, 0, 0)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "text",
+                "text": "Fidelity Test 03: Table Layout"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "element",
+        "tag": "body",
+        "className": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1200,
+          "height": 271
+        },
+        "style": {
+          "display": "block",
+          "color": "rgb(26, 26, 26)",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "fontStyle": "normal",
+          "backgroundColor": "rgb(255, 255, 255)",
+          "margin": "0px",
+          "padding": "20px",
+          "textAlign": "start",
+          "lineHeight": "normal",
+          "textDecoration": "none",
+          "visibility": "visible",
+          "overflow": "visible",
+          "position": "static"
+        },
+        "children": [
+          {
+            "type": "element",
+            "tag": "h2",
+            "className": "",
+            "rect": {
+              "x": 20,
+              "y": 20,
+              "width": 1160,
+              "height": 28
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(26, 26, 26)",
+              "fontSize": "24px",
+              "fontWeight": "700",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px 0px 12px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "text",
+                "text": "Table Layout (L-9 double-counting fix)"
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "table",
+            "className": "",
+            "rect": {
+              "x": 20,
+              "y": 60,
+              "width": 1160,
+              "height": 141
+            },
+            "style": {
+              "display": "table",
+              "color": "rgb(26, 26, 26)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "0px 0px 20px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "element",
+                "tag": "thead",
+                "className": "",
+                "rect": {
+                  "x": 21,
+                  "y": 61,
+                  "width": 1159,
+                  "height": 35
+                },
+                "style": {
+                  "display": "table-header-group",
+                  "color": "rgb(26, 26, 26)",
+                  "fontSize": "16px",
+                  "fontWeight": "400",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "margin": "0px",
+                  "padding": "0px",
+                  "textAlign": "start",
+                  "lineHeight": "normal",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "visible",
+                  "position": "static"
+                },
+                "children": [
+                  {
+                    "type": "element",
+                    "tag": "tr",
+                    "className": "",
+                    "rect": {
+                      "x": 21,
+                      "y": 61,
+                      "width": 1159,
+                      "height": 35
+                    },
+                    "style": {
+                      "display": "table-row",
+                      "color": "rgb(26, 26, 26)",
+                      "fontSize": "16px",
+                      "fontWeight": "400",
+                      "fontStyle": "normal",
+                      "backgroundColor": "rgba(0, 0, 0, 0)",
+                      "margin": "0px",
+                      "padding": "0px",
+                      "textAlign": "start",
+                      "lineHeight": "normal",
+                      "textDecoration": "none",
+                      "visibility": "visible",
+                      "overflow": "visible",
+                      "position": "static"
+                    },
+                    "children": [
+                      {
+                        "type": "element",
+                        "tag": "th",
+                        "className": "",
+                        "rect": {
+                          "x": 21,
+                          "y": 61,
+                          "width": 98,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "700",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgb(224, 224, 224)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "Bug ID"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "th",
+                        "className": "",
+                        "rect": {
+                          "x": 119,
+                          "y": 61,
+                          "width": 194,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "700",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgb(224, 224, 224)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "File"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "th",
+                        "className": "",
+                        "rect": {
+                          "x": 313,
+                          "y": 61,
+                          "width": 112,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "700",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgb(224, 224, 224)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "Severity"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "th",
+                        "className": "",
+                        "rect": {
+                          "x": 425,
+                          "y": 61,
+                          "width": 754,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "700",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgb(224, 224, 224)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "Description"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "element",
+                "tag": "tbody",
+                "className": "",
+                "rect": {
+                  "x": 21,
+                  "y": 96,
+                  "width": 1159,
+                  "height": 105
+                },
+                "style": {
+                  "display": "table-row-group",
+                  "color": "rgb(26, 26, 26)",
+                  "fontSize": "16px",
+                  "fontWeight": "400",
+                  "fontStyle": "normal",
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "margin": "0px",
+                  "padding": "0px",
+                  "textAlign": "start",
+                  "lineHeight": "normal",
+                  "textDecoration": "none",
+                  "visibility": "visible",
+                  "overflow": "visible",
+                  "position": "static"
+                },
+                "children": [
+                  {
+                    "type": "element",
+                    "tag": "tr",
+                    "className": "",
+                    "rect": {
+                      "x": 21,
+                      "y": 96,
+                      "width": 1159,
+                      "height": 35
+                    },
+                    "style": {
+                      "display": "table-row",
+                      "color": "rgb(26, 26, 26)",
+                      "fontSize": "16px",
+                      "fontWeight": "400",
+                      "fontStyle": "normal",
+                      "backgroundColor": "rgba(0, 0, 0, 0)",
+                      "margin": "0px",
+                      "padding": "0px",
+                      "textAlign": "start",
+                      "lineHeight": "normal",
+                      "textDecoration": "none",
+                      "visibility": "visible",
+                      "overflow": "visible",
+                      "position": "static"
+                    },
+                    "children": [
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 21,
+                          "y": 96,
+                          "width": 98,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgba(0, 0, 0, 0)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "L-3"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 119,
+                          "y": 96,
+                          "width": 194,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgba(0, 0, 0, 0)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "block_position.zig"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 313,
+                          "y": 96,
+                          "width": 112,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgba(0, 0, 0, 0)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "Critical"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 425,
+                          "y": 96,
+                          "width": 754,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgba(0, 0, 0, 0)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "Anonymous block Y-positioning used container Y instead of accumulated height"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "element",
+                    "tag": "tr",
+                    "className": "",
+                    "rect": {
+                      "x": 21,
+                      "y": 131,
+                      "width": 1159,
+                      "height": 35
+                    },
+                    "style": {
+                      "display": "table-row",
+                      "color": "rgb(26, 26, 26)",
+                      "fontSize": "16px",
+                      "fontWeight": "400",
+                      "fontStyle": "normal",
+                      "backgroundColor": "rgba(0, 0, 0, 0)",
+                      "margin": "0px",
+                      "padding": "0px",
+                      "textAlign": "start",
+                      "lineHeight": "normal",
+                      "textDecoration": "none",
+                      "visibility": "visible",
+                      "overflow": "visible",
+                      "position": "static"
+                    },
+                    "children": [
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 21,
+                          "y": 131,
+                          "width": 98,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgb(248, 248, 248)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "R-10"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 119,
+                          "y": 131,
+                          "width": 194,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgb(248, 248, 248)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "batch.zig"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 313,
+                          "y": 131,
+                          "width": 112,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgb(248, 248, 248)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "High"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 425,
+                          "y": 131,
+                          "width": 754,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgb(248, 248, 248)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "Text batch overflow at 256 quads caused text truncation"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "element",
+                    "tag": "tr",
+                    "className": "",
+                    "rect": {
+                      "x": 21,
+                      "y": 166,
+                      "width": 1159,
+                      "height": 35
+                    },
+                    "style": {
+                      "display": "table-row",
+                      "color": "rgb(26, 26, 26)",
+                      "fontSize": "16px",
+                      "fontWeight": "400",
+                      "fontStyle": "normal",
+                      "backgroundColor": "rgba(0, 0, 0, 0)",
+                      "margin": "0px",
+                      "padding": "0px",
+                      "textAlign": "start",
+                      "lineHeight": "normal",
+                      "textDecoration": "none",
+                      "visibility": "visible",
+                      "overflow": "visible",
+                      "position": "static"
+                    },
+                    "children": [
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 21,
+                          "y": 166,
+                          "width": 98,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgba(0, 0, 0, 0)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "L-9"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 119,
+                          "y": 166,
+                          "width": 194,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgba(0, 0, 0, 0)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "table.zig"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 313,
+                          "y": 166,
+                          "width": 112,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgba(0, 0, 0, 0)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "Medium"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "element",
+                        "tag": "td",
+                        "className": "",
+                        "rect": {
+                          "x": 425,
+                          "y": 166,
+                          "width": 754,
+                          "height": 35
+                        },
+                        "style": {
+                          "display": "table-cell",
+                          "color": "rgb(26, 26, 26)",
+                          "fontSize": "16px",
+                          "fontWeight": "400",
+                          "fontStyle": "normal",
+                          "backgroundColor": "rgba(0, 0, 0, 0)",
+                          "margin": "0px",
+                          "padding": "8px 12px",
+                          "textAlign": "left",
+                          "lineHeight": "normal",
+                          "textDecoration": "none",
+                          "visibility": "visible",
+                          "overflow": "visible",
+                          "position": "static"
+                        },
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "Table height double-counted in parent layout"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "element",
+            "tag": "p",
+            "className": "",
+            "rect": {
+              "x": 20,
+              "y": 221,
+              "width": 1160,
+              "height": 18
+            },
+            "style": {
+              "display": "block",
+              "color": "rgb(26, 26, 26)",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "backgroundColor": "rgba(0, 0, 0, 0)",
+              "margin": "12px 0px",
+              "padding": "0px",
+              "textAlign": "start",
+              "lineHeight": "normal",
+              "textDecoration": "none",
+              "visibility": "visible",
+              "overflow": "visible",
+              "position": "static"
+            },
+            "children": [
+              {
+                "type": "text",
+                "text": "Content below the table should not overlap with the table. This verifies the L-9..."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "viewportCoverage": 35,
+  "imageStats": {
+    "total": 0,
+    "loaded": 0,
+    "broken": 0
+  },
+  "viewport": {
+    "width": 1200,
+    "height": 800
+  }
+}
