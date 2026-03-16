@@ -21,3 +21,6 @@ node_modules/
 tests/fidelity/google_snapshot.html
 tests/fidelity/chrome_dump.json
 tests/fidelity/metal_dump.json
+
+# Logs file
+*.log
