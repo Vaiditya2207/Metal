@@ -1,0 +1,73 @@
+name: Production Release (CD)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version (e.g., 0.2.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    name: Build and Ship Production Browser
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Update Version and Changelog (Manual Dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          chmod +x scripts/update_version.sh
+          ./scripts/update_version.sh ${{ inputs.version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add build.zig.zon package.json src/main.zig CHANGELOG.md
+          git commit -m "chore: release ${{ inputs.version }}"
+          git push origin main
+          echo "NEW_TAG=v${{ inputs.version }}" >> $GITHUB_ENV
+
+      - name: Get current version (Push to Main)
+        if: github.event_name == 'push'
+        run: |
+          VERSION=$(grep -oE '\.version = "[^"]+"' build.zig.zon | cut -d'"' -f2)
+          echo "NEW_TAG=v$VERSION" >> $GITHUB_ENV
+
+      - name: Build Production Artifact
+        run: |
+          # Build release version optimized for Apple Silicon
+          zig build -Doptimize=ReleaseFast -Dtarget=aarch64-macos
+          
+          mkdir -p dist
+          cp zig-out/bin/metal dist/Metal-Browser
+          # Zip the bundle
+          cd dist && zip -r ../Metal-Browser-macOS-AppleSilicon.zip Metal-Browser
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.NEW_TAG }}
+          files: Metal-Browser-macOS-AppleSilicon.zip
+          body_path: CHANGELOG.md
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
