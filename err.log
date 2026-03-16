@@ -1,9 +1,0 @@
-tests/net/fetch_tests.zig:3:23: error: import of file outside module path
-const fetch = @import("../../src/net/fetch.zig");
-                      ^~~~~~~~~~~~~~~~~~~~~~~~~
-tests/net/fetch_tests.zig:4:23: error: import of file outside module path
-const types = @import("../../src/net/types.zig");
-                      ^~~~~~~~~~~~~~~~~~~~~~~~~
-tests/net/fetch_tests.zig:5:24: error: import of file outside module path
-const config = @import("../../src/config.zig");
-                       ^~~~~~~~~~~~~~~~~~~~~~
