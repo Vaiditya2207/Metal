@@ -44,14 +44,14 @@ function normalizeMetalRoot(metal) {
   return metal;
 }
 
-function flatten(node, pathPrefix, list, depth, isChrome, insideSvg, childIdx) {
+function flatten(node, pathPrefix, list, depth, isChrome, insideSvg, tagIdx) {
   list = list || [];
   depth = depth || 0;
   insideSvg = insideSvg || false;
   if (!node) return list;
 
-  const tag = node.tag || '';
-  const path = (pathPrefix ? pathPrefix + '/' : '') + tag + '[' + (childIdx || 0) + ']';
+  const tag = (node.tag || node.type || '').toLowerCase();
+  const path = (pathPrefix ? pathPrefix + '/' : '') + tag + '[' + (tagIdx || 0) + ']';
 
   const r = node.rect || {};
   const w = r.width || 0;
@@ -66,12 +66,18 @@ function flatten(node, pathPrefix, list, depth, isChrome, insideSvg, childIdx) {
   const isSvg = tag === 'svg';
   const isSvgChild = insideSvg;
 
-  if (!isSvgChild) {
+  if (!isSvgChild && tag !== '#text' && tag !== 'document') {
     list.push({ path, tag, id, cls, x: r.x || 0, y: r.y || 0, w: w, h: h, depth });
   }
 
   const childInsideSvg = insideSvg || isSvg;
-  (node.children || []).forEach((c, i) => flatten(c, path, list, depth + 1, isChrome, childInsideSvg, i));
+  const childTagCounts = {};
+  (node.children || []).forEach((c) => {
+    const ctag = (c.tag || c.type || '').toLowerCase();
+    const cidx = childTagCounts[ctag] || 0;
+    childTagCounts[ctag] = cidx + 1;
+    flatten(c, path, list, depth + 1, isChrome, childInsideSvg, cidx);
+  });
   return list;
 }
 

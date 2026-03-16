@@ -92,6 +92,12 @@ jobs:
       - name: Run Aggregate & Benchmark
         working-directory: tests/fidelity
         run: node aggregate_results.js
+      - name: Upload Aggregate Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggregate-results
+          path: tests/fidelity/results/
       - name: Comment on PR
         if: always()
         env:
