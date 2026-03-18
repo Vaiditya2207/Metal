@@ -41,7 +41,7 @@ async function run() {
         return path.basename(input, path.extname(input));
     }
 
-    const baseName = nameOverride || deriveBaseName(inputPath);
+    const baseName = (nameOverride || deriveBaseName(inputPath)).replace(/[^\w-]/g, '-');
 
     console.log(`[Chrome] Launching Headless Chrome for ${url}...`);
     const browser = await puppeteer.launch({

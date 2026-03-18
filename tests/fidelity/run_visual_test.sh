@@ -112,7 +112,7 @@ run_visual() {
     # Derive base_name if not provided
     if [[ -z "$base_name" ]]; then
         if [[ "$input" == http* ]]; then
-            base_name="$(echo "$input" | sed 's|https\?://||; s|/.*||; s|\.|-|g')"
+            base_name="$(echo "$input" | sed -E 's|https?://||; s|/.*||; s|\.|-|g')"
         else
             base_name="$(basename "$input" .html)"
         fi

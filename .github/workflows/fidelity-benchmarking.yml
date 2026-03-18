@@ -1,0 +1,108 @@
+name: Master CI & Fidelity Benchmark
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Logic Tests
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+      - name: Run Engine Tests
+        run: zig build test
+
+  dom-fidelity:
+    name: DOM Fidelity
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install dependencies
+        working-directory: tests/fidelity
+        run: npm install
+      - name: Run DOM Tests
+        working-directory: tests/fidelity
+        run: npm run dom
+
+  visual-fidelity:
+    name: Visual Fidelity
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install dependencies
+        working-directory: tests/fidelity
+        run: npm install
+      - name: Run Visual Tests
+        working-directory: tests/fidelity
+        run: npm run visual
+      - name: Upload Visual Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-results
+          path: tests/fidelity/results/
+
+  benchmark-report:
+    name: Unified Report & Benchmark
+    needs: [unit-tests, dom-fidelity, visual-fidelity]
+    if: always()
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install dependencies
+        working-directory: tests/fidelity
+        run: npm install
+      - name: Run Aggregate & Benchmark
+        working-directory: tests/fidelity
+        run: node aggregate_results.js
+      - name: Upload Aggregate Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggregate-results
+          path: tests/fidelity/results/
+      - name: Comment on PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f tests/fidelity/results/pr_comment.md ]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body-file tests/fidelity/results/pr_comment.md
+          fi

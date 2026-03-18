@@ -44,11 +44,14 @@ function normalizeMetalRoot(metal) {
   return metal;
 }
 
-function flatten(node, list, depth, isChrome, insideSvg) {
+function flatten(node, pathPrefix, list, depth, isChrome, insideSvg, tagIdx) {
   list = list || [];
   depth = depth || 0;
   insideSvg = insideSvg || false;
   if (!node) return list;
+
+  const tag = (node.tag || node.type || '').toLowerCase();
+  const path = (pathPrefix ? pathPrefix + '/' : '') + tag + '[' + (tagIdx || 0) + ']';
 
   const r = node.rect || {};
   const w = r.width || 0;
@@ -57,47 +60,47 @@ function flatten(node, list, depth, isChrome, insideSvg) {
   const rawCls = isChrome ? (node.cls || node.className || '') : (node.className || '');
   let clsParts = typeof rawCls === 'string' ? rawCls.split(' ').filter(Boolean) : [];
   if (clsParts.some(c => c.includes('SVGAnimatedString'))) clsParts = [];
-  const tag = node.tag || '';
   if (tag === 'svg') clsParts = [];
   let cls = clsParts.slice(0, 3).sort().join(' ');
 
   const isSvg = tag === 'svg';
   const isSvgChild = insideSvg;
 
-  if (!isSvgChild) {
-    list.push({ tag, id, cls, x: r.x || 0, y: r.y || 0, w: w, h: h, depth });
+  if (!isSvgChild && tag !== '#text' && tag !== 'document') {
+    list.push({ path, tag, id, cls, x: r.x || 0, y: r.y || 0, w: w, h: h, depth });
   }
 
   const childInsideSvg = insideSvg || isSvg;
-  (node.children || []).forEach(c => flatten(c, list, depth + 1, isChrome, childInsideSvg));
+  const childTagCounts = {};
+  (node.children || []).forEach((c) => {
+    const ctag = (c.tag || c.type || '').toLowerCase();
+    const cidx = childTagCounts[ctag] || 0;
+    childTagCounts[ctag] = cidx + 1;
+    flatten(c, path, list, depth + 1, isChrome, childInsideSvg, cidx);
+  });
   return list;
 }
 
 function compareTrees(chromeJson, metalJson) {
   const chromeRoot = normalizeChromeRoot(chromeJson);
   const metalRoot = normalizeMetalRoot(metalJson);
-  const cn = flatten(chromeRoot, null, 0, true);
-  const mn = flatten(metalRoot, null, 0, false);
+  const cn = flatten(chromeRoot, '', null, 0, true, false, 0);
+  const mn = flatten(metalRoot, '', null, 0, false, false, 0);
+
+  const metalByPath = new Map();
+  for (const m of mn) metalByPath.set(m.path, m);
 
   let match = 0;
   let total = 0;
   const mismatches = [];
 
-  // Match nodes by tree position (index).
-  // This is much more reliable than matching by class/tag when the trees have slight structural differences.
-  const maxIdx = Math.max(cn.length, mn.length);
+  for (const c of cn) {
+    if (!c.tag || c.tag === '#text') continue;
+    if (c.w === 0 && c.h === 0) continue;
+    total++;
 
-  for (let i = 0; i < maxIdx; i++) {
-    const c = cn[i];
-    const m = mn[i];
-
-    if (c) {
-      if (!c.tag || c.tag === '#text') continue;
-      if (c.w === 0 && c.h === 0) continue;
-      total++;
-    }
-
-    if (c && m) {
+    const m = metalByPath.get(c.path);
+    if (m) {
       const ckey = c.id + '|' + c.cls + '|' + c.tag;
       const mkey = m.id + '|' + m.cls + '|' + m.tag;
 
@@ -108,14 +111,14 @@ function compareTrees(chromeJson, metalJson) {
         match++;
       } else {
         mismatches.push({
-          key: ckey,
+          key: ckey + ' (' + c.path + ')',
           chrome: { x: c.x, y: c.y, w: c.w, h: c.h, tag: c.tag },
           metal: { x: m.x, y: m.y, w: m.w, h: m.h, tag: m.tag }
         });
       }
-    } else if (c) {
+    } else {
       const ckey = c.id + '|' + c.cls + '|' + c.tag;
-      mismatches.push({ key: ckey, chrome: { x: c.x, y: c.y, w: c.w, h: c.h }, metal: 'NOT FOUND' });
+      mismatches.push({ key: ckey + ' (' + c.path + ')', chrome: { x: c.x, y: c.y, w: c.w, h: c.h }, metal: 'NOT FOUND' });
     }
   }
 

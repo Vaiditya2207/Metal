@@ -16,13 +16,16 @@ fn resolveLineHeightRatio(style: *const properties.ComputedStyle) f32 {
     return style.line_height;
 }
 
-/// Returns true if the text contains at least one printable non-whitespace ASCII
-/// character (33-126). Used to skip text runs that are entirely non-ASCII
-/// (e.g. Indic scripts) since the text atlas only supports ASCII glyphs.
-fn hasRenderableAscii(text_bytes: []const u8) bool {
+/// Returns true if the text contains at least one non-whitespace character.
+/// Used to skip text runs that are entirely whitespace since they don't
+/// produce any visible marks, while allowing non-ASCII punctuation and
+/// symbols that contribute to the layout.
+fn hasRenderableContent(text_bytes: []const u8) bool {
     for (text_bytes) |byte| {
-        // 33 = '!', 126 = '~'  — excludes space, tabs, control chars
-        if (byte >= 33 and byte <= 126) return true;
+        // Any byte that isn't a space, tab, newline, or carriage return
+        // is considered potentially renderable. This includes non-ASCII
+        // multi-byte sequences.
+        if (byte != ' ' and byte != '\t' and byte != '\n' and byte != '\r') return true;
     }
     return false;
 }
@@ -392,13 +395,11 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
         }
 
         if (run.width > 0) {
-            // R-7b FIX: Skip text runs with no printable ASCII characters.
-            // The text atlas only supports ASCII glyphs (32-126). Non-ASCII text
-            // (Hindi, Bengali, etc.) gets mapped to '?' producing a dense black
-            // block. Skip the entire run if it has no renderable ASCII content.
-            if (!hasRenderableAscii(run.text)) {
-                // DEBUG: Log skipped non-ASCII text runs
-                std.debug.print("[DEBUG-SKIP] non-ASCII text at y={d:.0} w={d:.0} len={d} bytes=0x{x}...\n", .{ run.y, run.width, run.text.len, run.text[0] });
+            // R-7b FIX: Skip text runs with no renderable content (pure whitespace).
+            // We allow non-ASCII sequences (like em-dash, smart quotes) to be sent
+            // to the renderer to maintain layout fidelity, even if the current
+            // font atlas might fall back to '?'.
+            if (!hasRenderableContent(run.text)) {
                 continue;
             }
 

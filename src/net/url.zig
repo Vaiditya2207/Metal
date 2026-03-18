@@ -118,7 +118,7 @@ pub const Url = struct {
     }
 
     /// Format the URL into an allocated string.
-    pub fn format(self: Url, allocator: std.mem.Allocator) ![]u8 {
+    pub fn toString(self: Url, allocator: std.mem.Allocator) ![]u8 {
         const port_str = if ((std.mem.eql(u8, self.scheme, "http") and self.port == 80) or
             (std.mem.eql(u8, self.scheme, "https") and self.port == 443))
             ""
