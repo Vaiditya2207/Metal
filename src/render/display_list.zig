@@ -315,11 +315,20 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                 },
                 else => box.dimensions.content.x + 4.0,
             };
+
+            const font_size = sn.style.font_size.value;
+            const line_height_ratio = resolveLineHeightRatio(&sn.style);
+            const line_height = font_size * line_height_ratio;
+
+            const content = box.dimensions.content;
+            const line_top = content.y + @max(0.0, (content.height - line_height) * 0.5);
+            const text_top = line_top + @max(0.0, (line_height - font_size) * 0.5);
+
             const rect = layout_box.Rect{
                 .x = text_x,
-                .y = box.dimensions.content.y + 2.0,
-                .width = box.dimensions.content.width,
-                .height = box.dimensions.content.height - 4.0,
+                .y = text_top,
+                .width = content.width,
+                .height = font_size,
             };
 
             if (val.len > 0) {
@@ -328,7 +337,7 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
                         .text = try dl.allocator.dupe(u8, val),
                         .rect = rect,
                         .color = c,
-                        .font_size = sn.style.font_size.value,
+                        .font_size = font_size,
                         .font_weight = sn.style.font_weight,
                         .text_owned = true,
                     },
@@ -337,15 +346,15 @@ fn walkLayoutTree(dl: *DisplayList, box: *const layout_box.LayoutBox, focused_no
 
             if (focused_node) |f_node| {
                 if (f_node == sn.node) {
-                    const text_w = text_measure.measureTextWidth(val, sn.style.font_size.value, sn.style.font_weight);
+                    const text_w = text_measure.measureTextWidth(val, font_size, sn.style.font_weight);
                     const cursor_x = @min(rect.x + text_w, rect.x + rect.width - 2.0);
                     try dl.commands.append(dl.allocator, .{
                         .draw_rect = .{
                             .rect = .{
                                 .x = cursor_x,
-                                .y = rect.y,
+                                .y = text_top,
                                 .width = 2.0,
-                                .height = sn.style.font_size.value,
+                                .height = font_size,
                             },
                             .color = c,
                             .radius = 0.0,
